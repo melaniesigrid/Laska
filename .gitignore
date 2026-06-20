@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# SQLite dev database (durable local storage)
+*.db
+*.db-shm
+*.db-wal
+.gstack/

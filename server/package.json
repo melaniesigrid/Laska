@@ -1,0 +1,25 @@
+{
+  "name": "laska-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Server-authoritative backend for Laska: accounts, real-time matches, matchmaking, Elo ranking.",
+  "scripts": {
+    "dev": "node --experimental-transform-types --watch src/index.ts",
+    "start": "node --experimental-transform-types src/index.ts",
+    "test": "node --experimental-transform-types --test \"test/**/*.test.ts\"",
+    "test:redis": "REDIS_URL=${REDIS_URL:-redis://127.0.0.1:6390/0} node --experimental-transform-types --test test/redis.integration.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pg": "^8.13.1",
+    "redis": "^4.7.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/pg": "^8.11.10",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "laska-engine",
+  "version": "1.0.0",
+  "description": "Standalone, tested rules engine for Laska (Lasca) — Emanuel Lasker's column-capturing draughts variant.",
+  "type": "module",
+  "main": "src/index.ts",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "laska",
+    "lasca",
+    "draughts",
+    "checkers",
+    "board-game",
+    "game-engine"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^5.9.3"
+  }
+}
