@@ -14,6 +14,19 @@ Each file here is one "engineer": a charter + the files it owns + its verify loo
 | `growth-monetization-engineer` | streaks/puzzles/billing/analytics | Retention + revenue. **Hard gate: no real-money tournaments.** |
 | `seo-discoverability-engineer` | `web/index.html` head, `web/public/`, `web/src/seo/`, `vercel.json` | Organic discoverability: crawlable URLs, meta/OG, JSON-LD, sitemap. Flagship fix: the SPA has no per-page URLs. |
 | `puzzle-generator-engineer` *(proposed)* | `web/src/puzzles/`, `PUZZLES.md` | Daily tactical puzzle: mine forcing moments from finished games, **engine-verify** the best move, surface a deterministic puzzle-of-the-day. Consumes engine + historic games read-only. |
+| `opening-book-curator-engineer` *(proposed)* | `web/src/openings.ts`, `openingsData.ts`, `OpeningsPage.tsx`, `OPENINGS.md` | Opening theory/repertoire: Lasker's named openings + lines as **engine-validated** data and a read-only study page. Distinct from historic GAMES (heritage) and interactive LESSONS (tutorial). |
+| `i18n-localization-engineer` *(proposed)* | `web/src/i18n/` (catalogs, provider, `useTranslation`, `keys.ts`), `I18N.md` | Translation infra + locale content the SEO re-arch deferred. Owns NEW i18n files only; consumes router/SEO head read-only (no `seo/`, `index.html`, `vercel.json`, `App.tsx`). |
+
+Charters marked *(proposed)* are validated drafts awaiting a human promote + probation run — not yet trusted to run unattended.
+
+## Adding a new engineer (the charter factory)
+New domain that needs an owner? Don't hand-write a charter — staff it with the meta-agent.
+
+- **`charter-smith`** — the meta-engineer that staffs the org. Reads the current roster, fills `TEMPLATE.txt` in the house voice, chooses owned files disjoint from every existing engineer, and runs the gate. It *drafts only*: a human promotes the charter into the live roster and grants trust (drafting is reversible, trust is not). Recursion is capped at one level — it staffs *workers*, never another meta-agent.
+- **`validate-charter.mjs`** — the deterministic gate, an exit code rather than a judgment call. Enforces one-owner-per-file ownership disjointness, unique names, required sections, and real verify-loop commands.
+  - `node .claude/agents/validate-charter.mjs <path>` — gate one new charter (must exit 0).
+  - `node .claude/agents/validate-charter.mjs --roster` — regression-check the whole org stays green.
+- **`TEMPLATE.txt`** — the fill-in charter every worker is built from. Kept as `.txt` so the agent loader can't register the template itself as a phantom engineer.
 
 ## Reused gstack skills (not duplicated here)
 - **Design / neumorphism review** → `/design-review`, scoped by reading `Laska/DESIGN.md`.
