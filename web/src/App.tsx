@@ -12,6 +12,9 @@ import {
   Trophy,
   Minus,
   Star,
+  Save,
+  Check,
+  Library,
 } from 'lucide-react';
 import {
   createInitialState,
@@ -38,6 +41,16 @@ import { ReplayPage } from './ReplayPage.tsx';
 import { BrochurePage } from './BrochurePage.tsx';
 import { AIPage } from './AIPage.tsx';
 import { BuildStoryPage } from './BuildStoryPage.tsx';
+import { MyGamesPage } from './MyGamesPage.tsx';
+import { SavedGameReplay } from './SavedGameReplay.tsx';
+import {
+  buildSavedGame,
+  mergeIntoSave,
+  getSavedGame,
+  upsertSavedGame,
+  type SavedResult,
+  type NewGameInput,
+} from './savedGames.ts';
 import {
   PieceThemeContext,
   PIECE_THEMES,
@@ -124,9 +137,10 @@ function advanceColumnIds(ids: (string | null)[], prevBoard: Board, move: Move):
 
 export function App() {
   const [view, setView] = useState<
-    'landing' | 'game' | 'lasker' | 'replay' | 'brochure' | 'ai' | 'build'
+    'landing' | 'game' | 'lasker' | 'replay' | 'brochure' | 'ai' | 'build' | 'mygames' | 'watch'
   >('landing');
   const [replayGameId, setReplayGameId] = useState<string | undefined>(undefined);
+  const [watchId, setWatchId] = useState<string | undefined>(undefined);
   const [appMode, setAppMode] = useState<'local' | 'online'>('local');
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
@@ -158,6 +172,11 @@ export function App() {
   const goReplay = (id?: string) => {
     setReplayGameId(id);
     setView('replay');
+  };
+
+  const goWatch = (id: string) => {
+    setWatchId(id);
+    setView('watch');
   };
 
   if (view === 'landing') {
@@ -212,6 +231,21 @@ export function App() {
       />
     );
   }
+  if (view === 'mygames') {
+    return (
+      <MyGamesPage onBack={() => setView('landing')} onWatch={goWatch} onPlay={() => setView('game')} />
+    );
+  }
+  if (view === 'watch' && watchId) {
+    return (
+      <SavedGameReplay
+        id={watchId}
+        onBack={() => setView('mygames')}
+        onMyGames={() => setView('mygames')}
+        pieceTheme={pieceTheme}
+      />
+    );
+  }
 
   return (
     <PieceThemeContext.Provider value={pieceTheme}>
@@ -252,6 +286,9 @@ export function App() {
           >
             <Star size={16} /> {PIECE_THEME_LABEL[pieceTheme]}
           </button>
+          <button className="btn" onClick={() => setView('mygames')} aria-label="Your saved games">
+            <Library size={16} /> My games
+          </button>
         </div>
       </header>
 
@@ -261,7 +298,11 @@ export function App() {
         <div className="sub">The stacking draughts</div>
       </div>
 
-      {appMode === 'local' ? <LocalGame onLearnAI={() => setView('ai')} /> : <OnlinePanel online={online} />}
+      {appMode === 'local' ? (
+        <LocalGame onLearnAI={() => setView('ai')} onOpenMyGames={() => setView('mygames')} />
+      ) : (
+        <OnlinePanel online={online} />
+      )}
 
       <footer className="foot">
         {appMode === 'local'
@@ -273,13 +314,21 @@ export function App() {
   );
 }
 
-function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
+function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpenMyGames: () => void }) {
   const [state, setState] = useState<GameState>(() => createInitialState());
   const [mode, setMode] = useState<Mode>('ai');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [aiColor, setAiColor] = useState<PlayerColor>('B');
   const [selected, setSelected] = useState<number | null>(null);
   const [history, setHistory] = useState<GameState[]>([]);
+  // The committed moves of the current game, kept in lockstep with `history` so a
+  // game can be saved and rewatched. Each committed move appends one entry; undo
+  // and new-game trim/clear it exactly as they do `history`.
+  const [moves, setMoves] = useState<Move[]>([]);
+  // The id of the save this game is backed by, once saved — so a second Save
+  // updates that record (carrying its notes) instead of duplicating it.
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [colIds, setColIds] = useState<(string | null)[]>(() => freshColumnIds(state.board));
   const [moveFx, setMoveFx] = useState<MoveFx | null>(null);
@@ -311,6 +360,8 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
    *  moved column glides to its destination. The one path both human and AI use. */
   const playMove = useCallback((prev: GameState, move: Move) => {
     setHistory((h) => [...h, prev]);
+    setMoves((m) => [...m, move]);
+    setJustSaved(false); // the saved snapshot is now stale until re-saved
     setColIds((ids) => advanceColumnIds(ids, prev.board, move));
     // One-shot reward feedback on the landing square: tuck prisoners under the
     // cap and pop a fresh promotion. Cleared (null) on quiet, non-promoting moves.
@@ -372,6 +423,9 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
     setColIds(freshColumnIds(fresh.board));
     setMoveFx(null);
     setHistory([]);
+    setMoves([]);
+    setSavedId(null);
+    setJustSaved(false);
     setSelected(null);
     setThinking(false);
   }, []);
@@ -391,9 +445,40 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
       // backwards, which would read as a strange reverse-capture.
       setColIds(freshColumnIds(restored.board));
       setMoveFx(null);
+      // keep the move list in lockstep with the trimmed history
+      setMoves((m) => m.slice(0, target));
+      setJustSaved(false);
       return h.slice(0, target);
     });
   }, [mode, aiColor]);
+
+  /** Persist the current game to the local library. Re-saving an already-saved
+   *  game updates that record (and keeps any notes added to it) rather than
+   *  creating a duplicate. */
+  const saveGame = useCallback(() => {
+    if (moves.length === 0) return;
+    let result: SavedResult = 'unfinished';
+    let resultReason: string | undefined;
+    if (status.state === 'win') {
+      result = status.winner;
+      resultReason = status.reason;
+    } else if (status.state === 'draw') {
+      result = 'draw';
+      resultReason = status.reason;
+    }
+    const input: NewGameInput = {
+      moves,
+      mode,
+      result,
+      ...(resultReason ? { resultReason } : {}),
+      ...(mode === 'ai' ? { difficulty, aiColor } : {}),
+    };
+    const existing = savedId ? getSavedGame(savedId) : undefined;
+    const saved = existing ? mergeIntoSave(existing, input) : buildSavedGame(input);
+    upsertSavedGame(saved);
+    setSavedId(saved.id);
+    setJustSaved(true);
+  }, [moves, mode, status, difficulty, aiColor, savedId]);
 
   const statusLine = useMemo(() => {
     if (status.state === 'win') return `${COLOR_NAME[status.winner]} wins — ${status.reason.replace('-', ' ')}.`;
@@ -449,6 +534,18 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
             <Users size={15} /> Two players
           </button>
         </div>
+      </div>
+
+      <div className="controls">
+        <button className="btn" onClick={saveGame} disabled={moves.length === 0}>
+          {justSaved ? <Check size={16} /> : <Save size={16} />}{' '}
+          {justSaved ? 'Saved' : savedId ? 'Update save' : 'Save game'}
+        </button>
+        {justSaved && (
+          <button className="btn" onClick={onOpenMyGames}>
+            <Library size={16} /> Watch &amp; annotate
+          </button>
+        )}
       </div>
 
       {mode === 'ai' && (
