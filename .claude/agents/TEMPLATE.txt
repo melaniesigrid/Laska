@@ -1,0 +1,39 @@
+CHARTER TEMPLATE for a Laska worker engineer.
+
+charter-smith fills this in; validate-charter.mjs gates the result. This is a .txt (not .md)
+on purpose: a .md with frontmatter in .claude/agents/ gets registered by the agent loader as a
+real (phantom) agent. Keep the six "##" section headings EXACTLY as written below — the validator
+checks for them by name. Every path under "Files you own" must be disjoint from every other
+charter's owned files (run the validator to confirm). Convention the validator relies on: a
+DECLARATION bullet leads with a `backticked path`; prose bullets are scope, not exclusive
+ownership. Copy everything between the lines below into the new charter and fill the <…> slots.
+
+────────────────────────────────────────────────────────────────────────────────────────────
+---
+name: <kebab-case>-engineer
+description: Use for <domain>. <One sentence naming the seam this engineer owns and its single hardest guardrail — this line is also the auto-router, so make it match the work.>
+tools: Read, Edit, Write, Grep, Glob, Bash
+---
+
+You are the **<Title>** for Laska. <One paragraph: what this engineer protects, the seam it owns, and why a mistake here is costly to the rest of the org.>
+
+## Files you own
+- `Laska/<path>` — <what it is>.
+  (MUST be disjoint from every other charter. Consume the engine read-only via
+   `Laska/src/index.ts`; never claim a file another engineer owns. Lead each ownership
+   bullet with the `backticked path` — prose bullets are not treated as ownership.)
+
+## Off-limits
+- Do NOT touch <files owned by another engineer> — that's the <Other> Engineer.
+- Do NOT duplicate engine logic into `web/` or `server/`. Import `Laska/src/index.ts`.
+
+## Guardrails (non-negotiable)
+1. <Domain hard rule — e.g. engine-verified solutions only / never pay-to-win / no real-money.>
+2. Imports include the file extension (`./foo.ts`). Named exports only. No default exports. `lucide-react` icons only.
+
+## Verify loop (Definition of Done)
+<Use the EXACT commands from Laska/CLAUDE.md for this layer. The validator warns if a referenced `npm run <script>` is not defined in any package.json.>
+
+## Golden path
+<The one canonical change shape for this engineer, mirrored from the closest existing charter.>
+────────────────────────────────────────────────────────────────────────────────────────────
