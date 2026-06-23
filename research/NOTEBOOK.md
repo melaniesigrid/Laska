@@ -76,17 +76,65 @@ An append-only lab notebook for experiments run on Laska, mostly via the
 
 ---
 
+## EXP-003 — Do the §1/§2 positional eval terms earn their keep?
+- **Date:** 2026-06-22 · **Thread:** A · **Run by:** `game-ai-engineer`
+- **Question:** `edgeSafety` (w=4) + `overConcentration` (w=5) in `src/ai.ts` (from STRATEGY.md §1/§2) pass unit tests — but do they improve *play*?
+- **Method:** A/B self-play, WITH (current weights) vs WITHOUT (those two zeroed), equal depth, colour-balanced, seeds 1/2/3. Per-term isolation too.
+- **Result:** depth 4 → +1/−4/+0 (wash, net negative); depth 3 → +0/−10/−4 (terms HURT); stacking both is worse than either alone. Ladder stays monotonic; cost ≈ free (+0.7% nodes). **Verdict: terms don't earn their keep** (consistent with A3 — `DEFAULT_WEIGHTS` at a local optimum).
+- **Verify:** typecheck clean; tests pass (57). No production change made.
+- **Findings:** A5; B4 (unit tests insufficient as a strength gate); B3 reinforced (brief mis-stated commit state; agent verified the real tree before measuring).
+
+## EXP-004 — Fix-and-prove the §1/§2 weights (DIED — process exit)
+- **Date:** 2026-06-23 · **Thread:** A · **Run by:** `game-ai-engineer` (worktree-isolated, background) · **Status:** ⚠️ LOST
+- **Mandate (CEO):** under gate D-001, find weights that beat baseline at both depths or zero them with evidence; land on branch `ai/exp004-positional-eval-weights`.
+- **Outcome:** the background agent was killed by a parent-process exit before committing. No branch, no worktree survived (auto-pruned), no `DEFAULT_WEIGHTS` change reached the main tree (still 4/5). Its scratch A/B harness persisted (`scratchpad/ab-eval.ts`) and can re-derive the answer. See finding **B6**. To be re-run.
+
+## Reconnaissance R-001 — the AI codebase has bifurcated (2026-06-23)
+Read-only survey. Two AI codebases: **production** `src/ai.ts` (`chooseMove` + DIFFICULTY tiers + `evaluate`; the web AI worker imports it — what EXP-001→004 measured) and a **research layer** `src/agents/` (typed pluggable `random`/`greedy`/`search`-with-**quiescence**/`mcts`, a named `ROSTER`/`LADDER`, and `arena.ts` with `roundRobin`/`Standing`). No app/server code imports the research layer (grep-confirmed) — it's not wired in. Implications: duplicated arena (→ B5/D-002); the research `SearchAgent` has quiescence, the prime lever for **A2**; unresolved strategic fork (is `src/agents/` the future production engine?). → motivated EXP-005.
+
+## EXP-005 — Does quiescence earn a production migration?
+- **Date:** 2026-06-23 · **Thread:** A · **Run by:** `game-ai-engineer` (died on process exit); **recovered + run by main loop** from the surviving scratch harness `scratchpad/exp005.ts` (import paths re-absolutized).
+- **Pre-registered bar:** quiescence-on beats quiescence-off head-to-head at equal depth across all 3 seeds AND materially cuts the ply-cap draw rate, at acceptable cost.
+- **Method:** `createSearchAgent({quiescence})` A/B at equal depth, `blunderRate:0`, colour-balanced, seeds 1/2/3, 12 games/seed, via the canonical `src/agents/arena.ts` (per D-002). MAXPLIES=200. Modes: `ab4`, `ab6`, `cost`, `parity`, `ladder`.
+- **Result — depth 4 (verbatim):** `q-on 23W / q-off 1W / 12D over 36 games`; ply-cap draws **2/36 = 6%**; avgPlies≈108. Per seed: 8/0/4, 7/1/4, 8/0/4 — **q-on never lost a seed.** Ladder smoke: monotonic, decisive (Viktor w/ quiescence: 0 draws).
+- **Result — depth 6 / cost / parity:** ⏳ battery running in background at log time; APPEND verbatim when complete. (Parity wraps production `chooseMove` w/ a `quiescence` flag vs the research `SearchAgent` — tests whether migration is a one-line flag-flip.)
+- **Key discovery:** production `chooseMove` already accepts a `quiescence` option (+ `qNodes` stats) — so quiescence is plumbed into the *production* engine, likely just not enabled in the DIFFICULTY tiers. Migration may be config, not code.
+- **Verdict (interim):** quiescence is a **major** strength upgrade (not marginal) and directly attacks A2. Pending the parity/cost confirmation, recommend enabling it in production. Findings: A7; A2 (quiescence mitigates it).
+
 ## Findings ledger (running index)
 
 | ID | Thread | Claim | Status |
 |----|--------|-------|--------|
-| A1 | game AI | depth-3→depth-4 buys ~no strength (eval-bound, not search-bound) | observed, EXP-001; under test in EXP-002 |
-| A2 | game AI | strong-tier games rarely terminate (capture buries, never removes) | observed, EXP-001 |
-| B1 | methodology | charter constraints steer agent behavior without re-prompting | observed once, EXP-001 |
+| A1 | game AI | depth-3→depth-4 buys ~no strength (eval-bound, not search-bound) | **REFUTED by EXP-002.** Depth conversion IS healthy (~63–67% best-play); apparent weakness is blunder-rate-bound (a product feature), not eval-bound. The EXP-001 signal was N=2 noise. |
+| A2 | game AI | strong-tier games rarely terminate (capture buries, never removes) | observed, EXP-001; reinforced (high ply-cap draw rate dominates close games) |
+| A3 | game AI | `DEFAULT_WEIGHTS` are at a local optimum for d3-vs-d4; perturbations flat or worse | observed, EXP-002 |
+| A4 | game AI | the right lever for tier separation is blunder-rate / depth config, not eval weights | proposed, EXP-002 |
+| B1 | methodology | charter constraints steer agent behavior without re-prompting | observed, EXP-001 & EXP-002 |
+| B2 | methodology | resuming an agent on its own finding yields disciplined follow-through (incl. refuting itself) | observed, EXP-002 |
+| B3 | methodology | concurrent multi-agent edits to one file cause transient red states; in-lane discipline contains them | observed, EXP-002; reinforced EXP-003 |
+| A5 | game AI | §1/§2 terms (`edgeSafety`+`overConcentration`) don't add strength: wash at d4, negative at d3; cost ≈ free; stacking both worse than either alone | observed, EXP-003 |
+| A6 | game AI | the AI codebase bifurcated: production `src/ai.ts` vs research layer `src/agents/` (quiescence+MCTS+arena), the latter NOT wired into the app | observed, recon R-001 |
+| A7 | game AI | **QUIESCENCE is a major strength upgrade** — q-on beats q-off **23–1** at equal depth 4, ply-cap draws→6%; production `chooseMove` already accepts the flag (migration may be config-only) | observed, EXP-005 (d4); d6/cost/parity pending |
+| B4 | methodology | unit tests are insufficient as a strength gate — a term can pass assertions yet be strength-neutral/negative in self-play; require an A/B (→ gate D-001) | observed, EXP-003 |
+| B5 | methodology | the org duplicated benchmark infra (`bench-strength.ts` vs `src/agents/arena.ts`) — capability-level duplication, B3 at architecture scale; a shared capability index would prevent it | observed, recon R-001 |
+| B6 | methodology | **background subagents lose ALL in-process work on parent-process exit** (EXP-004+005 both died, no branch/commit); recovery only via scratch-to-disk. Untracked shared docs also get clobbered by concurrent lost-updates (`NOTEBOOK.md` reverted to EXP-002 state). Durable record must live in git or memory; long runs must checkpoint early | observed, this session (2026-06-23) |
 
 ---
 
-## EXP-003 — Player-game corpus: a (state, action, return) substrate from saved games
+## Decisions log (governance — Sr-Eng/CEO calls, distinct from experiments)
+
+### D-001 — Eval-term strength gate (2026-06-23)
+A new evaluation term in `src/ai.ts` ships at **default weight 0** until `game-ai-engineer`'s self-play A/B proves it improves play (≥ baseline at every tier depth, strictly better where intended, ≥3 seeds) — passing a unit test is not enough (B4). Term *logic/idea* = STRATEGY workstream's lane; the *default weight that ships* = `game-ai-engineer`'s. Failed terms stay in code at weight 0 (dormant, evidence recorded), never silently deleted. Origin: EXP-003. Codified in `.claude/agents/game-ai-engineer.md` + `README.md`.
+
+### D-002 — One arena; `src/agents/` is the canonical AI-research substrate (2026-06-23)
+`src/agents/arena.ts` (typed, pluggable, quiescence+MCTS-capable) is the canonical self-play arena; `bench-strength.ts` is superseded (keep as the EXP-004 gate, then port its blunder-0 A/B + depth-isolation modes over and retire). New experiments build on `src/agents/`; agents must check `src/agents/index.ts` before building a new benchmark (B5). A technique proven in the research layer (e.g. quiescence, EXP-005) must be *planned into production `src/ai.ts`*, not left a silent fork. Open question to user: is `src/agents/` the intended future production engine? Origin: recon R-001 / B5.
+
+### D-003 — Durability rules for background work (2026-06-23)
+After B6 cost real work: (1) long background experiments must **checkpoint to a branch/disk early**, not only at the end; (2) the canonical research record lives in **git** (this file, now committed) — not as an untracked shared-tree file; (3) findings are mirrored to **memory** (uncontended) as a backstop; (4) scratch harnesses persist to the scratchpad so a crashed run is re-runnable.
+
+---
+
+## EXP-006 — Player-game corpus: a (state, action, return) substrate from saved games
 - **Date:** 2026-06-23 · **Thread:** A (data substrate) · **Run by:** main loop (saved-games feature) · **Repo:** branch `feat/saved-games` off `main`
 - **Motivation:** Strength work so far (EXP-001/002) is *self-play* against the engine's own heuristic. There was no corpus of *played* games — human-vs-AI or hotseat — to mine for openings, blunders, or value targets. The new "save & rewatch" feature records every local game; this entry documents the pipeline that turns that history into training data, and what it is **not** yet allowed to do.
 
