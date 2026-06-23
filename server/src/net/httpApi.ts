@@ -16,10 +16,25 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AuthService, AuthError, toPublicUser } from '../auth/service.ts';
 import type { Repository } from '../storage/types.ts';
+import { RateLimiter } from './rateLimiter.ts';
 
 interface Deps {
   auth: AuthService;
   repo: Repository;
+  /**
+   * Optional pre-built limiter (tests inject one with a fake clock). When
+   * omitted, callers should pass `authRateLimit` so a default limiter is built.
+   */
+  authLimiter?: RateLimiter;
+  authRateLimit?: { max: number; windowMs: number };
+}
+
+/** Best-effort client IP for rate-limit keying. */
+function clientIp(req: IncomingMessage): string {
+  const fwd = req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0]!.trim();
+  if (Array.isArray(fwd) && fwd.length > 0) return fwd[0]!.split(',')[0]!.trim();
+  return req.socket.remoteAddress ?? 'unknown';
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -68,8 +83,19 @@ function authCode(e: AuthError): number {
   }
 }
 
+/** Auth endpoints that are throttled (all are POST). */
+const RATE_LIMITED_AUTH_PATHS = new Set([
+  '/auth/register',
+  '/auth/login',
+  '/auth/guest',
+  '/auth/refresh',
+  '/auth/link',
+]);
+
 export function createHttpHandler(deps: Deps) {
   const { auth, repo } = deps;
+  const authLimiter =
+    deps.authLimiter ?? new RateLimiter(deps.authRateLimit ?? { max: 20, windowMs: 60_000 });
 
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
@@ -78,6 +104,21 @@ export function createHttpHandler(deps: Deps) {
       const path = url.pathname;
 
       if (method === 'OPTIONS') return json(res, 204, {});
+
+      // Throttle abuse of the auth endpoints, keyed by client IP + endpoint.
+      // Gameplay/WebSocket traffic is never rate-limited here.
+      if (method === 'POST' && RATE_LIMITED_AUTH_PATHS.has(path)) {
+        const result = authLimiter.check(`${clientIp(req)} ${path}`);
+        if (!result.allowed) {
+          const retryAfterSec = Math.ceil(result.retryAfterMs / 1000);
+          res.setHeader('retry-after', String(retryAfterSec));
+          return json(res, 429, {
+            error: 'rate-limited',
+            message: 'Too many requests. Please slow down and try again later.',
+            retryAfterMs: result.retryAfterMs,
+          });
+        }
+      }
 
       // ---- Auth ----
       if (method === 'POST' && path === '/auth/register') {
