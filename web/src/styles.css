@@ -407,6 +407,7 @@ button { font-family: inherit; }
 .legend .muted { text-transform: none; letter-spacing: 0.01em; font-weight: 500; font-style: italic; font-family: var(--font-display); font-size: 13px; opacity: 0.7; }
 
 /* ---- online panel (shared classes) ----------------------------------- */
+.online-match { display: flex; gap: clamp(20px, 3vw, 36px); align-items: flex-start; flex-wrap: wrap; justify-content: center; width: 100%; }
 .layout { display: flex; gap: clamp(20px, 3vw, 36px); align-items: flex-start; flex-wrap: wrap; justify-content: center; width: 100%; }
 .panel { flex: 1 1 280px; min-width: 260px; max-width: 360px; display: flex; flex-direction: column; gap: 14px; }
 .buttons { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
@@ -437,6 +438,35 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .dot.connecting, .dot.reconnecting { background: #cf9a3a; }
 .dot.disconnected { background: var(--danger); }
 .conn-note { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ink-soft); letter-spacing: 0.08em; text-transform: uppercase; }
+.connection-banner {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+  border-radius: 14px; color: var(--btn-ink); background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+}
+.connection-banner svg { flex: 0 0 auto; color: #cf9a3a; animation: reconnect-spin 1.8s linear infinite; }
+.connection-banner div { display: flex; flex-direction: column; gap: 3px; }
+.connection-banner strong { font-family: var(--font-display); font-size: 14px; }
+.connection-banner span { color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
+@keyframes reconnect-spin { to { transform: rotate(360deg); } }
+
+.capture-choice {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  border-radius: 16px; background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+}
+.capture-choice-title { display: flex; align-items: center; gap: 8px; color: var(--ink); font-family: var(--font-display); font-weight: 600; }
+.capture-choice-title svg { color: var(--cobalt); }
+.capture-choice > p { color: var(--ink-soft); font-size: 12px; line-height: 1.45; }
+.capture-routes { display: flex; flex-direction: column; gap: 8px; }
+.capture-routes button, .capture-cancel {
+  border: 0; border-radius: 12px; padding: 10px 12px; cursor: pointer;
+  color: var(--btn-ink); background: var(--pedestal); text-align: left;
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+}
+.capture-routes button { display: flex; flex-direction: column; gap: 4px; font-size: 11px; line-height: 1.4; }
+.capture-routes button span { color: var(--cobalt); font-size: 9px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.capture-routes button:hover, .capture-routes button:focus-visible { color: var(--cobalt); }
+.capture-cancel { align-self: flex-start; color: var(--ink-soft); font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
 .searching { font-size: 12px; color: var(--ink-soft); font-style: italic; }
 .foot { font-size: 11px; color: var(--ink-soft); letter-spacing: 0.06em; opacity: 0.7; text-align: center; }
 

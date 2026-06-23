@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Playwright end-to-end tests for Laska's auth/login flows (drives the real web UI against an in-memory server).",
+  "description": "Playwright end-to-end tests for Laska's auth and online-play flows against an in-memory server.",
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",

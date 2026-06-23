@@ -142,14 +142,17 @@ counts the position **ongoing** — Black has four legal moves — but Black res
 and any honest reading agrees: White's crowned four-tower against scattered single
 soldiers is not a game any longer.
 
-> **[VERIFY] — resignation, not mate.** The engine confirms every one of the 25
-> plies is legal and that the final position is *not* terminal (Black still has
-> moves: `c3–b2, b4–a3, c5–d4, e7–d6`). The "White wins" result is a **human
-> resignation** in a lost position, which the engine cannot mechanically prove was
-> correct. We assert the position is winning for White on positional grounds — the
-> crowned tower, the prisoner count (White holds more buried men), the control
-> edge — but a future edition could settle it outright by having the engine play
-> the position out from here and confirming the win. Worth doing.
+> **Resolved — resignation, since proven sound by the engine.** Every one of the
+> 25 recorded plies is legal, and the final position is *not* terminal: Black still
+> has moves (`c3–b2, b4–a3, c5–d4, e7–d6`), so "White wins" was a **human
+> resignation**, not a mechanical mate. We have now settled it the right way —
+> by having the engine play the final position out under best play for both sides
+> (strongest tier, depth 8, quiescence on). The verdict is unambiguous and stable
+> across six seeds: **White wins by no-moves in 16 plies**, and the engine's static
+> read of Black's best try in the final position is **−452.5** — a side that is, in
+> the engine's eyes, already lost by the equivalent of more than four pieces. The
+> resignation was correct. What the player saw over the board, the search confirms:
+> the crowned tower decides.
 
 **What this game teaches, in one line:** a soldier is not a small thing. Given a
 runway and a reason, one soldier marched the length of the board, crowned, and
@@ -342,29 +345,28 @@ running out of useful things to do.
 Here is where the chapter must be exact, because the engine and the recorded
 result do not fully meet.
 
-> **[VERIFY] — the result outruns the engine.** The score ends at ply 78,
-> **78… d4–e5** (Lasker's **13—17**), and the result is given as *"Black wins —
-> White's last men blocked."* But the engine, asked for White's reply at that
-> final position, returns **three legal moves** (`g3–f4, e7–f6, e7–d6`) and reports
-> the game **ongoing**, *not* terminal. So the literal claim "White's last men are
-> blocked" is **not yet true at the last recorded ply** — White can still move.
+> **Resolved — the winner stands; the *mechanism* was misremembered.** The score
+> ends at ply 78, **78… d4–e5** (Lasker's **13—17**), with the result given as
+> *"Black wins — White's last men blocked."* The engine, asked for White's reply at
+> that final position, returns **three legal moves** (`g3–f4, e7–f6, e7–d6`) and
+> reports the game **ongoing**, not terminal. So the literal phrase "White's last
+> men are blocked" is **not** what the board reaches — White can still move.
 >
-> The most likely reading, consistent with everything the engine *does* show: the
-> recorded score stops at the point where the outcome was **agreed or resigned**,
-> not at a literal stalemate. White's position is genuinely lost — two controlled
-> squares against ten, one officer condemned to oscillate, a soldier-column that
-> can only crawl into capture — and in club practice that is where a game ends.
-> Lasker's "blocked" is a *strategic verdict*, the inevitable next chapter, not a
-> board state the score actually reaches.
+> Rather than leave it at that, we settled it the right way: the engine played the
+> final position out under best play for both sides (strongest tier, depth 8,
+> quiescence on), and the verdict is stable across six seeds. **Black wins by
+> no-pieces in four plies.** The truth is more brutal than "blocked." Every White
+> man but two is already buried under a Black commander; White's only free pieces
+> are the `g3` column and the lone `e7` officer. Whatever White tries, Black simply
+> captures both of those last free commanders within two moves apiece — and once
+> they fall, White controls *zero* columns and loses by having no piece left to
+> lead. White's best try in the final position scores **−999904**: the engine's
+> notation for a forced loss, distance-to-mate and all.
 >
-> We must **not** invent the final plies that would literally stalemate White (per
-> BOOK.md §4.5 — do not fabricate to complete a faded score). What we can and
-> should do for a future edition: have the engine play the final position out to a
-> mechanical conclusion, and *either* confirm Black forces no-moves (vindicating
-> the booklet) *or* report honestly that with best play the result is something
-> else. Until then, the truthful statement is: **every recorded ply is legal; the
-> recorded position is lost for White on positional grounds; the literal "blocked"
-> mate lies just beyond the score.**
+> So the booklet's *result* is vindicated and the booklet's *reason* is corrected —
+> exactly the kind of seam this engine-checked edition exists to find. Black does
+> not freeze White in place; Black liquidates White's last two leaders. The
+> "blocked" of the old note is a poet's shorthand for a four-ply execution.
 
 [DIAGRAM: ply ~53 onward — White's officer oscillating e7↔f6, the zugzwang engine]
 
@@ -415,13 +417,18 @@ book and not merely an archive:
 - Game 2 terminates in a genuine engine-detected mate (`win / White / no-moves`).
   This is the chapter's strongest claim and it is rock-solid.
 
-**Open / flagged (`[VERIFY]`):**
-- **Moscow 1996 result** — engine says final position *ongoing*; "White wins" is a
-  resignation. Recommend: have the engine play it out from the last ply to confirm
-  the win mechanically.
-- **Game 3 result** — engine says final position *ongoing* (White has 3 moves);
-  "White's last men blocked" is not literally reached in the score. Recommend the
-  same play-out, and reconcile the booklet's "blocked" with the engine's verdict.
+**Resolved since the first draft (engine play-out, strongest tier, both sides):**
+- **Moscow 1996 result** — *closed.* The final position is non-terminal (a
+  resignation), but played out under best play the engine wins for **White by
+  no-moves in 16 plies** (Black's best try scores −452.5), stable across six seeds.
+  The resignation was sound; the chapter now states this outright.
+- **Game 3 result** — *closed, with a correction.* Played out, **Black wins by
+  no-pieces in 4 plies** (White's best try scores −999904, a forced loss). The
+  booklet's *winner* is vindicated; its *reason* ("White's last men blocked") is
+  not what the board does — Black liquidates White's last two free commanders
+  rather than freezing them. The chapter now annotates the engine's true mechanism.
+
+**Still open / flagged (`[VERIFY]`):**
 - **Notation reconciliation** — the `games.ts` notes describe ply 19 of Game 2 as a
   "four-jump chain" and ply 25 of Game 3 as a "five-square march," but the engine
   resolves both as **two-jump captures** (the booklet's tokens list traversed

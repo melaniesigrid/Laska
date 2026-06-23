@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * E2E config for Laska's login/auth flows.
+ * E2E config for Laska's browser flows.
  *
  * Two servers are booted for the run:
  *   1. The Laska backend (server/) on a dedicated test port with an IN-MEMORY
