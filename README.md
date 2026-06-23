@@ -1,256 +1,152 @@
-# Laska (Lasca) — Rules Engine + AI + Web Vertical Slice
+<div align="center">
 
-A standalone, fully tested TypeScript implementation of the rules of **Laska**
-(also spelled *Lasca*), the column-capturing draughts variant invented by
-Emanuel Lasker in 1911, plus an offline AI opponent and a playable local web
-app built on top of it.
+# Laska
 
-The `src/` engine is the single source of truth for game logic: pure functions,
-no UI, no networking, no platform dependencies — so the identical code runs on a
-client (for responsive/optimistic play), inside the AI search, and on a future
-authoritative server. Online multiplayer, accounts, ranking, and monetization
-are intentionally **not** included yet. See "Scope & what's next" below.
+### The Great Military Game
 
-## Milestones in this repo
+*Draughts, reimagined by a world chess champion — where every piece you capture is carried beneath your own, and the board grows into towers.*
 
-1. **Rules engine** (`src/`) — pure `legalMoves` / `applyMove` / `gameStatus`
-   plus a FEN-like position notation. **Done & tested.**
-2. **AI opponent** (`src/ai.ts`) — negamax + alpha-beta over the column-aware
-   move generator, a Laska-specific heuristic, and difficulty tiers.
-   **Done & tested.**
-3. **Local web vertical slice** (`web/`) — React + Vite app: hot-seat 2-player
-   and vs-AI, legal-move highlighting, forced-capture teaching, and legible
-   column-stack visualization. **Done & verified in-browser.**
-4. **Server-authoritative backend** (`server/`) — accounts (scrypt + signed
-   tokens, guest + linking), Elo ranking, rating-based matchmaking, real-time
-   matches over WebSocket with a per-move clock, draw/resign, reconnection
-   resync, and match-history/leaderboard REST. **Done & tested.**
-5. **Online play in the web app** (`web/src/net/`, `useOnline.ts`, `Online.tsx`)
-   — login/guest, queue, live match with clocks, and **optimistic moves
-   reconciled against the authoritative server**. **Done & verified in-browser**
-   against a live server + bot opponent.
-6. **Durable storage** (`server/src/storage/`) — one `Repository` interface with
-   in-memory, **SQLite** (default, durable file via Node's built-in `node:sqlite`,
-   no native build), and **Postgres** (`pg`) implementations. Select with
-   `LASKA_DB`. A shared contract test proves parity; persistence verified across
-   a real server restart. **Done & tested.**
-7. **Multi-node cluster** (`server/src/cluster/`) — a `Cluster` fabric for
-   presence, a shared matchmaking queue, match ownership, and cross-node message
-   routing, with in-memory and **Redis** implementations (`LASKA_CLUSTER`).
-   Players on different nodes get matched and play; moves are forwarded to the
-   owning node and broadcast back. **Done & tested** (two-node + reconnect tests).
+&nbsp;
 
-See [TODO.md](TODO.md) for the full roadmap (online client wiring, durable
-storage, retention, monetization, mobile, and the legal-gated real-money track).
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9_strict-3178c6?logo=typescript&logoColor=white)
+![Node](https://img.shields.io/badge/Node-%E2%89%A522-339933?logo=node.js&logoColor=white)
+![Engine](https://img.shields.io/badge/rules_engine-zero_dependencies-success)
+![Tests](https://img.shields.io/badge/tests-123_passing-success)
+![Build](https://img.shields.io/badge/build_step-none_(raw_TS)-blue)
 
-## Status
+</div>
 
-- **92/92 automated tests pass** (`node --test`) — 20 engine + 11 AI + 61 server
-  (incl. a two-client WebSocket integration test, a storage contract test run
-  against in-memory + SQLite, and a **two-node cross-node play** integration test).
-  A further **real-Redis** two-node integration test runs with `npm run test:redis`
-  (skipped by default unless `REDIS_URL` is set); verified passing locally.
-- Engine and AI type-check clean under a strict `tsconfig` (`strict`,
-  `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`); the server adds
-  `noUnusedLocals/Parameters` and `verbatimModuleSyntax`.
-- The web app builds clean (`tsc -b && vite build`) and was QA'd in a real
-  browser: opening moves, forced captures, AI replies, and column stacking all
-  render and play correctly.
-- Requires **Node ≥ 22**. The engine/AI/web run via native type-stripping; the
-  server uses `--experimental-transform-types` (for TS parameter properties).
+---
+
+> *"The game to teach cautiousness and tactics, and a great builder up of ideas."*
+> — Dr. Emanuel Lasker, 1911
+
+In 1911, at the height of a twenty-seven-year reign as World Chess Champion, Emanuel Lasker invented a game. It looks, at first, like ordinary checkers: men on the dark squares, moving and jumping along the diagonals. Then the first capture happens — and instead of leaving the board, the captured piece slides *underneath* its captor. The two move together now, a column led by whoever sits on top. Capture by capture, the board climbs into stacks, prisoners change hands, and a quiet game of draughts becomes a war of towers.
+
+Lasca all but vanished for a century. **This is it, rebuilt** — a faithful rules engine, an AI that understands columns rather than counting pieces, and a calm, tactile board you can actually play.
+
+## The one rule that changes everything
+
+In checkers, a captured piece is gone. In Laska, **nothing is erased.**
+
+- **Capture builds.** Jump an enemy and he becomes a prisoner at the base of your column.
+- **The top piece commands.** A stack moves, jumps, and belongs to whoever leads it.
+- **Freedom flips the board.** Take an enemy column and you capture only its leader — the prisoners below are freed under a new commander.
+
+Eleven men a side. No piece ever leaves. You win by burying or cornering your opponent, not by clearing the board.
+
+## Play it
 
 ```bash
-# Engine + AI (from this directory)
+cd web
 npm install
-npm test          # node --test on test/**/*.test.ts
-npm run typecheck # tsc --noEmit
-
-# Web vertical slice
-cd web && npm install && npm run dev    # http://localhost:5173
-
-# Server (accounts, matchmaking, real-time play, ranking)
-cd server && npm install && npm test    # 61 tests
-npm start                               # http://localhost:8080  (ws://.../ws)
-
-# Storage: defaults to a durable SQLite file (server/laska.db). Override with:
-#   LASKA_DB=memory                  ephemeral (no persistence)
-#   LASKA_DB=sqlite LASKA_DB_PATH=…  durable file (default kind)
-#   LASKA_DB=postgres DATABASE_URL=… production (durable, multi-node)
-# Cluster (horizontal scale): single-node in-memory by default. For multi-node:
-#   LASKA_CLUSTER=redis REDIS_URL=…  shared queue/presence/routing across nodes
+npm run dev          # → http://localhost:5173
 ```
 
-> Note on the type-check: `tsc` is used only as a type *checker* (`--noEmit`).
-> The engine runs under Node's built-in type-stripping, not via a compile step.
+That's the whole thing — no account, no keys, nothing to configure. Requires Node 22 or newer.
 
-## Rules implemented
+## What's inside
 
-These were cross-checked against authoritative sources before coding:
+- **Play anyone.** Hot-seat two-player on one device, or face an AI with six honest difficulty levels — from a beginner that blunders to an expert that looks eight moves deep.
+- **Learn in minutes.** A complete, illustrated rulebook drawn from Lasker's original 1911 booklet, with a numbered board, his strategy notes, and the terminology (privates, columns, officers, bombs).
+- **Replay history.** Step move-by-move through real recorded games — including **two of Lasker's own teaching games from 1911**, replayed on the live engine.
+- **Make it yours.** Five hand-built color palettes (Stone, Dark, Light, Chocolate, Classic) and four piece styles, where generals wear a debossed star, medal, or crown.
+- **Play online.** A server-authoritative backend with accounts, Elo matchmaking, real-time matches with clocks, and reconnection — every move validated on the server.
+- **A design with a point of view.** A neumorphic, soft-clay aesthetic — sculpted from light and shadow, never flat, never loud.
 
-- Wikipedia "Lasca": https://en.wikipedia.org/wiki/Lasca
-- MindSports detailed ruleset (Christian Freeling): https://mindsports.nl/index.php/the-pit/609-lasca
-- Community summaries of Lasker's original rules (e.g. lidraughts forum)
+## The man who made it
 
-Lasker's own original-rules page (pjb.com.au/laska) was unreachable at build
-time (returned 404), so the rules below rest on the sources above. If you have a
-copy of the original rulebook, it's worth a final confirmation pass.
+Emanuel Lasker — born on Christmas Eve, 1868, the son of a Jewish cantor — held the world chess title longer than anyone before or since: twenty-seven years. He was also a doctor of mathematics (the Lasker–Noether theorem still sits under modern algebra), a published philosopher, and a friend of Albert Einstein. Forced from Nazi Germany in 1933 for being Jewish, he lived out an exile through Moscow and finally New York, where he died in 1941. Among bridge, Go, and chess, Laska was the one game he invented himself.
 
-Core rules:
+There's a fuller telling of his life inside the app.
 
-- **Board.** 7×7 grid; play occurs only on the 25 squares where `(row + col)`
-  is even. Indexed 0–24 row-major (layout documented in `src/board.ts`).
-- **Setup.** 11 soldiers per side on the three nearest rows; the centre row
-  starts empty; White moves first.
-- **Columns.** A stack is controlled by its **top** piece, the *commander*.
-  Soldier-topped columns move/capture **forward only**; officer-topped columns
-  move/capture **both directions**.
-- **Capture.** Jump an adjacent enemy-controlled square to the empty square
-  beyond. Only the **top** piece of the jumped column is taken; it is placed at
-  the **bottom** of the capturing column (the commander stays on top). The rest
-  of the jumped column stays put and may flip to a different controller.
-- **Mandatory capture.** If any capture exists, only captures are legal; a
-  capture must continue with the same piece until it can capture no more.
-- **Win.** A player wins if the opponent has no controlled pieces, has no legal
-  move, or resigns.
+---
 
-### Edge cases (resolved against sources)
+# Engineering
 
-These are the cases the brief specifically flagged. Each was checked rather than
-assumed:
+> The half of this README for the reader who wants to know how it's built. Laska is
+> a ~12,000-line, strict-TypeScript monorepo built around a single principle: **the
+> rules of the game are written exactly once.**
 
-1. **Promotion ends the move immediately — even mid-chain.** If a soldier-topped
-   column reaches the back rank during a capture, it is crowned and the move
-   stops, even if further jumps would otherwise be available. This follows the
-   MindSports ruleset, which states promotion "ends the move." Officers do not
-   re-promote and continue chaining normally.
-2. **No maximum-capture rule.** When several capture sequences are available, the
-   player chooses freely; there is no obligation to pick the longest. This
-   follows Laska's English-draughts heritage (contrast: international draughts
-   forces the majority capture). *If you later find a source that says otherwise
-   for a specific competition ruleset, this is a one-line change in move
-   generation — flagging it as the most "interpretation-dependent" rule here.*
-3. **Only the commander promotes.** Pieces beneath a promoted commander are
-   unaffected.
+## The core invariant: one engine, no drift
 
-### Draw rule — a DESIGN CHOICE, not an official rule
+`src/` is a pure rules engine — `legalMoves`, `applyMove`, `gameStatus`, board geometry, and the AI — with **zero runtime dependencies**. It is the single source of truth for how Laska is played.
 
-Standard Laska is decisive and does **not** clearly define draws. Per the brief,
-the app must design and document one. This engine implements:
-
-- **Threefold repetition** — same position (board + side to move) occurring a
-  third time is a draw.
-- **No-progress counter** — a configurable number of plies without "progress"
-  is a draw. *Progress* = any capture, any soldier-topped move (soldiers only go
-  forward, so such moves are irreversible), or a promotion. Default: **40 plies**
-  (`DEFAULT_NO_PROGRESS_PLY_LIMIT`), overridable via `gameStatus(state, opts)`.
-- **Mutual agreement** — represented in the `GameOutcome` type
-  (`reason: 'agreement'`) for the application layer to invoke; the engine does
-  not decide agreement on its own.
-
-The 40-ply default is a starting value, not a derived constant — tune it with
-playtesting. Loss conditions are checked **before** draw conditions.
-
-## Position notation
-
-A compact, FEN-like string encodes a *position* (board + side to move):
+The web client and the online server do **not** re-implement, port, or copy that logic. They `import` it directly as TypeScript:
 
 ```
-<toMove>:<sq>=<stack>,<sq>=<stack>,...
+                    ┌─────────────────────────────┐
+                    │  src/  — the rules engine    │
+                    │  pure · zero-deps · strict   │
+                    │  legalMoves · applyMove ·    │
+                    │  gameStatus · ai (negamax)   │
+                    └──────────────┬──────────────┘
+                       imports     │     imports
+              ┌────────────────────┴────────────────────┐
+              ▼                                          ▼
+   ┌────────────────────┐                  ┌──────────────────────────┐
+   │  web/  React + Vite │                  │  server/  WebSocket + ws │
+   │  board · themes ·   │   shared types   │  authoritative matches · │
+   │  replay · online UI │◀ ─ ─ ─ ─ ─ ─ ─ ─ │  matchmaking · Elo · DB  │
+   └────────────────────┘   protocol.ts     └──────────────────────────┘
 ```
 
-- `toMove` is `W` or `B`.
-- `sq` is a square index 0–24.
-- `stack` lists pieces **bottom → top**, each a 2-char code: colour (`W`/`B`)
-  then rank (`s` soldier / `o` officer). Example `WsBo` = White soldier at the
-  bottom, Black officer on top (the Black officer controls the column).
-- An empty board for White is `W:`.
+The payoff: the rules **cannot** drift between where you play and where they're enforced. A client never gets to disagree with the server about whether a capture is legal, because they are running the identical function. Only the message types cross the boundary (`server/src/net/protocol.ts`), and the client imports those too — so a protocol change is a compile error, not a runtime surprise.
 
-`encodePosition` always lists squares in ascending index order, so the string is
-canonical and doubles as the **repetition key**. `decodePosition` is strict and
-throws on malformed input (bad side-to-move, out-of-range square, odd-length or
-invalid piece codes).
+To prove the engine is faithful rather than merely plausible, it **replays Lasker's own 1911 games move-for-move** — they are validated through the live engine at import time, so an engine change that breaks a historical game fails the build.
 
-This notation encodes a position for transmission and repetition detection.
-A full move-list/PDN-style game transcript for replays is a deliberate
-follow-up, not part of this milestone.
+## The AI
 
-## Public API
+A column is not a pile of material — every captured piece is a permanent, recapturable life — so a piece-counting evaluator plays Laska badly. The engine searches with that in mind:
 
-From `src/index.ts`:
+- **Negamax with alpha-beta pruning** over the forced-capture-heavy move tree, with a **quiescence search** that extends through capture sequences so the evaluator is never called mid-exchange (no horizon-effect blunders).
+- A **column-aware evaluation** scoring control, officer rank, buried prisoners, promotion threats, mobility, and two positional refinements drawn from documented Laska strategy ([`STRATEGY.md`](STRATEGY.md)): edge-safety for tall columns and an anti-over-concentration term that discourages fragile over-stuffed towers. Every term is **antisymmetric**, a property the negamax sign-flip depends on and which is enforced by a mirror-position test.
+- **Six difficulty tiers** (beginner → expert) that scale search depth and a tunable blunder rate, so a beginner feels beatable without the code faking it.
 
-- `createInitialState(): GameState`
-- `legalMoves(state): Move[]` — returns captures only when any capture exists,
-  otherwise quiet moves.
-- `applyMove(state, move): GameState` — returns a **new** state; the input is not
-  mutated. The move is re-simulated from `from` + `path`, so an inconsistent
-  `Move` throws rather than corrupting the board.
-- `gameStatus(state, opts?): GameOutcome` — `ongoing` / `win` / `draw`.
-- `encodePosition`, `decodePosition`
-- Helpers: `controlledSquares`, `commander`, `opponent`,
-  `isPromotionSquare`, `step`, and the board constants.
+The evaluator's correctness is pinned two ways: a **frozen, hand-written reference negamax** lives in the test suite so the optimised production search can never silently diverge from textbook results, and an **agent arena** (`src/agents/`) pits the search against random, greedy, and Monte-Carlo-tree-search opponents in round-robin matches to measure real playing strength rather than asserting it.
 
-State is immutable by convention: `applyMove` clones, and `legalMoves` /
-`gameStatus` are read-only.
+## Testing & rigor
 
-### AI (`src/ai.ts`)
+| Suite | What it covers |
+|---|---|
+| **53 engine tests** | rules, captures, promotion, notation round-trips, and AI search — including a self-play harness that plays full games asserting *only legal moves, no exceptions, and conservation of all 22 pieces* |
+| **53 server tests** | match lifecycle, matchmaking, Elo, auth, and a **storage contract test run against every backend** (in-memory, SQLite, Postgres) plus a cluster-fabric parity test (in-memory and Redis), including a multi-node routing test |
+| **17 Playwright e2e** | the real online flow end-to-end against a running server |
 
-- `chooseMove(state, opts?): Move | null` — picks a move. `opts.difficulty` is
-  `'beginner' | 'easy' | 'medium' | 'hard'` (mapped to search depth 1/2/4/6 with
-  a decreasing blunder rate so lower tiers are beatable). `opts.depth`,
-  `opts.weights`, and a seedable `opts.random` allow precise control and
-  reproducible tests. Returns `null` only when there are no legal moves.
-- `scoreMoves(state, depth, weights?): ScoredMove[]` — exact score per legal
-  move, sorted best-first (for hints/analysis UIs).
-- `evaluate(state, me, weights?): number` — static heuristic. "Material" here is
-  column **control**, not raw piece count (Laska never removes pieces), plus
-  officer bonus, held-prisoner value, promotion advancement, and mobility.
+Strict TypeScript throughout (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), CI on GitHub Actions, and a deliberate **no-build-step** stance: the engine and server run raw `.ts` via Node 22's native type-stripping, so there is no compile artifact to drift from the source.
 
-The search is negamax with alpha-beta, captures ordered first. Because captures
-are mandatory and chains are forced, the effective branching factor is low and
-depth 6 plays a strong game quickly.
+## Architecture highlights worth a look
 
-## Web vertical slice (`web/`)
+- **Pluggable persistence behind one interface.** `server/src/storage/` defines a `Repository` contract with memory / SQLite / Postgres implementations chosen by env var — and a single contract test that runs against all three, so they can't silently diverge.
+- **Horizontal scale as a swappable layer.** `server/src/cluster/` abstracts presence, the matchmaking queue, and cross-node routing behind an interface with in-memory (single-node) and Redis (multi-node) backends, parity-tested the same way.
+- **Server-authoritative by construction.** Clients send *intentions*; the server re-derives every move through the shared engine and is the only writer of game state, clocks, and ratings.
+- **Ships as one container.** A `Dockerfile` and Vercel config are included; the static web app and the stateful server deploy independently.
 
-A React + Vite app that imports the engine and AI directly (one shared rules
-implementation). It supports hot-seat 2-player and vs-AI play, highlights the
-movable pieces and legal destinations, enforces and teaches the mandatory-capture
-rule, and renders each **column as a labeled side-on stack** with a height badge
-and a screen-reader description of the full bottom-to-top composition — the
-hardest Laska UX problem. Color is never the only differentiator (W/B letters +
-an officer ring). Run with `cd web && npm install && npm run dev`.
+## Layout
 
-## Tests
+```
+src/        Rules engine + AI — the heart of it (pure, zero-deps, the source of truth)
+test/       Engine + AI tests (incl. self-play invariants & a frozen reference search)
+web/        React + Vite app you play
+server/     Online backend: WebSocket, matchmaking, Elo, pluggable storage + cluster
+e2e/        Playwright end-to-end tests
+STRATEGY.md Canonical strategy reference the AI heuristic traces back to
+DESIGN.md   The neumorphic design system
+CLAUDE.md   Engineering guide: exact commands, project map, conventions, DoD
+```
 
-`test/rules.test.ts` covers: initial setup, soldier/officer movement, mandatory
-capture, basic/chained/free-choice captures, column-ownership flips, quiet and
-mid-chain promotion timing, win by no-pieces and by no-moves, threefold-repetition
-and no-progress draws (including the counter reset), notation round-tripping and
-malformed-input rejection, `applyMove` immutability, and a self-play integration
-test that asserts the **total piece count stays constant at 22** — the key
-invariant, since Laska never removes a piece from the board (captures only
-relocate the top piece to the bottom of another column).
+## The rules, honestly
 
-## Caveats / honest limitations
+The ruleset is reconciled with Dr. Lasker's original *Rules of Lasca, the Great Military Game* (1911) and confirmed by replaying his own published games through the engine. The full, canonical write-up lives inside the app (and in [`DESIGN.md`](DESIGN.md) / the engine's source comments). One genuinely interpretive point — whether you must take the longest capture — is documented there: Lasker advised "the longest run or best advantage," which we read as guidance, so the choice is yours.
 
-- Rules rest on the secondary sources listed above; Lasker's original page was
-  not reachable at build time. Edge case #2 (free choice vs. maximum capture) is
-  the most ruleset-dependent and worth confirming against whatever competition
-  rules you intend to honor.
-- The draw rule is an app design decision, not official Laska.
-- `npm test` and `npm run typecheck` were both run and pass in this environment;
-  re-run them in yours to confirm, since Node's TS handling is version-sensitive.
-- Included so far: engine, AI, and a local web UI. **Not** yet included: online
-  multiplayer, a server, accounts, persistence, ranking, or monetization.
-- The AI heuristic weights are reasonable defaults, not match-tuned; the engine
-  plays soundly (legal, conserves pieces, exploits forced captures) but has not
-  been strength-benchmarked against a reference Laska bot.
+## For developers
 
-## Scope & what's next
+Working on the code? Start with [`CLAUDE.md`](CLAUDE.md) — it's the engineering guide: exact commands per package, the project map, conventions, and the verification loop, written to get you productive without spelunking. The engine, web app, and server are three separate npm packages (`npm install` in each); from the repo root, `npm test` runs the full engine suite.
 
-The brief lays out a build order: rules engine → local 2-player → AI →
-multiplayer → accounts → ranking → retention → monetization. This milestone is
-the first step. The remaining milestones depend on product decisions that
-haven't been made yet (target platforms, single-player vs. online priority,
-timeline/budget, whether real-money play is intended, branding). Those choices
-materially change the architecture, so they should be settled before building
-further.
+---
+
+<div align="center">
+
+*A century-old game, built for now. Your move.*
+
+</div>

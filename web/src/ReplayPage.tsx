@@ -1,0 +1,219 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  ChevronFirst,
+  ChevronLast,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+} from 'lucide-react';
+import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
+import { BoardView } from './Board.tsx';
+import { HISTORIC_GAMES } from './games.ts';
+import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
+import './landing.css';
+
+const EMPTY = new Set<number>();
+const AUTOPLAY_MS = 1500;
+
+/**
+ * Replay a recorded historic game on the real board, one ply at a time. The
+ * positions come straight from the engine (see games.ts), so what you step
+ * through is the engine replaying the actual 1996 score.
+ */
+export function ReplayPage({
+  onBack,
+  onPlay,
+  pieceTheme,
+  gameId,
+}: {
+  onBack: () => void;
+  onPlay: () => void;
+  pieceTheme: PieceTheme;
+  gameId?: string;
+}) {
+  const initialIdx = Math.max(0, HISTORIC_GAMES.findIndex((g) => g.id === gameId));
+  const [gameIdx, setGameIdx] = useState(initialIdx);
+  const game = HISTORIC_GAMES[gameIdx]!;
+  const lastPly = game.plies.length;
+  const [ply, setPly] = useState(0); // 0 = opening position
+  const [playing, setPlaying] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const selectGame = (idx: number) => {
+    setPlaying(false);
+    setPly(0);
+    setGameIdx(idx);
+  };
+
+  useEffect(() => window.scrollTo(0, 0), []);
+
+  // autoplay: advance until the end, then stop
+  useEffect(() => {
+    if (!playing) return;
+    if (ply >= lastPly) {
+      setPlaying(false);
+      return;
+    }
+    const t = setTimeout(() => setPly((p) => Math.min(p + 1, lastPly)), AUTOPLAY_MS);
+    return () => clearTimeout(t);
+  }, [playing, ply, lastPly]);
+
+  const state = game.states[ply]!;
+  const current = ply > 0 ? game.plies[ply - 1] : undefined;
+
+  // ring the square the last move landed on
+  const landing = useMemo(() => (current ? new Set([current.move.to]) : EMPTY), [current]);
+  const captureLanding = useMemo(
+    () => (current?.move.isCapture ? new Set([current.move.to]) : EMPTY),
+    [current],
+  );
+
+  const go = (p: number) => {
+    setPlaying(false);
+    setPly(Math.max(0, Math.min(lastPly, p)));
+  };
+
+  // keep the active move scrolled into view in the list
+  useEffect(() => {
+    const el = listRef.current?.querySelector('.move-cell.active');
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [ply]);
+
+  const noteText =
+    current?.note ??
+    (ply === 0 ? 'The opening position — 11 soldiers a side, the centre row empty. Press play, or step through move by move.' : '');
+
+  return (
+    <div className="landing-page">
+      <header className="topbar">
+        <div className="wrap">
+          <button className="btn" onClick={onBack}>
+            <ArrowLeft size={16} /> Back
+          </button>
+          <button className="btn" onClick={onPlay}>
+            <span className="dot" />
+            Play the game
+          </button>
+        </div>
+      </header>
+
+      <section className="hero" style={{ paddingTop: 'clamp(2rem,5vw,4rem)', paddingBottom: 'clamp(1.5rem,4vw,2.5rem)' }}>
+        <div className="wrap">
+          <p className="eyebrow">A game from history</p>
+          {HISTORIC_GAMES.length > 1 && (
+            <div className="replay-tabs">
+              {HISTORIC_GAMES.map((g, i) => (
+                <button
+                  key={g.id}
+                  className={`replay-tab${i === gameIdx ? ' active' : ''}`}
+                  onClick={() => selectGame(i)}
+                >
+                  {g.title}
+                </button>
+              ))}
+            </div>
+          )}
+          <h1 style={{ fontSize: 'clamp(2.2rem,5vw,3.6rem)', margin: '0.6rem 0 0' }}>
+            {game.white} <span className="light">vs</span> {game.black}
+          </h1>
+          <p className="lede" style={{ maxWidth: '52ch' }}>{game.intro}</p>
+          <p className="since" style={{ marginTop: '1rem' }}>
+            {game.event} · {game.result} · {game.sourceNote}
+          </p>
+        </div>
+      </section>
+
+      <section style={{ paddingTop: 0, paddingBottom: 'var(--section-y)' }}>
+        <div className="wrap replay-grid">
+          <PieceThemeContext.Provider value={pieceTheme}>
+            <div className="replay-board">
+              <BoardView
+                board={state.board}
+                dim={BOARD_DIM}
+                rcToSquare={RC_TO_SQUARE}
+                selected={null}
+                movable={EMPTY}
+                destinations={landing}
+                captureTargets={captureLanding}
+                onSquareClick={() => {}}
+                interactive={false}
+                activeColor={state.toMove}
+              />
+            </div>
+          </PieceThemeContext.Provider>
+
+          <div className="replay-panel">
+            <div className="replay-note reveal in">
+              <span className="replay-ply-label">
+                {ply === 0 ? 'Opening' : `${current!.moveNo}. ${current!.side === 'W' ? 'White' : 'Black'} — ${current!.san}`}
+              </span>
+              {noteText && <p>{noteText}</p>}
+            </div>
+
+            <div className="replay-controls">
+              <button className="btn icon-only" onClick={() => go(0)} disabled={ply === 0} aria-label="First move">
+                <ChevronFirst size={18} />
+              </button>
+              <button className="btn icon-only" onClick={() => go(ply - 1)} disabled={ply === 0} aria-label="Previous move">
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                className="btn"
+                onClick={() => (ply >= lastPly ? (go(0), setPlaying(true)) : setPlaying((p) => !p))}
+                aria-label={playing ? 'Pause' : 'Play'}
+                style={{ minWidth: '110px', justifyContent: 'center' }}
+              >
+                {playing ? <Pause size={16} /> : <Play size={16} />} {playing ? 'Pause' : ply >= lastPly ? 'Replay' : 'Play'}
+              </button>
+              <button className="btn icon-only" onClick={() => go(ply + 1)} disabled={ply >= lastPly} aria-label="Next move">
+                <ChevronRight size={18} />
+              </button>
+              <button className="btn icon-only" onClick={() => go(lastPly)} disabled={ply >= lastPly} aria-label="Last move">
+                <ChevronLast size={18} />
+              </button>
+            </div>
+            <p className="replay-counter">
+              Move {ply} <span>of {lastPly}</span>
+            </p>
+
+            <div className="move-list" ref={listRef}>
+              {Array.from({ length: Math.ceil(lastPly / 2) }, (_, r) => {
+                const w = game.plies[r * 2];
+                const b = game.plies[r * 2 + 1];
+                return (
+                  <div className="move-row" key={r}>
+                    <span className="move-no">{r + 1}.</span>
+                    <button
+                      className={`move-cell${ply === r * 2 + 1 ? ' active' : ''}`}
+                      onClick={() => go(r * 2 + 1)}
+                    >
+                      {w?.san}
+                    </button>
+                    <button
+                      className={`move-cell${b ? '' : ' empty'}${ply === r * 2 + 2 ? ' active' : ''}`}
+                      onClick={() => b && go(r * 2 + 2)}
+                      disabled={!b}
+                    >
+                      {b?.san ?? ''}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        <div className="wrap">
+          <span className="mark">
+            Las<span>k</span>a
+          </span>
+          <span className="fine">Historic game replayed move-by-move on the live engine.</span>
+        </div>
+      </footer>
+    </div>
+  );
+}

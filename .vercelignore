@@ -1,0 +1,18 @@
+# Frontend needs src/ (engine) + web/ + server/src (type-only protocol import).
+# Skip the rest so uploads stay small. server/node_modules and *.db are dropped
+# by the node_modules / *.db rules below.
+e2e
+test
+node_modules
+web/node_modules
+*.pdf
+*.png
+*.gif
+*.webp
+*.db
+*.db-shm
+*.db-wal
+laska*.html
+lasca*.html
+inspiration.html
+design-3d-test

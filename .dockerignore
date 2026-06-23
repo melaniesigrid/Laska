@@ -1,0 +1,17 @@
+# Keep the build context small + reproducible.
+**/node_modules
+**/*.db
+**/*.db-shm
+**/*.db-wal
+web
+e2e
+test
+*.pdf
+*.png
+*.gif
+*.webp
+*.html
+*.md
+*.ts
+!src/**/*.ts
+!server/**/*.ts

@@ -8,3 +8,22 @@ dist/
 *.db-shm
 *.db-wal
 .gstack/
+.vercel
+
+# Playwright e2e artifacts
+e2e/test-results/
+e2e/playwright-report/
+
+# Local scratch: early single-file prototypes, inspiration media, and notes.
+# Kept on disk for reference, deliberately out of the published repo.
+/laska.html
+/laska (1).html
+/lasca-soft (1).html
+/inspiration.html
+/original-main-page.html
+/design-3d-test
+/job.txt
+/laska-ai-architect-prompt.md
+/young-emanuel-lasker.png
+/young-emanuel.gif
+/laska_brochure.pdf

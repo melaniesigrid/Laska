@@ -35,11 +35,16 @@ export {
   chooseMove,
   scoreMoves,
   evaluate,
+  newStats,
   DEFAULT_WEIGHTS,
+  DIFFICULTY_DEPTH,
+  DIFFICULTY_ORDER,
   type Difficulty,
   type AIOptions,
   type EvalWeights,
   type ScoredMove,
+  type ScoreOptions,
+  type SearchStats,
 } from './ai.ts';
 
 export {

@@ -1,0 +1,321 @@
+/* ==========================================================================
+   Laska — landing page. Ported from laska.html. Scoped under .landing-page so
+   its generic classes (.btn, .board, .card, .legend…) never collide with the
+   game board's stylesheet. Stone + eucalyptus palette (the site default).
+   ========================================================================== */
+.landing-page {
+  --bg: #e8e4db;
+  --l-light: #fbf8f2;
+  --l-shadow: #c4beb1;
+  --l-ink: #38342c;
+  --l-body: #645e51;
+  --faint: #7a7363;
+  --l-accent: #5f8c7e;
+  --accent-dk: #4a7165;
+  --piece-dark-1: #4b463c; --piece-dark-2: #322e27;
+  --piece-light-1: #f2ede3; --piece-light-2: #d9d2c4;
+  --maxw: 1120px;
+  --pad: clamp(1.25rem, 5vw, 3.5rem);
+  --section-y: clamp(5rem, 11vw, 9rem);
+  --r-sm: 14px; --r-md: 22px; --r-lg: 32px; --r-pill: 999px;
+  --nm-d: 9px; --nm-b: 18px;
+  --nm-raise: var(--nm-d) var(--nm-d) var(--nm-b) var(--l-shadow), calc(-1*var(--nm-d)) calc(-1*var(--nm-d)) var(--nm-b) var(--l-light);
+  --nm-raise-sm: 5px 5px 11px var(--l-shadow), -5px -5px 11px var(--l-light);
+  --nm-inset: inset 5px 5px 11px var(--l-shadow), inset -5px -5px 11px var(--l-light);
+  --nm-inset-deep: inset 7px 7px 15px var(--l-shadow), inset -7px -7px 15px var(--l-light);
+
+  background: var(--bg);
+  color: var(--l-body);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-size: clamp(1rem, 1.05vw + 0.9rem, 1.0625rem);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip; /* clip (not hidden) so it does NOT break position:sticky on the navbar */
+  min-height: 100dvh;
+}
+.landing-page h1, .landing-page h2, .landing-page h3 {
+  font-family: 'Fraunces', Georgia, serif; color: var(--l-ink); line-height: 1.06; letter-spacing: -0.012em; font-weight: 500; margin: 0;
+}
+.landing-page p { margin: 0; }
+.landing-page a { color: inherit; }
+.landing-page .wrap { max-width: var(--maxw); margin-inline: auto; padding-inline: var(--pad); }
+.landing-page .eyebrow { font-size: 0.72rem; letter-spacing: 0.32em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin: 0; }
+.landing-page em.serif { font-style: italic; color: var(--accent-dk); }
+
+.landing-page .topbar {
+  /* override the game stylesheet's global .topbar (max-width/flex/padding) which
+     otherwise leaks in and shrinks this bar */
+  display: block; max-width: none; width: 100%; padding: 0; border-radius: 0;
+  position: sticky; top: 0; z-index: 30;
+  background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.landing-page .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 74px; }
+.landing-page .mark { font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.35rem; color: var(--l-ink); letter-spacing: 0.02em; }
+.landing-page .mark span { color: var(--accent-dk); }
+
+.landing-page .btn {
+  display: inline-flex; align-items: center; gap: 0.55rem; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.9rem;
+  letter-spacing: 0.02em; color: var(--l-ink); text-decoration: none; padding: 0.7rem 1.4rem; border-radius: var(--r-pill);
+  background: var(--bg); box-shadow: var(--nm-raise-sm); transition: box-shadow 0.18s ease, transform 0.18s ease, color 0.18s ease; border: none; cursor: pointer;
+}
+.landing-page .btn:hover { color: var(--accent-dk); }
+.landing-page .btn:active { box-shadow: var(--nm-inset); transform: translateY(1px); }
+.landing-page .btn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--l-accent); }
+.landing-page .btn-lg { font-size: 1rem; padding: 1.05rem 2.2rem; box-shadow: var(--nm-raise); }
+.landing-page :focus-visible { outline: 2px solid var(--accent-dk); outline-offset: 3px; border-radius: 6px; }
+
+.landing-page .hero { padding-top: clamp(3rem, 7vw, 6rem); padding-bottom: var(--section-y); }
+.landing-page .hero-grid { display: grid; gap: clamp(2.5rem, 5vw, 4.5rem); grid-template-columns: 1.05fr 0.95fr; align-items: center; }
+.landing-page .hero h1 { font-size: clamp(2.9rem, 6.4vw, 5.3rem); margin: 0.9rem 0 0; }
+.landing-page .hero h1 .light { font-weight: 400; }
+.landing-page .hero .lede { margin-top: 1.6rem; max-width: 30ch; font-size: 1.12rem; }
+.landing-page .hero-actions { margin-top: 2.2rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+.landing-page .since { font-size: 0.82rem; color: var(--faint); letter-spacing: 0.04em; }
+
+/* hero board — the original laska.html board (small flat discs), now playing
+   itself. Columns show as a commander disc with prisoner rims peeking below. */
+.landing-page .board-frame { background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise); padding: clamp(1rem, 2.5vw, 1.6rem); width: 100%; max-width: 430px; margin-inline: auto; }
+.landing-page .board { aspect-ratio: 1/1; width: 100%; background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset-deep); padding: clamp(0.5rem, 1.8vw, 0.9rem); display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(2px, 0.6vw, 5px); }
+/* each cell is its own query container so the coin + stack offset scale to it */
+.landing-page .cell { position: relative; border-radius: 7px; container-type: size; --lcoin: 70cqmin; --lpeek: 11cqmin; }
+.landing-page .cell.play { box-shadow: inset 2px 2px 4px var(--l-shadow), inset -2px -2px 4px var(--l-light); }
+/* a real coin stack: the column sits on the square's floor and rises as it grows,
+   each prisoner a full disc tucked beneath the next (matching the game board) */
+.landing-page .lcolumn { position: absolute; left: 50%; bottom: 15cqmin; transform: translateX(-50%); width: var(--lcoin); }
+.landing-page .piece { position: absolute; left: 0; width: var(--lcoin); height: var(--lcoin); border-radius: 50%; display: grid; place-items: center; animation: pieceIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.landing-page .piece:not(.top) { filter: brightness(0.95); }
+.landing-page .piece.dark { background: radial-gradient(circle at 32% 28%, var(--piece-dark-1), var(--piece-dark-2)); box-shadow: 1px 2px 4px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.14); }
+.landing-page .piece.light { background: radial-gradient(circle at 32% 28%, var(--piece-light-1), var(--piece-light-2)); box-shadow: 1px 2px 5px var(--l-shadow), inset 0 1px 0 var(--l-light); }
+/* rank pips on the commander: 1 dot = soldier, 2 dots = officer (general) */
+.landing-page .piece .dots { display: flex; align-items: center; justify-content: center; gap: 20%; width: 100%; height: 100%; }
+.landing-page .dot-pip { width: 17%; height: 17%; min-width: 3.5px; min-height: 3.5px; border-radius: 50%; }
+.landing-page .piece.light .dot-pip { background: rgba(70,50,40,0.5); box-shadow: inset 0 0.5px 1px rgba(70,38,26,0.5); }
+.landing-page .piece.dark .dot-pip { background: rgba(248,240,230,0.72); box-shadow: inset 0 0.5px 1px rgba(0,0,0,0.3); }
+.landing-page .piece.officer { outline: 2px solid var(--l-accent); outline-offset: 2px; }
+/* themed rank insignia (star/medal/crown/shield) — sized as a share of the disc,
+   engraved via drop-shadow since this board doesn't define the game's --coin */
+.landing-page .piece .insignia { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 54%; height: 54%; pointer-events: none; }
+.landing-page .piece .ins-soldier { width: 46%; height: 46%; }
+/* debossed into the coin (see styles.css) — coin-tone fill + opposed bevel, no white */
+.landing-page .piece.light .insignia { color: color-mix(in srgb, var(--piece-light-1) 70%, #6a563f); filter: drop-shadow(-0.6px -0.6px 0.4px rgba(95,80,58,0.5)) drop-shadow(0.7px 0.8px 0.5px rgba(255,252,246,0.85)); }
+.landing-page .piece.dark .insignia { color: color-mix(in srgb, var(--piece-dark-1) 80%, #000); filter: drop-shadow(-0.6px -0.6px 0.4px rgba(0,0,0,0.5)) drop-shadow(0.7px 0.8px 0.5px color-mix(in srgb, var(--piece-dark-1) 45%, #fff)); }
+/* number of stacked pieces, floating just above the top of the tower */
+.landing-page .count {
+  position: absolute; top: calc(var(--lcoin) * -0.24); left: 50%; transform: translateX(-50%); z-index: 20;
+  font-family: 'Hanken Grotesk', sans-serif; font-size: clamp(7.5px, 1.3vw, 10px); font-weight: 700; line-height: 1;
+  color: var(--accent-dk); background: var(--bg); border-radius: 999px; padding: 2px 5px;
+  box-shadow: 2px 2px 4px var(--l-shadow), -1px -1px 3px var(--l-light);
+}
+@keyframes pieceIn { from { opacity: 0; transform: scale(0.78); } to { opacity: 1; transform: scale(1); } }
+
+.landing-page .demo-note { margin-top: 1.2rem; text-align: center; font-size: 0.86rem; color: var(--faint); display: flex; align-items: center; justify-content: center; gap: 0.55rem; }
+.landing-page .demo-note .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--l-accent); animation: notePulse 1.7s infinite; }
+.landing-page .demo-result { gap: 1rem; font-size: 0.95rem; }
+.landing-page .demo-result strong { font-family: 'Fraunces', serif; font-weight: 500; color: var(--l-ink); }
+.landing-page .demo-again { font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.02em; color: var(--l-ink); background: var(--bg); border: none; border-radius: var(--r-pill); padding: 0.5rem 1.1rem; cursor: pointer; box-shadow: var(--nm-raise-sm); transition: box-shadow 0.16s ease, transform 0.16s ease, color 0.16s ease; }
+.landing-page .demo-again:hover { color: var(--accent-dk); }
+.landing-page .demo-again:active { box-shadow: var(--nm-inset); transform: translateY(1px); }
+@keyframes notePulse { 0% { box-shadow: 0 0 0 0 rgba(95,140,126,0.45); } 70% { box-shadow: 0 0 0 7px rgba(95,140,126,0); } 100% { box-shadow: 0 0 0 0 rgba(95,140,126,0); } }
+@media (prefers-reduced-motion: reduce) { .landing-page .piece, .landing-page .demo-note .pulse { animation: none !important; } }
+
+.landing-page .legend { display: flex; gap: 1.6rem; justify-content: center; flex-wrap: wrap; margin-top: 1.4rem; font-size: 0.8rem; color: var(--faint); }
+.landing-page .legend .swatch { display: inline-flex; align-items: center; gap: 0.5rem; }
+.landing-page .legend i { width: 18px; height: 18px; border-radius: 50%; display: inline-block; position: relative; }
+.landing-page .legend i.dark { background: radial-gradient(circle at 32% 28%, var(--piece-dark-1), var(--piece-dark-2)); }
+.landing-page .legend i.light { background: radial-gradient(circle at 32% 28%, var(--piece-light-1), var(--piece-light-2)); border: 1px solid var(--l-shadow); }
+.landing-page .legend i.dark::after { content: ''; position: absolute; inset: 33%; border-radius: 50%; background: rgba(0,0,0,0.4); }
+.landing-page .legend i.light::after { content: ''; position: absolute; inset: 30%; border-radius: 50%; border: 1.5px solid rgba(110,103,89,0.6); }
+
+.landing-page section { padding-block: var(--section-y); }
+.landing-page .lead-h2 { font-size: clamp(2rem, 4vw, 3.1rem); max-width: 18ch; margin-top: 1rem; }
+.landing-page .section-intro { max-width: 54ch; margin-top: 1.5rem; font-size: 1.12rem; }
+
+/* neutralize the game stylesheet's global .panel (flex/min/max-width) which
+   otherwise leaks in and caps these full-width landing panels at 360px */
+.landing-page .panel { flex: none; min-width: 0; max-width: none; }
+.landing-page .mechanic .panel { margin-top: clamp(3rem, 6vw, 4.5rem); background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise); padding: clamp(2rem, 4.5vw, 4rem); display: grid; grid-template-columns: 1.15fr 0.85fr; gap: clamp(2.5rem, 5vw, 4.5rem); align-items: center; }
+.landing-page .mechanic h3 { font-size: 1.45rem; margin-bottom: 0.6rem; }
+.landing-page .mech-step { display: flex; gap: 1.1rem; padding: 1.1rem 0; }
+.landing-page .mech-step + .mech-step { border-top: 1px solid color-mix(in srgb, var(--l-shadow) 60%, transparent); }
+.landing-page .mech-num { flex: none; width: 42px; height: 42px; border-radius: 50%; background: var(--bg); box-shadow: var(--nm-raise-sm); display: grid; place-items: center; font-family: 'Fraunces', serif; color: var(--accent-dk); font-size: 1rem; font-weight: 600; }
+.landing-page .mech-step b { color: var(--l-ink); font-weight: 600; }
+
+/* "A capture, in motion" — a looping diagram: a soldier jumps an enemy, lands
+   beyond, and the captured piece tucks beneath it as a two-high column. */
+.landing-page .capture-demo { background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset); padding: 2.4rem 1.5rem 2rem; display: flex; flex-direction: column; align-items: center;
+  --cell: clamp(54px, 14vw, 74px); --gap: 8px; --well-pad: 10px; --step: calc(var(--cell) + var(--gap)); }
+.landing-page .cap-label { font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
+
+.landing-page .demo-stage { position: relative; display: inline-block; margin: 1.5rem 0 1.7rem; }
+.landing-page .demo-board { display: grid; grid-template-columns: repeat(3, var(--cell)); gap: var(--gap); padding: var(--well-pad); border-radius: 16px; background: var(--bg); box-shadow: var(--nm-inset); }
+.landing-page .demo-board .well { width: var(--cell); height: var(--cell); border-radius: 9px; }
+.landing-page .demo-board .well.play { box-shadow: inset 2px 2px 4px var(--l-shadow), inset -2px -2px 4px var(--l-light); }
+
+.landing-page .demo-grp { position: absolute; top: var(--well-pad); left: var(--well-pad); animation: demoFade 7s ease-in-out infinite; }
+.landing-page .demo-piece { position: absolute; width: var(--cell); height: var(--cell); border-radius: 50%; }
+.landing-page .demo-piece.commander { left: 0; top: calc(2 * var(--step)); z-index: 3;
+  background: radial-gradient(circle at 33% 27%, var(--piece-dark-1), var(--piece-dark-2));
+  box-shadow: 3px 5px 9px rgba(0,0,0,0.32), -2px -2px 6px rgba(255,255,255,0.13);
+  animation: cmdrJump 7s cubic-bezier(0.34,0.05,0.32,1) infinite; }
+.landing-page .demo-piece.commander::after { content: ""; position: absolute; inset: -6px; border-radius: 50%;
+  border: 2px solid var(--l-accent); opacity: 0; animation: ringBloom 7s ease-in-out infinite; }
+.landing-page .demo-piece.victim { left: var(--step); top: var(--step); z-index: 2; transform-origin: center center;
+  background: radial-gradient(circle at 33% 27%, var(--piece-light-1), var(--piece-light-2));
+  box-shadow: 3px 4px 7px var(--l-shadow);
+  animation: victimTuck 7s cubic-bezier(0.34,0.05,0.32,1) infinite; }
+
+@keyframes cmdrJump {
+  0%, 9%    { transform: translate(0, 0); }
+  19%       { transform: translate(calc(1 * var(--step)), calc(-2.35 * var(--step))); }
+  30%, 80%  { transform: translate(calc(2 * var(--step)), calc(-2 * var(--step))); }
+  81%, 100% { transform: translate(0, 0); }
+}
+@keyframes victimTuck {
+  0%, 20%   { transform: translate(0, 0) scaleY(1); }
+  30%, 80%  { transform: translate(var(--step), calc(-1 * var(--step) + 0.4 * var(--cell))) scaleY(0.17); }
+  81%, 100% { transform: translate(0, 0) scaleY(1); }
+}
+@keyframes ringBloom {
+  0%, 27%   { opacity: 0; transform: scale(0.82); }
+  36%, 74%  { opacity: 1; transform: scale(1); }
+  80%, 100% { opacity: 0; transform: scale(1); }
+}
+@keyframes demoFade {
+  0%, 72%   { opacity: 1; }
+  80%, 90%  { opacity: 0; }
+  100%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-page .demo-grp { opacity: 1; animation: none; }
+  .landing-page .demo-piece.commander { transform: translate(calc(2 * var(--step)), calc(-2 * var(--step))); animation: none; }
+  .landing-page .demo-piece.commander::after { opacity: 1; animation: none; }
+  .landing-page .demo-piece.victim { transform: translate(var(--step), calc(-1 * var(--step) + 0.4 * var(--cell))) scaleY(0.17); animation: none; }
+}
+.landing-page .tag { display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--l-body); }
+.landing-page .tag .marker { width: 9px; height: 9px; border-radius: 50%; }
+.landing-page .tag .marker.cmd { background: var(--l-accent); }
+.landing-page .tag .marker.pri { background: var(--faint); }
+
+.landing-page .rules-grid { margin-top: clamp(3rem, 6vw, 4rem); display: grid; gap: clamp(1.25rem, 2.4vw, 1.75rem); grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
+.landing-page .card { background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-raise); padding: clamp(1.7rem, 3vw, 2.3rem); transition: transform 0.25s ease; }
+.landing-page .card:hover { transform: translateY(-4px); }
+.landing-page .card .idx { font-family: 'Fraunces', serif; font-style: italic; color: var(--accent-dk); font-size: 1.05rem; }
+.landing-page .card h3 { font-size: 1.3rem; margin: 0.6rem 0 0.7rem; }
+.landing-page .card p { font-size: 1rem; }
+.landing-page .card.note { box-shadow: var(--nm-inset); }
+.landing-page .card.note h3 { color: var(--accent-dk); }
+
+/* named openings — monospaced move scores in a recessed pill */
+.landing-page code.san {
+  font-family: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.9em; letter-spacing: -0.01em; color: var(--accent-dk);
+  background: var(--bg); border-radius: 7px; padding: 1px 6px;
+  box-shadow: var(--nm-inset); white-space: nowrap;
+}
+.landing-page .san-line { margin: 0.2rem 0 0.9rem; line-height: 2.2; }
+.landing-page .san-no { font-family: 'Fraunces', serif; color: var(--faint); font-weight: 600; margin-right: 0.2rem; font-size: 0.95em; }
+.landing-page .san-vars { list-style: none; margin: 0.9rem 0 0; padding: 0.9rem 0 0; border-top: 1px solid color-mix(in srgb, var(--l-shadow) 50%, transparent); display: grid; gap: 0.7rem; }
+.landing-page .san-vars li { font-size: 0.92rem; line-height: 1.5; }
+.landing-page .san-vars .san-note { display: block; color: var(--l-body); margin-top: 0.3rem; }
+.landing-page .san-vars li.unresolved code.san { color: var(--faint); }
+.landing-page .san-vars .flag { font-style: italic; color: var(--faint); font-size: 0.85em; }
+.landing-page .refs ul { list-style: none; margin: 0.8rem 0 0; padding: 0; display: grid; gap: 0.55rem; }
+.landing-page .refs li { font-size: 0.9rem; line-height: 1.5; color: var(--l-body); }
+.landing-page .refs a { color: var(--accent-dk); text-decoration: underline; text-underline-offset: 2px; }
+.landing-page p.section-intro code.san { font-size: 0.85em; }
+
+.landing-page .lasker-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: clamp(2.5rem, 5vw, 4.5rem); align-items: start; }
+.landing-page .portrait { background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise); aspect-ratio: 4/5; max-width: 380px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.4rem; position: sticky; top: 100px; }
+.landing-page .medallion { width: 128px; height: 128px; border-radius: 50%; background: var(--bg); box-shadow: var(--nm-inset-deep); display: grid; place-items: center; font-family: 'Fraunces', serif; font-weight: 600; font-size: 2.6rem; color: var(--l-ink); letter-spacing: 0.02em; }
+.landing-page .portrait .name { font-family: 'Fraunces', serif; font-size: 1.45rem; color: var(--l-ink); }
+.landing-page .portrait .years { font-size: 0.85rem; color: var(--faint); letter-spacing: 0.08em; margin-top: -1rem; }
+.landing-page .timeline { margin-top: 0.4rem; }
+.landing-page .tl-item { display: grid; grid-template-columns: auto 1fr; gap: 1.4rem; padding: 1.15rem 0; }
+.landing-page .tl-item + .tl-item { border-top: 1px solid color-mix(in srgb, var(--l-shadow) 60%, transparent); }
+.landing-page .tl-year { font-family: 'Fraunces', serif; color: var(--accent-dk); font-size: 1.15rem; font-weight: 600; min-width: 3.4ch; }
+.landing-page .tl-item p { font-size: 1.02rem; }
+.landing-page .tl-item b { color: var(--l-ink); font-weight: 600; }
+
+.landing-page .facts { margin-top: clamp(3rem, 6vw, 4rem); display: grid; gap: clamp(1.25rem, 2.4vw, 1.75rem); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.landing-page .fact { background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-raise-sm); padding: 1.6rem 1.7rem; }
+.landing-page .fact .big { font-family: 'Fraunces', serif; font-size: 1.9rem; color: var(--l-ink); display: block; line-height: 1.1; }
+.landing-page .fact small { display: block; margin-top: 0.5rem; font-size: 0.92rem; color: var(--l-body); }
+
+.landing-page .closing { text-align: center; }
+.landing-page .closing .panel { background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise); padding: clamp(3rem, 7vw, 5.5rem) clamp(1.5rem, 5vw, 3rem); max-width: 760px; margin-inline: auto; }
+.landing-page .closing h2 { font-size: clamp(2rem, 4.5vw, 3.2rem); }
+.landing-page .closing p { margin: 1.4rem auto 2.4rem; max-width: 46ch; }
+
+.landing-page footer { padding-block: clamp(2.5rem, 5vw, 3.5rem); }
+.landing-page footer .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border-top: 1px solid color-mix(in srgb, var(--l-shadow) 55%, transparent); padding-top: 2rem; }
+.landing-page footer .fine { font-size: 0.82rem; color: var(--faint); }
+
+.landing-page .reveal { opacity: 0; transform: translateY(16px); }
+.landing-page .reveal.in { opacity: 1; transform: none; transition: opacity 0.7s ease, transform 0.7s ease; }
+
+/* ---- brochure (rules) page ------------------------------------------- */
+.landing-page .terms { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: clamp(1.25rem, 2.4vw, 1.75rem); margin-top: clamp(2rem, 4vw, 2.6rem); }
+.landing-page .term { background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-raise); padding: clamp(1.5rem, 3vw, 2rem); }
+.landing-page .term-name { display: block; font-family: 'Fraunces', serif; font-size: 1.2rem; color: var(--ink); margin-bottom: 0.5rem; }
+.landing-page .term p { font-size: 1rem; }
+.landing-page .brochure-split { display: grid; grid-template-columns: 1fr minmax(0, 360px); gap: clamp(2rem, 5vw, 4rem); align-items: center; }
+.landing-page .numbered-board { display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(3px, 0.8vw, 6px); width: 100%; max-width: 360px; aspect-ratio: 1/1; padding: clamp(0.6rem, 1.6vw, 1rem); background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset-deep); }
+.landing-page .bd-cell { display: flex; align-items: center; justify-content: center; border-radius: 7px; font-family: 'Hanken Grotesk', sans-serif; font-size: clamp(0.7rem, 1.7vw, 0.95rem); font-weight: 600; font-variant-numeric: tabular-nums; }
+.landing-page .bd-cell.light { background: transparent; }
+.landing-page .bd-cell.play { box-shadow: inset 2px 2px 4px var(--l-shadow), inset -2px -2px 4px var(--l-light); }
+.landing-page .bd-cell.play span { opacity: 0.9; }
+.landing-page .bd-cell.white span { color: var(--accent-dk); }
+.landing-page .bd-cell.black span { color: var(--body); }
+.landing-page .bd-cell.mid { box-shadow: inset 2px 2px 5px var(--l-shadow), inset -2px -2px 5px var(--l-light); }
+.landing-page .bd-cell.mid span { color: var(--faint); font-style: italic; }
+
+/* ---- historic-game replay viewer ------------------------------------- */
+.landing-page .replay-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+.landing-page .replay-tab { font-family: 'Hanken Grotesk', sans-serif; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.02em; color: var(--body); background: var(--bg); border: 0; border-radius: var(--r-pill); padding: 0.5rem 1.1rem; cursor: pointer; box-shadow: var(--nm-raise-sm); transition: color 0.14s ease, box-shadow 0.14s ease; }
+.landing-page .replay-tab:hover { color: var(--accent-dk); }
+.landing-page .replay-tab.active { color: var(--accent-dk); box-shadow: var(--nm-inset); }
+.landing-page .replay-tab:focus-visible { outline: 2px solid var(--accent-dk); outline-offset: 2px; }
+.landing-page .replay-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, 380px); gap: clamp(2rem, 4vw, 3.5rem); align-items: start; }
+.landing-page .replay-board { display: flex; justify-content: center; }
+.landing-page .replay-panel { display: flex; flex-direction: column; gap: 1.1rem; position: sticky; top: 96px; }
+.landing-page .replay-note { background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset); padding: 1.3rem 1.4rem; min-height: 7.5rem; }
+.landing-page .replay-ply-label { display: block; font-family: 'Fraunces', serif; font-style: italic; color: var(--accent-dk); font-size: 1.05rem; margin-bottom: 0.5rem; }
+.landing-page .replay-note p { font-size: 1rem; line-height: 1.55; }
+.landing-page .replay-controls { display: flex; gap: 0.5rem; align-items: center; justify-content: center; flex-wrap: wrap; }
+.landing-page .replay-controls .btn { padding: 0.7rem 1rem; }
+.landing-page .replay-controls .btn.icon-only { padding: 0.7rem; }
+.landing-page .replay-counter { text-align: center; font-size: 0.82rem; letter-spacing: 0.04em; color: var(--faint); }
+.landing-page .replay-counter span { opacity: 0.7; }
+.landing-page .move-list { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; padding: 0.8rem; background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset); }
+.landing-page .move-row { display: grid; grid-template-columns: 2.2rem 1fr 1fr; gap: 0.35rem; align-items: center; }
+.landing-page .move-no { font-size: 0.82rem; color: var(--faint); font-variant-numeric: tabular-nums; }
+.landing-page .move-cell { font-family: 'Hanken Grotesk', sans-serif; font-size: 0.9rem; font-weight: 600; color: var(--body); text-align: left; background: transparent; border: 0; border-radius: 8px; padding: 0.4rem 0.6rem; cursor: pointer; transition: background 0.12s ease, color 0.12s ease; }
+.landing-page .move-cell:hover:not(:disabled) { color: var(--accent-dk); }
+.landing-page .move-cell.active { background: var(--bg); box-shadow: var(--nm-raise-sm); color: var(--ink); }
+.landing-page .move-cell.empty, .landing-page .move-cell:disabled { cursor: default; }
+.landing-page .move-cell:focus-visible { outline: 2px solid var(--accent-dk); outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-page .reveal { opacity: 1 !important; transform: none !important; }
+}
+@media (max-width: 880px) {
+  .landing-page .replay-grid { grid-template-columns: 1fr; }
+  .landing-page .replay-panel { position: static; }
+  .landing-page .replay-board { order: -1; }
+  .landing-page .brochure-split { grid-template-columns: 1fr; }
+  .landing-page .hero-grid { grid-template-columns: 1fr; }
+  .landing-page .hero .order-art { order: -1; }
+  .landing-page .hero .lede { max-width: 46ch; }
+  .landing-page .mechanic .panel { grid-template-columns: 1fr; }
+  .landing-page .capture-demo { order: -1; }
+  .landing-page .lasker-grid { grid-template-columns: 1fr; }
+  .landing-page .portrait { position: static; margin-inline: auto; }
+}
+@media (max-width: 520px) {
+  .landing-page { --nm-d: 7px; --nm-b: 14px; }
+  .landing-page .topbar .wrap { height: 64px; }
+  .landing-page .hero h1 { font-size: clamp(2.6rem, 11vw, 3.4rem); }
+  .landing-page .tl-item { grid-template-columns: 1fr; gap: 0.3rem; }
+  .landing-page .legend { gap: 1rem; }
+}

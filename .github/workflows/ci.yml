@@ -1,0 +1,105 @@
+name: CI
+
+# The trust anchor for the overnight pipeline's "auto-merge behind tests" gate.
+# Runs on a CLEAN runner — not in the agent's own session — so a green check
+# means the change actually builds and passes tests on a fresh machine.
+#
+# After first push: enable branch protection on `main` requiring the three jobs
+# below (engine / server / web) so the dispatcher's `gh pr merge` only lands
+# green PRs. Without branch protection, CI is advisory, not enforcing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# One in-flight run per branch; newer pushes cancel older runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    name: Engine + AI (root)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # npm install (not `npm ci`): lockfiles in this repo can drift from
+      # package.json during active dev, and `npm ci` hard-fails on drift.
+      # Revisit once lockfiles are committed and stable.
+      - run: npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test (engine + AI, incl. Lasker-games replay guard)
+        run: npm test
+
+  server:
+    name: Server (online backend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Typecheck
+        run: npm run typecheck
+      # Redis integration test self-skips without REDIS_URL, so the core suite
+      # runs here without a Redis service. See `redis` job below to enforce it.
+      - name: Test (server)
+        run: npm test
+
+  web:
+    name: Web (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      # Web has NO unit tests by design (CLAUDE.md). Typecheck + a clean Vite
+      # build is the strongest automated signal available — it does NOT verify
+      # runtime/visual correctness, which is why web changes stay human-gated.
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+
+  # Optional hardening: enforce the Redis cross-node integration test in CI.
+  # The repo TODO explicitly asks for this ("Wire the Redis test into CI").
+  redis:
+    name: Server (Redis integration)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    services:
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Redis integration test
+        env:
+          REDIS_URL: redis://127.0.0.1:6379/0
+        run: npm run test:redis

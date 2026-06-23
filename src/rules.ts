@@ -7,6 +7,15 @@
  *   applyMove(state, move)      -> GameState   (does not mutate input)
  *   gameStatus(state, opts?)    -> GameOutcome
  *
+ * PRIMARY-SOURCE VALIDATION (2026-06-22): this engine replays Dr. Emanuel
+ * Lasker's OWN explanatory games from his 1911 booklet "Rules of Lasca" end to
+ * end — Game 2 (39 plies) and Game 3 (78 plies) validate move-for-move. That is
+ * the strongest confirmation the rules below match the inventor's. The one
+ * interpretive choice is capture selection: Lasker advised "the longest run or
+ * best advantage"; the "or best advantage" makes this guidance, not a strict
+ * maximum-capture rule, so we implement FREE CHOICE (the common modern reading).
+ * See web/src/games.ts (replays) and BrochurePage (the canonical rules write-up).
+ *
  * VERIFIED RULES (see src/types.ts header for sources):
  *  - 7x7 board, 25 playing squares; 11 soldiers each on the 3 nearest rows;
  *    centre row empty; White moves first.

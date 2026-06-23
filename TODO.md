@@ -79,6 +79,14 @@ ownership, and cross-node message routing:
   `REDIS_URL` is set; run with `npm run test:redis` (after starting a throwaway
   `redis-server --port 6390`). Surfaced + fixed a real shutdown-ordering bug
   (socket-close cluster ops now tolerate a closing fabric).
+- ✅ **Theme rework (2026-06-22):** the old "Dark" (black border + chocolate board)
+  was renamed **Chocolate** with the border unified to the board (one realistic
+  chocolate material), and a brand-new **Dark** added — Stone inverted (warm-charcoal
+  neumorphism). Five palettes now: Stone, Dark, Light, Chocolate, Classic. See DESIGN.md.
+- ⏳ **New theme mode — "Navy":** navy-blue board/background, yellow stars (general
+  insignia), blue + red pieces. Add as a sixth `[data-theme]` palette in
+  `web/src/styles.css` (keep neumorphic `--ground` = `--pedestal`/`--plate`) + wire
+  into the theme cycle; update DESIGN.md. See `web/src/pieceTheme.tsx` for star tone.
 - ⏳ Remaining for production hardening:
   - **Wire the Redis test into CI** — stand up a Redis service in the CI job and
     set `REDIS_URL` so `test:redis` runs on every push (it passes locally today).
@@ -115,13 +123,15 @@ ownership, and cross-node message routing:
 - **Quests/missions**, well-timed (non-spammy) push notifications.
 - Social: friend challenges, **shareable replays** (we already persist full move
   lists), spectating, clubs/teams.
-- **Interactive onboarding** that teaches the column-capture mechanic — the
-  game's main hook and unfamiliar to most players. (The slice has a static "How
-  to read the board" panel; make it an interactive tutorial.)
+- **Interactive tutorial** — see the dedicated flagship section below. This is a
+  primary selling point, not just onboarding.
 
 ### 6. Monetization (verify all fees/SDKs against current docs before relying)
 - **Freemium subscription**: analysis, unlimited puzzles, deeper stats, ad
   removal. Web billing via **Stripe**.
+- **Lessons & courses** (see flagship tutorial section): the interactive tutorial
+  ships free as the hook; **paid course packs** (Openings, tactics, endgames,
+  column strategy) are a content monetization line on top of it.
 - **Cosmetics**: board themes, piece/column skins (non-pay-to-win; never sell
   ranked advantages).
 - **Season/battle pass**: free + premium tracks.
@@ -132,6 +142,57 @@ ownership, and cross-node message routing:
   around **15–30%** depending on program/tier — **verify current rates and
   small-business-program eligibility**. Consider **RevenueCat** to unify
   entitlements across platforms (verify its current API).
+
+### ⭐ FLAGSHIP: Interactive Tutorial & Lessons
+
+A **complete, interactive tutorial** is a primary selling point — most players
+have never seen Laska, so a great "learn it in 5 minutes" experience is the
+single biggest lever on activation and retention. Source material is collected
+in `TUTORIAL.md` (rules, the four capture beats, copy). Build order:
+
+- **Phase 1 — the core mechanic (free, the hook).** A guided, on-board interactive
+  walkthrough of the four beats: (1) you jump an enemy, (2) it tucks beneath you,
+  (3) the top piece (commander) rules, (4) capturing frees the prisoners below.
+  Each beat is a real position the player must execute on the actual board, with
+  highlights, a "do this move" prompt, validation via the engine (`legalMoves`),
+  and a gentle "try again" on a wrong move. No login. Ends in a first win vs a
+  Beginner bot. Reuse the real `BoardView` + engine; drive steps from a script.
+- **Phase 2 — reading the board.** Officers (2-dot generals), tall columns +
+  count, forced capture, promotion on the far row, draw rules. Short, interactive.
+- **Phase 3 — practice puzzles.** "White to move and capture" / "free your
+  prisoners" positions; the engine verifies solutions. Feeds daily puzzles too.
+- **Phase 4 — Lessons & courses (monetizable).** Structured mini-courses, each a
+  sequence of interactive lessons + puzzles:
+  - **Openings** — sound first moves on 7×7, why the centre row matters.
+  - **Tactics** — chains, multi-jumps, sham sacrifices that win a column.
+  - **Column strategy** — when to build tall vs stay mobile; freeing prisoners.
+  - **Endgames** — converting a material/column edge; avoiding the draw counter.
+  - Free intro lesson per course; full course behind the subscription / one-time
+    purchase (see Monetization → Lessons & courses).
+- **Tech notes.** Tutorial steps as data (`{position, prompt, expectedMove(s),
+  hint, successText}`), rendered over `BoardView`. A `TutorialBoard` wrapper adds
+  step highlighting + move gating. Progress saved to `localStorage` (later: account).
+  Keep it engine-driven so lessons can't drift from the real rules.
+
+### 6b. Historic games (heritage content) — ⏳ PARTIAL
+- ✅ **Replay viewer** (`web/src/ReplayPage.tsx` + `games.ts`): steps a recorded
+  game move-by-move on the real `BoardView`, positions produced by the engine
+  replaying the lasca.org score (parse each ply → `applyMove`). Linked from the
+  landing + Lasker page. Shipped: **Moscow 1996** (Tatarinow–Roschtschin),
+  validates end-to-end.
+- ✅ **Canonical rules brochure** (`web/src/BrochurePage.tsx`): the full ruleset
+  from Lasker's 1911 booklet + numbered board diagram + strategy notes + games +
+  proposition. Source of truth, reconciled with `src/rules.ts`.
+- ✅ **Engine validated against PRIMARY SOURCE:** Lasker's own 1911 booklet
+  **Game 2 (39 plies) and Game 3 (78 plies) replay move-for-move** through our
+  engine. The capture-rule question is **resolved**: free-choice is correct —
+  Lasker wrote "longest run *or best advantage*", which is guidance, not strict
+  maximum-capture. Both games are live in the replay viewer.
+- ⏳ **Scores that still don't fully replay** (held back, shown as text only):
+  lasca.org Game 1 (1976) and Game 2 (a different 1911 game), and brochure
+  Games 1/4/5 (Game 4 reaches 74/75 plies; 1 & 5 stop earlier). All consistent
+  with faded-scan digit ambiguity the transcription flagged — re-transcribe and
+  re-run `games.ts` (throws on the first illegal ply) to recover them.
 
 ### 7. Mobile (after web online play works)
 - React Native / Expo app reusing the engine + AI + protocol types. Extract
@@ -156,6 +217,25 @@ ownership, and cross-node message routing:
   age-gating** if minors may play.
 - **Branding/IP**: the *game* Laska is public domain, but verify any chosen brand
   name/logo isn't trademarked and confirm app-store naming rules.
+
+### 11. AI build-process documentation (⏳ ONGOING — keep current)
+Documenting that Laska is built *by AI agents* is a first-class part of the
+project — it shows the milestones and the process, not just the result.
+- ✅ **`BUILD_LOG.md`** — the source-of-truth milestone log (build order, per
+  milestone: agent / shipped / verified / honest edge). Links out to `AI.md`
+  (opponent internals), `AI_RESEARCH.md` (arena), and the architect prompt; does
+  not duplicate them.
+- ✅ **In-app build story** — `web/src/BuildStoryPage.tsx` (+ `buildStory.css`),
+  routed as the `build` view in `App.tsx`, linked from `Landing.tsx`
+  ("How this was built"). Curated, visitor-facing view of the log.
+- ✅ **In-app opponent explainer** — `web/src/AIPage.tsx` ("How the computer
+  plays"), with a live, measured Search Lab.
+- ⏳ **Keep it current (recurring):** every time an agent completes a milestone,
+  append a new `### Mn` block to `BUILD_LOG.md` and, if visitor-facing, mirror it
+  in `BuildStoryPage.tsx`. Quote only reproducible numbers (`npm test`, a
+  benchmark, a replay). Never rewrite a past milestone — append only.
+- ⏳ **Next candidates to document** when shipped: the flagship tutorial, an
+  external AI-strength benchmark, and production hardening (migrations/failover).
 
 ---
 

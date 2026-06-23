@@ -1,0 +1,120 @@
+/* BuildStoryPage — the "Built with AI" milestone rail.
+ * Scoped under .build-page; reuses landing.css tokens and neumorphic shadows.
+ * No new colours, no flat borders — the rail emerges from the same surface. */
+
+.build-page .ms-rail {
+  list-style: none;
+  margin: clamp(2rem, 5vw, 3rem) 0 0;
+  padding: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.4rem, 3vw, 2rem);
+}
+
+/* The connecting spine, sitting behind the markers. */
+.build-page .ms-rail::before {
+  content: '';
+  position: absolute;
+  left: 21px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: linear-gradient(var(--l-shadow), color-mix(in srgb, var(--l-shadow) 35%, transparent));
+  border-radius: 2px;
+}
+
+.build-page .ms-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: clamp(1rem, 2.5vw, 1.6rem);
+  align-items: start;
+}
+
+.build-page .ms-marker {
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: var(--nm-raise-sm);
+  display: grid;
+  place-items: center;
+  color: var(--accent-dk);
+}
+
+.build-page .ms-body {
+  background: var(--bg);
+  border-radius: var(--r-lg);
+  box-shadow: var(--nm-raise);
+  padding: clamp(1.1rem, 2.5vw, 1.6rem) clamp(1.2rem, 3vw, 1.9rem);
+}
+
+.build-page .ms-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.8rem;
+  margin-bottom: 0.9rem;
+}
+
+.build-page .ms-id {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--accent-dk);
+  font-size: 1.05rem;
+}
+
+.build-page .ms-title {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+  color: var(--l-ink);
+  line-height: 1.2;
+}
+
+.build-page .ms-agent {
+  margin-left: auto;
+  font-family: 'Fraunces', serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  color: var(--accent-dk);
+  background: var(--bg);
+  box-shadow: var(--nm-inset);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  white-space: nowrap;
+}
+
+.build-page .ms-line {
+  margin: 0.45rem 0 0;
+  color: var(--l-body);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.build-page .ms-key {
+  display: inline-block;
+  min-width: 6.6em;
+  margin-right: 0.5rem;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  color: var(--accent-dk);
+  vertical-align: baseline;
+}
+
+.build-page .ms-edge .ms-key { color: var(--l-shadow); }
+.build-page .ms-edge { color: color-mix(in srgb, var(--l-body) 88%, var(--l-shadow)); }
+
+@media (max-width: 540px) {
+  .build-page .ms-rail::before { left: 17px; }
+  .build-page .ms-item { grid-template-columns: 36px 1fr; gap: 0.8rem; }
+  .build-page .ms-marker { width: 36px; height: 36px; }
+  .build-page .ms-agent { margin-left: 0; }
+  .build-page .ms-key { display: block; min-width: 0; margin-bottom: 0.1rem; }
+}

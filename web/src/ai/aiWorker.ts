@@ -1,0 +1,53 @@
+/**
+ * Web Worker that runs the Laska search off the main thread, so the React UI
+ * never blocks while the engine thinks. It is a thin transport: all decision
+ * logic stays in the shared engine (`src/ai.ts`) — the worker only marshals a
+ * request in and a move out.
+ *
+ * Determinism: the engine's RNG is a function and can't cross `postMessage`, so
+ * the request carries a numeric `seed` and the worker rebuilds the same LCG the
+ * tests use. Omit the seed for normal play (defaults to Math.random in-engine).
+ *
+ * Typed against the DOM lib (the web tsconfig has no "webworker" lib) via a
+ * minimal cast of `self`, which avoids the Window.postMessage signature clash.
+ */
+import { chooseMove } from '../../../src/index.ts';
+import type { GameState, Difficulty, Move } from '../../../src/index.ts';
+
+export interface AIRequest {
+  id: number;
+  state: GameState;
+  difficulty: Difficulty;
+  depth?: number;
+  seed?: number;
+}
+
+export interface AIResponse {
+  id: number;
+  move: Move | null;
+  elapsedMs: number;
+}
+
+/** The seedable LCG mirrored from `test/ai.test.ts` for reproducible games. */
+function lcg(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => (s = (s * 1664525 + 1013904223) >>> 0) / 0x100000000;
+}
+
+const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+const ctx = self as unknown as {
+  onmessage: ((e: MessageEvent<AIRequest>) => void) | null;
+  postMessage(msg: AIResponse): void;
+};
+
+ctx.onmessage = (e) => {
+  const { id, state, difficulty, depth, seed } = e.data;
+  const t0 = now();
+  const move = chooseMove(state, {
+    difficulty,
+    ...(depth !== undefined ? { depth } : {}),
+    ...(seed !== undefined ? { random: lcg(seed) } : {}),
+  });
+  ctx.postMessage({ id, move, elapsedMs: now() - t0 });
+};
