@@ -1,0 +1,19 @@
+{
+  "_client-D1LLNJa5.js": {
+    "file": "assets/client-D1LLNJa5.js",
+    "name": "client",
+    "isDynamicEntry": true,
+    "imports": [
+      "spike.html"
+    ]
+  },
+  "spike.html": {
+    "file": "assets/app-CTSAu1Qb.js",
+    "name": "app",
+    "src": "spike.html",
+    "isEntry": true,
+    "dynamicImports": [
+      "_client-D1LLNJa5.js"
+    ]
+  }
+}

@@ -44,13 +44,16 @@ luxury-spa calm. Reference: `Laska/lasca-soft (1).html`.
   game = add a `RawGame` to `games.ts`; it must validate through the engine or it's
   a real bug. Linked from the landing, Lasker page, and brochure.
 
-## Color — five palettes, Stone is the default
+## Color — six palettes, Stone is the default
 Stone (`:root`, the laska.html palette): ground `#e8e4db`, highlight `#fbf8f2`,
 shade `#c4beb1`, light army `#f2ede3`, dark army `#4b463c`, eucalyptus accent
 `#5f8c7e`. The others are selected via `[data-theme]` on `<html>` (cycled by the
 theme button, persisted to `laska-theme`):
 - **dark** — Stone inverted: warm-charcoal neumorphism (ground `#2b2823`), cream
   + taupe armies, eucalyptus accent. The board emerges from the same dark surface.
+- **navy** — a naval-blue neumorphic surface (`--ground`, `--pedestal`, and
+  `--plate` all `#182b4d`) with blue and red armies, gold move signals, and a
+  gold general insignia that reads like rank brass.
 - **light** — warm clay, cream/rose coins, cobalt accent.
 - **chocolate** — one realistic chocolate material: the border (`--ground`)
   matches the board so the whole apparatus is the same clay, raised only by the
@@ -100,7 +103,8 @@ board, the legend swatches, and the landing self-play demo, so they never drift.
   top-left like the rest of the board. No white/painted-on fills.
 - **Not the scrapped theme system:** this is piece-rank insignia, distinct from
   the divergent Terracotta/Heirloom/Newsprint *palette* system that was cut
-  (see the 2026-06-21 log entry). Palettes are still the four `[data-theme]`s.
+  (see the 2026-06-21 log entry). Palettes are selected independently via the
+  six-palette color-theme cycle.
 
 ## Signals (the cobalt accent, used sparingly)
 - **Selected** column: cobalt ring on the top coin + a small lift.
@@ -129,5 +133,6 @@ board, the legend swatches, and the landing self-play demo, so they never drift.
 | 2026-06-22 | Board is a rounded square (dropped octagon clip-path + round pedestal); coins centered in squares | Founder: "normal edges, just a rounded square"; coins were bottom-anchored and read as misaligned. |
 | 2026-06-22 | Landing hero board plays itself (engine vs engine, real board) | Founder: "the main page must show the AI playing itself." Reuses BoardView so stacking is shown live. |
 | 2026-06-22 | Added a piece-insignia theme system (Heirloom default: star for generals; + Regiment, Lineage, Dots) | Founder direction: themed pieces where generals get a star instead of two dots. Doubles as a first-timer legibility win and a cosmetics line (monetization). Cosmetic only; distinct from the cut palette-theme system. |
+| 2026-06-23 | Added Navy as the sixth palette | Founder direction: a navy board/background with blue and red armies and a gold general star; the board remains one continuous neumorphic material. |
 | 2026-06-22 | Added a Historic-Game replay viewer; shipped Moscow 1996 only, engine-verified | Founder provided three lasca.org game scores. Replay drives the real engine off the recorded score. Moscow 1996 validates end-to-end; the 1976 and Lasker-1911 scores diverge mid-game under our capture rules (likely transcription) — held back rather than ship an unverifiable replay. |
 | 2026-06-22 | Dropped the `.disc.top::before` inner ring on top coins; removed the **Regiment** piece theme (chevron soldier + medal general) | Founder: minimalistic look, dislikes chevrons. Themes now Heirloom/Lineage/Dots; a stored `regiment` falls back to Heirloom via `readStoredPieceTheme`. |

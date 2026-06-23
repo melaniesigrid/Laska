@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   RotateCcw,
   Undo2,
+  Flag,
   Cpu,
   Users,
   Gamepad2,
@@ -21,12 +22,14 @@ import {
   legalMoves,
   applyMove,
   gameStatus,
+  opponent,
   RC_TO_SQUARE,
   BOARD_DIM,
   DIFFICULTY_DEPTH,
   DIFFICULTY_ORDER,
   type Board,
   type GameState,
+  type GameOutcome,
   type Move,
   type PlayerColor,
   type Difficulty,
@@ -51,6 +54,7 @@ import {
   type SavedResult,
   type NewGameInput,
 } from './savedGames.ts';
+import { LessonsPage } from './LessonsPage.tsx';
 import {
   PieceThemeContext,
   PIECE_THEMES,
@@ -74,11 +78,12 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 };
 
 /** Palettes — Stone is the site default (from laska.html); the rest from lasca-soft. */
-const THEMES = ['stone', 'dark', 'light', 'chocolate', 'classic'] as const;
+const THEMES = ['stone', 'dark', 'navy', 'light', 'chocolate', 'classic'] as const;
 type ThemeName = (typeof THEMES)[number];
 const THEME_LABEL: Record<ThemeName, string> = {
   stone: 'Stone',
   dark: 'Dark',
+  navy: 'Navy',
   light: 'Light',
   chocolate: 'Chocolate',
   classic: 'Classic',
@@ -137,7 +142,16 @@ function advanceColumnIds(ids: (string | null)[], prevBoard: Board, move: Move):
 
 export function App() {
   const [view, setView] = useState<
-    'landing' | 'game' | 'lasker' | 'replay' | 'brochure' | 'ai' | 'build' | 'mygames' | 'watch'
+    | 'landing'
+    | 'game'
+    | 'lasker'
+    | 'replay'
+    | 'brochure'
+    | 'ai'
+    | 'build'
+    | 'lessons'
+    | 'mygames'
+    | 'watch'
   >('landing');
   const [replayGameId, setReplayGameId] = useState<string | undefined>(undefined);
   const [watchId, setWatchId] = useState<string | undefined>(undefined);
@@ -188,6 +202,7 @@ export function App() {
         onBrochure={() => setView('brochure')}
         onAI={() => setView('ai')}
         onBuild={() => setView('build')}
+        onLessons={() => setView('lessons')}
       />
     );
   }
@@ -200,6 +215,15 @@ export function App() {
         onBack={() => setView('landing')}
         onPlay={() => setView('game')}
         onAI={() => setView('ai')}
+      />
+    );
+  }
+  if (view === 'lessons') {
+    return (
+      <LessonsPage
+        onBack={() => setView('landing')}
+        onPlay={() => setView('game')}
+        pieceTheme={pieceTheme}
       />
     );
   }
@@ -332,9 +356,15 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   const [thinking, setThinking] = useState(false);
   const [colIds, setColIds] = useState<(string | null)[]>(() => freshColumnIds(state.board));
   const [moveFx, setMoveFx] = useState<MoveFx | null>(null);
+  const [resignedWinner, setResignedWinner] = useState<PlayerColor | null>(null);
   const aiTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const status = useMemo(() => gameStatus(state), [state]);
+  // Resignation isn't a board position the engine can derive, so it's tracked
+  // here and folded into the outcome the rest of the UI already renders.
+  const status: GameOutcome = useMemo(
+    () => (resignedWinner ? { state: 'win', winner: resignedWinner, reason: 'resignation' } : gameStatus(state)),
+    [state, resignedWinner],
+  );
   const legal = useMemo(() => legalMoves(state), [state]);
   const gameOver = status.state !== 'ongoing';
 
@@ -428,9 +458,19 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
     setJustSaved(false);
     setSelected(null);
     setThinking(false);
+    setResignedWinner(null);
   }, []);
 
+  const resign = useCallback(() => {
+    if (gameOver || isAiTurn || thinking) return;
+    if (!window.confirm(`Resign this game? ${COLOR_NAME[opponent(state.toMove)]} will win.`)) return;
+    if (aiTimer.current) clearTimeout(aiTimer.current);
+    setSelected(null);
+    setResignedWinner(opponent(state.toMove));
+  }, [gameOver, isAiTurn, thinking, state.toMove]);
+
   const undo = useCallback(() => {
+    setResignedWinner(null);
     setHistory((h) => {
       if (h.length === 0) return h;
       let target = h.length - 1;
@@ -491,18 +531,7 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   const StatusIcon = status.state === 'win' ? Trophy : status.state === 'draw' ? Minus : CircleDot;
 
   return (
-    <>
-      <div
-        className={`status ${status.state === 'win' ? 'win' : status.state === 'draw' ? 'draw' : ''}${
-          (isAiTurn || thinking) ? ' thinking' : ''
-        }`}
-        role="status"
-        aria-live="polite"
-      >
-        <StatusIcon className="ico" size={18} />
-        {statusLine}
-      </div>
-
+    <div className="game-layout">
       <BoardView
         board={state.board}
         dim={BOARD_DIM}
@@ -519,103 +548,157 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
         moveFx={moveFx}
       />
 
-      <div className="controls">
-        <button className="btn" onClick={newGame}>
-          <RotateCcw size={16} /> New game
-        </button>
-        <button className="btn" onClick={undo} disabled={history.length === 0 || isAiTurn || thinking}>
-          <Undo2 size={16} /> Undo
-        </button>
-        <div className="segment" role="group" aria-label="Opponent">
-          <button className={mode === 'ai' ? 'active' : ''} onClick={() => setMode('ai')}>
-            <Cpu size={15} /> Computer
-          </button>
-          <button className={mode === 'hotseat' ? 'active' : ''} onClick={() => setMode('hotseat')}>
-            <Users size={15} /> Two players
-          </button>
+      <div className="control-deck">
+        <div
+          className={`status ${status.state === 'win' ? 'win' : status.state === 'draw' ? 'draw' : ''}${
+            (isAiTurn || thinking) ? ' thinking' : ''
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <StatusIcon className="ico" size={18} />
+          {statusLine}
         </div>
-      </div>
 
-      <div className="controls">
-        <button className="btn" onClick={saveGame} disabled={moves.length === 0}>
-          {justSaved ? <Check size={16} /> : <Save size={16} />}{' '}
-          {justSaved ? 'Saved' : savedId ? 'Update save' : 'Save game'}
-        </button>
-        {justSaved && (
-          <button className="btn" onClick={onOpenMyGames}>
-            <Library size={16} /> Watch &amp; annotate
+        <div className="controls">
+          <button className="btn" onClick={newGame}>
+            <RotateCcw size={16} /> New game
           </button>
-        )}
-      </div>
-
-      {mode === 'ai' && (
-        <>
-          <div className="controls">
-            <label className="field-label">
-              <span>Difficulty</span>
-              <select
-                className="neu-select"
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-              >
-                {DIFFICULTY_ORDER.map((d) => (
-                  <option key={d} value={d}>
-                    {DIFFICULTY_LABEL[d]} · {DIFFICULTY_DEPTH[d]} ahead
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field-label">
-              <span>Computer plays</span>
-              <select className="neu-select" value={aiColor} onChange={(e) => setAiColor(e.target.value as PlayerColor)}>
-                <option value="B">Black (you first)</option>
-                <option value="W">White (computer first)</option>
-              </select>
-            </label>
-          </div>
-          <details className="ai-note">
-            <summary>
-              <Cpu size={14} /> About the computer opponent
-            </summary>
-            <p>
-              The engine searches the game tree with <b>negamax + alpha-beta pruning</b> over a
-              Laska-specific evaluator — it scores <em>column control</em> (not raw piece count, since
-              Laska never removes a piece), officer rank, held prisoners, promotion progress and
-              mobility. Difficulty sets how many half-moves it looks ahead and how often it plays a
-              deliberate slip, from <b>Beginner</b> (1 ahead, often blunders) to <b>Expert</b> (8
-              ahead, never slips). <b>{DIFFICULTY_LABEL[difficulty]}</b> looks{' '}
-              <b>{DIFFICULTY_DEPTH[difficulty]} half-moves</b> deep.
-            </p>
-            <button className="btn" onClick={onLearnAI} style={{ marginTop: '0.4rem' }}>
-              <Cpu size={15} /> How the computer plays
+          <button className="btn" onClick={undo} disabled={history.length === 0 || isAiTurn || thinking}>
+            <Undo2 size={16} /> Undo
+          </button>
+          <button className="btn" onClick={resign} disabled={gameOver || isAiTurn || thinking}>
+            <Flag size={16} /> Resign
+          </button>
+          <div className="segment" role="group" aria-label="Opponent">
+            <button className={mode === 'ai' ? 'active' : ''} onClick={() => setMode('ai')}>
+              <Cpu size={15} /> Computer
             </button>
-          </details>
-        </>
-      )}
+            <button className={mode === 'hotseat' ? 'active' : ''} onClick={() => setMode('hotseat')}>
+              <Users size={15} /> Two players
+            </button>
+          </div>
+        </div>
 
-      <Legend />
-    </>
+        <div className="controls">
+          <button className="btn" onClick={saveGame} disabled={moves.length === 0}>
+            {justSaved ? <Check size={16} /> : <Save size={16} />}{' '}
+            {justSaved ? 'Saved' : savedId ? 'Update save' : 'Save game'}
+          </button>
+          {justSaved && (
+            <button className="btn" onClick={onOpenMyGames}>
+              <Library size={16} /> Watch &amp; annotate
+            </button>
+          )}
+        </div>
+
+        {mode === 'ai' && (
+          <>
+            <div className="controls">
+              <label className="field-label">
+                <span>Difficulty</span>
+                <select
+                  className="neu-select"
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+                >
+                  {DIFFICULTY_ORDER.map((d) => (
+                    <option key={d} value={d}>
+                      {DIFFICULTY_LABEL[d]} · {DIFFICULTY_DEPTH[d]} ahead
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                <span>Computer plays</span>
+                <select className="neu-select" value={aiColor} onChange={(e) => setAiColor(e.target.value as PlayerColor)}>
+                  <option value="B">Black (you first)</option>
+                  <option value="W">White (computer first)</option>
+                </select>
+              </label>
+            </div>
+            <details className="ai-note">
+              <summary>
+                <Cpu size={14} /> About the computer opponent
+              </summary>
+              <p>
+                The engine searches the game tree with <b>negamax + alpha-beta pruning</b> over a
+                Laska-specific evaluator — it scores <em>column control</em> (not raw piece count, since
+                Laska never removes a piece), officer rank, held prisoners, promotion progress and
+                mobility. Difficulty sets how many half-moves it looks ahead and how often it plays a
+                deliberate slip, from <b>Beginner</b> (1 ahead, often blunders) to <b>Expert</b> (8
+                ahead, never slips). <b>{DIFFICULTY_LABEL[difficulty]}</b> looks{' '}
+                <b>{DIFFICULTY_DEPTH[difficulty]} half-moves</b> deep.
+              </p>
+              <button className="btn" onClick={onLearnAI} style={{ marginTop: '0.4rem' }}>
+                <Cpu size={15} /> How the computer plays
+              </button>
+            </details>
+          </>
+        )}
+
+        <Legend />
+      </div>
+    </div>
+  );
+}
+
+/** The rules that apply to each rank, surfaced on hover/focus over its legend
+ *  swatch. Kept short and concrete — a first-timer's reminder, not the brochure.
+ *  Wording tracks the engine: soldiers are forward-only, generals move both ways,
+ *  a captured top piece is tucked under the capturing column. */
+const RANK_RULES: Record<'soldier' | 'officer', { name: string; lines: string[] }> = {
+  soldier: {
+    name: 'Soldier',
+    lines: [
+      'Steps one square diagonally — forward only.',
+      'Captures by jumping an adjacent enemy column to the empty square beyond; only its top piece is taken and tucked under yours.',
+      'Reach the far row and it is crowned a General.',
+    ],
+  },
+  officer: {
+    name: 'General',
+    lines: [
+      'Steps one square diagonally in any direction — forward or back.',
+      'Captures the same way and may chain jumps forward or backward.',
+      'Outranks a soldier; promotion ends the move that crowns it.',
+    ],
+  },
+};
+
+/** One legend swatch that doubles as a rules tip. The label is a real button so
+ *  the explanation is reachable by keyboard (focus) as well as hover, and the
+ *  tip is associated via `aria-describedby` for screen readers. */
+function LegendItem({ rank }: { rank: 'soldier' | 'officer' }) {
+  const pieceTheme = usePieceTheme();
+  const rules = RANK_RULES[rank];
+  const tipId = `rank-rules-${rank}`;
+  return (
+    <span className="lg lg-rule">
+      <button type="button" className="lg-trigger" aria-describedby={tipId}>
+        <span className="disc cream legend-coin">
+          <Insignia theme={pieceTheme} rank={rank} />
+        </span>
+        {rules.name}
+      </button>
+      <span className="lg-tip" role="tooltip" id={tipId}>
+        <strong>{rules.name}</strong>
+        {rules.lines.map((line, i) => (
+          <span key={i}>{line}</span>
+        ))}
+      </span>
+    </span>
   );
 }
 
 /** Soldier vs general, drawn with the live insignia theme so the swatch always
- *  matches the board. "General" reads faster than "officer" for a first-timer. */
+ *  matches the board. "General" reads faster than "officer" for a first-timer.
+ *  Hover or focus either to read the rules that govern that rank. */
 function Legend() {
-  const pieceTheme = usePieceTheme();
   return (
     <div className="legend">
-      <span className="lg">
-        <span className="disc cream legend-coin">
-          <Insignia theme={pieceTheme} rank="soldier" />
-        </span>
-        Soldier
-      </span>
-      <span className="lg">
-        <span className="disc cream legend-coin">
-          <Insignia theme={pieceTheme} rank="officer" />
-        </span>
-        General
-      </span>
+      <LegendItem rank="soldier" />
+      <LegendItem rank="officer" />
       <span className="muted">Reach the far row to promote.</span>
     </div>
   );

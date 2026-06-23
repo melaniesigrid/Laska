@@ -25,6 +25,8 @@ interface BoardViewProps {
   activeColor?: PlayerColor;
   mustCapture?: boolean;
   captureTargets?: Set<number>;
+  /** Optional tutorial/analysis emphasis independent of legal-move signals. */
+  highlight?: Set<number>;
   /**
    * Optional stable identity per square (parallel to `board`). When supplied, a
    * column carries its id from one square to the next across a move, so Motion's
@@ -189,7 +191,7 @@ export function BoardView(props: BoardViewProps) {
   const {
     board, dim, rcToSquare, selected, movable, destinations,
     onSquareClick, interactive, mustCapture = false, captureTargets = EMPTY,
-    colIds, moveFx,
+    highlight = EMPTY, colIds, moveFx,
   } = props;
 
   const cells = [];
@@ -206,6 +208,7 @@ export function BoardView(props: BoardViewProps) {
       }
       const column = board[sq] ?? null;
       const classes = ['sq', 'dark', 'play'];
+      if (highlight.has(sq)) classes.push('highlight');
       if (destinations.has(sq)) classes.push('drop-target');
       if (captureTargets.has(sq)) classes.push('capture');
       if (interactive && movable.has(sq)) classes.push(mustCapture ? 'movable forced' : 'movable');

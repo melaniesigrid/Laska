@@ -8,7 +8,7 @@
  * book builder — consumes. We deliberately stop at *producing* the corpus: the
  * research notebook (EXP-002) found the negamax weights at a local optimum, so a
  * naive online learner would more likely regress strength than improve it. See
- * research/NOTEBOOK.md (EXP-003) for the documented consumption path.
+ * research/NOTEBOOK.md (EXP-006) for the documented consumption path.
  */
 import { encodePosition, type Move } from '../../src/index.ts';
 import { rebuildGame, moveToSan, type SavedGame } from './savedGames.ts';

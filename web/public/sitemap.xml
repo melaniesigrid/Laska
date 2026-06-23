@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The app is a client-rendered SPA: all content (game, Lasker bio, rules,
+     historic games, AI explainer) renders under "/" via a view-state switch,
+     not via real routes. Until per-route URLs + prerender land (Tier 2), "/"
+     is the only URL that resolves to real content, so it is the only entry. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://playlaska.com/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
