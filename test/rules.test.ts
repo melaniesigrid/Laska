@@ -187,6 +187,44 @@ test('player may choose freely among multiple captures (no maximum-capture rule)
   assert.ok(moves.every((m) => m.captures.length === 1));
 });
 
+// ---- open question: jumping the same square twice -------------------------
+
+test('officer multi-capture: the SAME square IS jumped twice (documents current behavior)', () => {
+  // OPEN INTERPRETIVE QUESTION. The nestorgames Laska rulebook (Néstor Romeral
+  // Andrés, 2018) says an officer may make several captures in one turn "but not
+  // jumping over the same space more than once." Our engine's capture search
+  // (captureSequencesFrom in src/rules.ts) does NOT track visited mid-squares; it
+  // guarantees termination only by burying the captured top piece at the bottom of
+  // the moving column. So if a jumped column is still ENEMY-controlled on top after
+  // its top piece is taken (a two-deep enemy stack), the same square can be jumped
+  // a second time. This position is the minimal reproduction and IS reachable.
+  //
+  //   Square 0 = White officer.  Square 4 = [Bs(bottom), Bs(top)] (Black-controlled).
+  //   Geometry: 0=(0,0) 4=(1,1) 8=(2,2).
+  //   Jump 1: 0 --NE--> over 4 --> land 8.  Square 4 still has one Bs -> still Black.
+  //   Jump 2: 8 --SW--> over 4 (again!) --> land 0 (now vacant).  Square 4 empties.
+  //
+  // This test ASSERTS the current (rulebook-violating) behavior so it is a
+  // regression anchor. If we ever adopt the nestorgames "no square twice" rule,
+  // this expectation must change (and Lasker's 1911 games must still replay).
+  const s = buildState('W:0=Wo,4=BsBs');
+  const moves = legalMoves(s);
+  const m = sole(moves);
+  assert.deepEqual(m.path, [8, 0]);
+  assert.deepEqual(m.captures, [4, 4], 'square 4 is currently jumped TWICE in one turn');
+
+  const next = applyMove(s, m);
+  // Both Black soldiers end up buried under the officer, back on square 0.
+  assert.deepEqual(next.board[0], [
+    { color: 'B', rank: 'soldier' },
+    { color: 'B', rank: 'soldier' },
+    { color: 'W', rank: 'officer' },
+  ]);
+  assert.equal(next.board[4], null);
+  assert.equal(next.board[8], null);
+  assert.equal(countPieces(next.board), 3); // nothing leaves the board
+});
+
 // ---- promotion ------------------------------------------------------------
 
 test('promotion on a quiet move: only the commander is crowned', () => {

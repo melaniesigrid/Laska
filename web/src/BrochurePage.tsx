@@ -332,6 +332,10 @@ export function BrochurePage({
                 (johnson-davies.com, © 2011–2018)
               </li>
               <li>Dr. Emanuel Lasker — Lasca as “a game of attack rather than of defence.”</li>
+              <li>
+                Néstor Romeral Andrés, <em className="serif">Laska</em> rulebook &amp; art,
+                nestorgames edition, 2018.
+              </li>
             </ul>
           </div>
         </div>
