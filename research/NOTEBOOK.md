@@ -55,13 +55,24 @@ An append-only lab notebook for experiments run on Laska, mostly via the
 ---
 
 ## EXP-002 — Tune `evaluate` so depth-4 reliably beats depth-3
-- **Date:** 2026-06-22 · **Thread:** A (+ B) · **Run by:** `game-ai-engineer` (resumed, context intact) · **Status:** IN PROGRESS (background)
+- **Date:** 2026-06-22 · **Thread:** A (+ B) · **Run by:** `game-ai-engineer` (resumed, context intact) · **Status:** COMPLETE
 - **Hypothesis:** The near-tie in EXP-001 is an *evaluation* problem, not a search problem. Re-weighting eval terms in `src/ai.ts` (without changing search depth) will let the deeper tier convert its extra search into wins.
 - **Pre-registered bar (set before running):** `medium` ≥ 65–70% head-to-head vs `intermediate` across ≥3 seeds at a solid N, AND the full ladder stays monotonic (beginner < easy < intermediate < medium) on every seed.
-- **Method:** BEFORE multi-seed baseline (`--seed 1/2/3`) → hypothesize which terms are off → change *weights only* (depth fixed at d3 vs d4, so we're measuring whether deeper search converts) → iterate against `bench-strength.ts` on the same seed set (no cherry-picking) → AFTER battery on the same seeds. Guardrails: engine untouched, determinism preserved, low end of ladder re-checked, `bench-baseline.ts` cost must not blow up.
-- **Result:** _pending — fill in from the agent's report (before/after matrices, weight old→new, tradeoffs, verify)._
+- **Method:** BEFORE multi-seed baseline (`--seed 1/2/3`, N=10 = 20 games/pairing) → offline weight sweep (scratch, seeded `makeRng`, colour-balanced) → the decisive test: isolate *pure depth conversion* with `blunderRate:0` → AFTER battery on the same seeds. Guardrails held: engine untouched, weights ultimately unchanged, determinism preserved, ladder ends re-checked.
 
-**Meta-question being tested (B):** Does handing an agent *its own finding* back (resume with context) yield better follow-through than a cold spawn? Compare the quality/discipline of this run against EXP-001.
+**Result (verbatim):**
+- **BEFORE (seeds 1/2/3, N=10):** medium won standings decisively (82–83%) and never lost the head-to-head (≈11:2, 9:3, 12:3 win:loss), but a **high ply-cap draw rate (5–8 / 20)** held its head-to-head *win %* to ~45–60% — under the 65% bar. Ladder monotonic. → The EXP-001 "coin-flip" was **small-sample (N=2) noise**; the real phenomenon is **draws, not inversion.**
+- **Decisive test — pure depth conversion, `blunderRate:0`, current weights:** depth-4 beats depth-3 **~57–77% across dispersed seeds (avg ~63–67%)** — already healthy. Perturbing weights was flat (`enemyPrisoner 18→28`: identical 63%) or *worse* (`advance 6→10`: depth-4 win% fell to 35%; `mobility→0`: draws ballooned to 57%). **`DEFAULT_WEIGHTS` sit at a local optimum for this matchup.**
+- **AFTER (live eval, seeds 1/2/3, N=10):** medium standings 72–73%, intermediate 55–60%, easy 33–35%, beginner 0–2%; **ladder monotonic on all three seeds**; medium never lost the head-to-head (11:2, 9:3, 10:3).
+
+**Outcome: hypothesis REFUTED.** The depth-3→depth-4 step *does* convert to wins in best play; it only *looked* weak because the **intentional product blunder rates** (intermediate 12%, medium 6%) inject randomness that decides close games — a deliberate "keep lower tiers beatable" feature, not an eval bug. Tuning weights to chase a higher blunder-on win % measurably *degrades* real strength (shown above). **No weight change made.** Instead added a non-flaky regression guard (`test/ai.test.ts:306`, "STRENGTH GUARD: depth-4 best-play stays competitive with depth-3 across dispersed seeds") asserting only the robust property (deeper search never *dominated*), because a strict "deep > shallow" assertion is itself flaky — seed pockets exist (e.g. base 1000) where depth-3 edges depth-4.
+- **Recommendation:** if the product wants a *larger visible* intermediate↔medium gap, the lever is `DIFFICULTY_BLUNDER` / `DIFFICULTY_DEPTH` (tier config), **not** eval weights. The harness can now measure any such change.
+
+**Independent verification (main loop):** `npm run typecheck` clean; `npm test` 53/53 pass (the strength-guard test present at `test/ai.test.ts:306`).
+
+**Meta-finding (B):**
+- **B2 — Resuming an agent on its *own* finding produced exemplary discipline:** it ran a pre-registered battery, *refuted its own hypothesis*, and **declined to make an unjustified change** — arguably a stronger charter-steering demonstration than EXP-001 (resisting the pull to "do the task" when the data says don't).
+- **B3 — Concurrent multi-agent edits to one file caused a transient correctness gap.** While this agent worked, `src/ai.ts` was concurrently rewritten (+289 lines: `edgeSafety`/`overConcentration` per `STRATEGY.md` §1/§2) by other activity in the repo; the agent observed **2 failing tests** from that work, correctly **stayed in its lane** (didn't fix another engineer's code), and flagged it. By the time the main loop verified, the §1/§2 owner had fixed those tests (53/53 green). Lesson: same-file fan-out needs ownership/serialization or it produces transient red states that confuse concurrent runs.
 
 ---
 

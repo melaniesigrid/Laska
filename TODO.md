@@ -83,6 +83,7 @@ ownership, and cross-node message routing:
   was renamed **Chocolate** with the border unified to the board (one realistic
   chocolate material), and a brand-new **Dark** added — Stone inverted (warm-charcoal
   neumorphism). Five palettes now: Stone, Dark, Light, Chocolate, Classic. See DESIGN.md.
+
 - ⏳ **New theme mode — "Navy":** navy-blue board/background, yellow stars (general
   insignia), blue + red pieces. Add as a sixth `[data-theme]` palette in
   `web/src/styles.css` (keep neumorphic `--ground` = `--pedestal`/`--plate`) + wire

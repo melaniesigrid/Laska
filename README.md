@@ -11,7 +11,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9_strict-3178c6?logo=typescript&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-%E2%89%A522-339933?logo=node.js&logoColor=white)
 ![Engine](https://img.shields.io/badge/rules_engine-zero_dependencies-success)
-![Tests](https://img.shields.io/badge/tests-123_passing-success)
+![Tests](https://img.shields.io/badge/tests-120%2B_passing-success)
 ![Build](https://img.shields.io/badge/build_step-none_(raw_TS)-blue)
 
 </div>
@@ -109,9 +109,9 @@ The evaluator's correctness is pinned two ways: a **frozen, hand-written referen
 
 | Suite | What it covers |
 |---|---|
-| **53 engine tests** | rules, captures, promotion, notation round-trips, and AI search — including a self-play harness that plays full games asserting *only legal moves, no exceptions, and conservation of all 22 pieces* |
-| **53 server tests** | match lifecycle, matchmaking, Elo, auth, and a **storage contract test run against every backend** (in-memory, SQLite, Postgres) plus a cluster-fabric parity test (in-memory and Redis), including a multi-node routing test |
-| **17 Playwright e2e** | the real online flow end-to-end against a running server |
+| **Engine (50+)** | rules, captures, promotion, notation round-trips, and AI search — including a self-play harness that plays full games asserting *only legal moves, no exceptions, and conservation of all 22 pieces* |
+| **Server (50+)** | match lifecycle, matchmaking, Elo, auth, and a **storage contract test run against every backend** (in-memory, SQLite, Postgres) plus a cluster-fabric parity test (in-memory and Redis), including a multi-node routing test |
+| **Playwright e2e** | the real online flow end-to-end against a running server |
 
 Strict TypeScript throughout (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), CI on GitHub Actions, and a deliberate **no-build-step** stance: the engine and server run raw `.ts` via Node 22's native type-stripping, so there is no compile artifact to drift from the source.
 

@@ -36,7 +36,11 @@ export function buildServer(
   const manager = new MatchManager(repo);
   const gameServer = new GameServer(repo, auth, manager, cluster);
 
-  const httpHandler = createHttpHandler({ auth, repo });
+  const httpHandler = createHttpHandler({
+    auth,
+    repo,
+    ...(config.authRateLimit ? { authRateLimit: config.authRateLimit } : {}),
+  });
   const http = createServer((req, res) => void httpHandler(req, res));
   const wss = new WebSocketServer({ server: http, path: '/ws' });
   wss.on('connection', (ws) => gameServer.handleConnection(ws));
