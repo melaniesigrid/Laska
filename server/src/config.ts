@@ -19,6 +19,28 @@ export interface ServerConfig {
   cluster: ClusterConfig;
   /** Stable id for this node within a cluster. */
   nodeId: string;
+  /**
+   * Rate-limit knobs for the auth HTTP endpoints. Optional so existing test
+   * config literals keep compiling; `loadConfig` always populates it and
+   * `buildServer` falls back to a safe default when absent.
+   */
+  authRateLimit?: AuthRateLimitConfig;
+}
+
+export interface AuthRateLimitConfig {
+  /** Max auth requests per client IP + endpoint within the window. */
+  max: number;
+  /** Rolling window length in milliseconds. */
+  windowMs: number;
+}
+
+function loadAuthRateLimitConfig(env: NodeJS.ProcessEnv): AuthRateLimitConfig {
+  const max = env.LASKA_AUTH_RATE_MAX ? Number(env.LASKA_AUTH_RATE_MAX) : 20;
+  const windowMs = env.LASKA_AUTH_RATE_WINDOW_MS ? Number(env.LASKA_AUTH_RATE_WINDOW_MS) : 60_000;
+  return {
+    max: Number.isFinite(max) && max > 0 ? Math.floor(max) : 20,
+    windowMs: Number.isFinite(windowMs) && windowMs > 0 ? Math.floor(windowMs) : 60_000,
+  };
 }
 
 function loadClusterConfig(env: NodeJS.ProcessEnv): ClusterConfig {
@@ -54,5 +76,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     db: loadDbConfig(env),
     cluster: loadClusterConfig(env),
     nodeId: env.LASKA_NODE_ID ?? `node-${randomUUID().slice(0, 8)}`,
+    authRateLimit: loadAuthRateLimitConfig(env),
   };
 }
