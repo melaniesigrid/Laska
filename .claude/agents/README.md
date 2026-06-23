@@ -4,20 +4,19 @@ Each file here is one "engineer": a charter + the files it owns + its verify loo
 
 | Subagent | Owns | Why it exists |
 |---|---|---|
-| `engine-engineer` | `src/`, `test/rules.test.ts` | The rules constitution. Sacred, test-gated, must keep Lasker's games replaying. |
-| `game-ai-engineer` | `src/ai.ts`, `bench-baseline.ts` | The opponent. Flagship job: benchmark + tune AI strength (roadmap-flagged as undone). |
-| `frontend-board-engineer` | `web/src/Board.tsx`, `App.tsx`, online UX | What the player touches. Verified in a real browser (no web unit tests). |
-| `tutorial-content-engineer` | new `TutorialBoard` + lesson data, `TUTORIAL.md` | **Highest-ROI lever**: the interactive tutorial + paid courses. |
-| `backend-realtime-engineer` | `server/src/net/`, `game/`, `auth/`, `rating/` | Online-play integrity. Server validates every move. |
-| `infra-platform-engineer` | `server/src/storage/`, `cluster/`, CI | Production hardening: migrations, failover, Redis-in-CI. |
-| `heritage-archivist-engineer` | `web/src/games.ts`, `ReplayPage`, `BrochurePage`, `LaskerPage` | The moat: transcribe + engine-validate historic games. |
+| `engine-engineer` | `Laska/src/`, `Laska/test/rules.test.ts` | The rules constitution. Sacred, test-gated, must keep Lasker's games replaying. |
+| `game-ai-engineer` | `Laska/src/ai.ts`, `Laska/bench-baseline.ts` | The opponent. Flagship job: benchmark + tune AI strength (roadmap-flagged as undone). |
+| `frontend-board-engineer` | `Laska/web/src/Board.tsx`, `App.tsx`, online UX | What the player touches. Verified in a real browser (no web unit tests). |
+| `tutorial-content-engineer` | new `TutorialBoard` + lesson data, `Laska/TUTORIAL.md` | **Highest-ROI lever**: the interactive tutorial + paid courses. |
+| `backend-realtime-engineer` | `Laska/server/src/net/`, `game/`, `auth/`, `rating/` | Online-play integrity. Server validates every move. |
+| `infra-platform-engineer` | `Laska/server/src/storage/`, `cluster/`, CI | Production hardening: migrations, failover, Redis-in-CI. |
+| `heritage-archivist-engineer` | `Laska/web/src/games.ts`, `ReplayPage`, `BrochurePage`, `LaskerPage` | The moat: transcribe + engine-validate historic games. |
 | `growth-monetization-engineer` | streaks/puzzles/billing/analytics | Retention + revenue. **Hard gate: no real-money tournaments.** |
-| `seo-discoverability-engineer` | `web/index.html` head, `web/public/`, `web/src/seo/`, `vercel.json` | Organic discoverability: crawlable URLs, meta/OG, JSON-LD, sitemap. Flagship fix: the SPA has no per-page URLs. |
-| `puzzle-generator-engineer` *(proposed)* | `web/src/puzzles/`, `PUZZLES.md` | Daily tactical puzzle: mine forcing moments from finished games, **engine-verify** the best move, surface a deterministic puzzle-of-the-day. Consumes engine + historic games read-only. |
-| `opening-book-curator-engineer` *(proposed)* | `web/src/openings.ts`, `openingsData.ts`, `OpeningsPage.tsx`, `OPENINGS.md` | Opening theory/repertoire: Lasker's named openings + lines as **engine-validated** data and a read-only study page. Distinct from historic GAMES (heritage) and interactive LESSONS (tutorial). |
-| `i18n-localization-engineer` *(proposed)* | `web/src/i18n/` (catalogs, provider, `useTranslation`, `keys.ts`), `I18N.md` | Translation infra + locale content the SEO re-arch deferred. Owns NEW i18n files only; consumes router/SEO head read-only (no `seo/`, `index.html`, `vercel.json`, `App.tsx`). |
-
-Charters marked *(proposed)* are validated drafts awaiting a human promote + probation run — not yet trusted to run unattended.
+| `seo-discoverability-engineer` | `Laska/web/index.html` head, `Laska/web/public/`, `Laska/web/src/seo/`, `Laska/vercel.json` | Organic discoverability: crawlable URLs, meta/OG, JSON-LD, sitemap. Flagship fix: the SPA has no per-page URLs. |
+| `puzzle-generator-engineer` | `Laska/web/src/puzzles/`, `Laska/PUZZLES.md` | Daily tactical puzzle: mine forcing moments from finished games, **engine-verify** the best move, surface a deterministic puzzle-of-the-day. Consumes engine + historic games read-only. |
+| `opening-book-curator-engineer` | `Laska/web/src/openings.ts`, `openingsData.ts`, `OpeningsPage.tsx`, `Laska/OPENINGS.md` | Opening theory/repertoire: Lasker's named openings + lines as **engine-validated** data and a read-only study page. Distinct from historic GAMES (heritage) and interactive LESSONS (tutorial). |
+| `i18n-localization-engineer` | `Laska/web/src/i18n/` (catalogs, provider, `useTranslation`, `keys.ts`), `Laska/I18N.md` | Translation infra + locale content the SEO re-arch deferred. Owns NEW i18n files only; consumes router/SEO head read-only (no `seo/`, `index.html`, `vercel.json`, `App.tsx`). |
+| `charter-smith` *(meta)* | `.claude/agents/TEMPLATE.txt`, `validate-charter.mjs`, `README.md`, new `*-engineer.md` | The meta-engineer that staffs the org: drafts new charters and gates them. Drafts only — humans promote + grant trust. See "Adding a new engineer" below. |
 
 ## Adding a new engineer (the charter factory)
 New domain that needs an owner? Don't hand-write a charter — staff it with the meta-agent.
