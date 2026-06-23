@@ -38,9 +38,14 @@ Implemented and verified in-browser against a live server + bot opponent:
   end screen with rating delta. Top-level Local/Online tabs in `App.tsx`.
 - ✅ A signed-in player can switch to **Local → Computer** without signing out;
   the online session remains available when they switch back.
-- Remaining polish: flip the board for the Black player; a richer reconnect/
-  "opponent disconnected" banner; an online-disambiguation UI for the rare
-  capture chains that share a landing square (client currently sends the longest).
+- ✅ The board rotates 180° for the Black player, so each online player sees
+  their own home side nearest them.
+- ✅ Reconnect/resync state now pauses move input and explains that the
+  authoritative board will restore automatically.
+- ✅ Rare capture chains sharing a landing square now open an explicit route
+  chooser; the selected full capture path is sent to the server.
+- Remaining polish: distinguish **opponent disconnected** from local connection
+  loss once the server protocol exposes opponent-presence state.
 - Test helper: `server/scripts/bot.ts` (a guest AI opponent) for manual E2E.
 
 ### 2. Durable storage (replace in-memory repo) — ✅ MOSTLY DONE
@@ -111,6 +116,18 @@ ownership, and cross-node message routing:
   the custom auth; the server only depends on `verifyToken → TokenPayload`.
 - ✅ Auth endpoints are rate-limited and covered by `server/test/rateLimit.test.ts`.
   Account lockout / captcha on demonstrated abuse remains open.
+- **SECURITY-001 (XFF rate-limit bypass) — fix in PR #6, not yet landed/deployed.**
+  Was: `clientIp()` trusted the spoofable leftmost `X-Forwarded-For`, defeating the
+  auth throttle (credential stuffing / account spam). Fix derives the IP from a
+  trusted proxy hop via `LASKA_TRUSTED_PROXY_HOPS`. Two follow-ups:
+  - [ ] **Land the fix.** PR #6 (`fix/auth-ratelimit-xff`) is based on
+    `overnight/auth-rate-limit`, which is itself not on `main` and has no PR.
+    Open `overnight/auth-rate-limit → main`, then merge #6 (or fold them). The fix
+    reaches prod only once both land.
+  - [ ] **Set `LASKA_TRUSTED_PROXY_HOPS=1` in the Railway service env** after deploy.
+    Railway's edge proxy appends the real client IP (one trusted hop). Without it the
+    default `0` keys on the proxy socket → all proxied traffic shares one bucket
+    (over-throttles). Required for the fix to actually bite in prod.
 
 ### 4. Ranking depth
 - Optional upgrade Elo → **Glicko-2** (rating deviation + volatility for
@@ -213,6 +230,22 @@ in `TUTORIAL.md` (rules, the four capture beats, copy). Build order:
 - Instrument funnels (install → first match → signup → D1/D7 → first purchase)
   with a product-analytics tool; add crash reporting. Make monetization/retention
   decisions from data.
+- ⏳ DONE (seam): typed client-side analytics seam at `web/src/analytics/` —
+  `track(event, props)` over a pluggable sink (default = no-op/console; NO vendor
+  SDK or API key wired in). Event taxonomy + funnel stages in
+  `analytics/events.ts`; streaks/puzzles/billing engineers import event names
+  from there. Existing touchpoints wired: app open (`app.loaded`/`app.returned`),
+  local + online match start/first-move/finish, signup/login/guest.
+- TODO (gated, NOT YET): swap the default sink for a real product-analytics
+  vendor — **verify the vendor + its current SDK/pricing against live docs**, and
+  **only after a GDPR/CCPA consent gate** is in place (`setSink` must be called
+  from a consent-gated init path; the default stays a no-op so nothing leaves the
+  device pre-consent).
+- TODO: decide if/when to add a server `/events` ingest endpoint. Client-only is
+  the right call for now — a vendor sink covers reporting, and an own-endpoint
+  needs a storage schema, retention policy, and the same consent gate first
+  (touches the storage repository contract, another engineer's lane). The
+  pluggable sink lets us point at `/events` later without changing call sites.
 
 ### 10. Quality & compliance
 - **Accessibility audit**: the slice avoids color-only cues and labels columns
@@ -273,9 +306,9 @@ a compliant contest layer later does not require reworking the game/rating code.
   is the Postgres/Redis swap (item 2).
 - **Dev token secrets are random per boot** — set `LASKA_ACCESS_SECRET` /
   `LASKA_REFRESH_SECRET` in any real deployment, behind TLS + a reverse proxy.
-- **Ambiguous capture chains** that share a landing square require the client to
-  send the `captures` path; the web slice currently auto-picks the longest chain
-  locally (fine offline, revisit for online disambiguation UX).
+- **Ambiguous capture chains** that share a landing square now have an online
+  route chooser that sends the full `captures` path. Local play still auto-picks
+  the longest chain; add the same chooser there if authored positions expose it.
 - **AI strength is not benchmarked** against a reference Laska engine; heuristic
   weights are reasonable defaults, not tuned.
 - **Rules edge case to confirm**: free-choice vs. maximum-capture. We implemented

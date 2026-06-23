@@ -27,6 +27,8 @@ interface BoardViewProps {
   captureTargets?: Set<number>;
   /** Optional tutorial/analysis emphasis independent of legal-move signals. */
   highlight?: Set<number>;
+  /** Rotate the board 180° so Black's home side is nearest the viewer. */
+  flipped?: boolean;
   /**
    * Optional stable identity per square (parallel to `board`). When supplied, a
    * column carries its id from one square to the next across a move, so Motion's
@@ -191,19 +193,20 @@ export function BoardView(props: BoardViewProps) {
   const {
     board, dim, rcToSquare, selected, movable, destinations,
     onSquareClick, interactive, mustCapture = false, captureTargets = EMPTY,
-    highlight = EMPTY, colIds, moveFx,
+    highlight = EMPTY, flipped = false, colIds, moveFx,
   } = props;
 
   const cells = [];
-  // Display row 0 is the top of the screen; White's home (board row 0) sits at
-  // the bottom, nearest the player.
+  // Default: White's home (board row 0) sits nearest the viewer. For Black,
+  // reverse both axes — a true 180° rotation, not a vertical mirror.
   for (let displayRow = 0; displayRow < dim; displayRow++) {
-    const boardRow = dim - 1 - displayRow;
-    for (let col = 0; col < dim; col++) {
-      const sq = rcToSquare[boardRow * dim + col]!;
+    const boardRow = flipped ? displayRow : dim - 1 - displayRow;
+    for (let displayCol = 0; displayCol < dim; displayCol++) {
+      const boardCol = flipped ? dim - 1 - displayCol : displayCol;
+      const sq = rcToSquare[boardRow * dim + boardCol]!;
       const playable = sq !== -1;
       if (!playable) {
-        cells.push(<div key={`${displayRow}-${col}`} className="sq light" aria-hidden="true" />);
+        cells.push(<div key={`${displayRow}-${displayCol}`} className="sq light" aria-hidden="true" />);
         continue;
       }
       const column = board[sq] ?? null;
@@ -215,9 +218,10 @@ export function BoardView(props: BoardViewProps) {
 
       cells.push(
         <button
-          key={`${displayRow}-${col}`}
+          key={`${displayRow}-${displayCol}`}
           type="button"
           className={classes.join(' ')}
+          data-square={sq}
           onClick={() => onSquareClick(sq)}
           disabled={!interactive}
           aria-label={
@@ -244,7 +248,12 @@ export function BoardView(props: BoardViewProps) {
     <div className="stage">
       <div className="board">
         <LayoutGroup>
-          <div className="field" role="grid" aria-label="Laska board, 7 by 7">
+          <div
+            className="field"
+            role="grid"
+            aria-label={`Laska board, 7 by 7, ${flipped ? 'Black' : 'White'} perspective`}
+            data-perspective={flipped ? 'black' : 'white'}
+          >
             {cells}
           </div>
         </LayoutGroup>

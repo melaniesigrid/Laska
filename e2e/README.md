@@ -1,4 +1,4 @@
-# Laska E2E — auth/login flows
+# Laska E2E — browser flows
 
 Playwright end-to-end tests that drive the **real web UI** (`web/`) against the
 **real backend** (`server/`). Playwright boots both for you:
@@ -35,7 +35,9 @@ npx playwright test tests/auth.spec.ts
 npx playwright test -g "survives a full page reload"
 ```
 
-## What's covered (`tests/auth.spec.ts`)
+## What's covered
+
+`tests/auth.spec.ts`:
 
 - Reaching the auth panel from the landing page → Online tab.
 - Sign-in ⇄ Create-account toggle swaps the form.
@@ -45,6 +47,12 @@ npx playwright test -g "survives a full page reload"
   account (same generic message — no account enumeration).
 - Session lifecycle: survives a full reload (refresh-token restore); sign-out
   clears the session and it stays cleared after reload.
+
+`tests/online-board.spec.ts`:
+
+- Two guest clients match through the real WebSocket server.
+- White and Black receive opposite board perspectives.
+- Black's board is rotated 180°, with both axes reversed.
 
 ## Running from VS Code
 

@@ -10,6 +10,7 @@ import {
 } from '../../src/index.ts';
 import type { ServerMessage, MoveDTO, ClockDTO } from '../../server/src/net/protocol.ts';
 import { LaskaClient, type ConnStatus, type PublicUser, ApiError } from './net/client.ts';
+import { track } from './analytics/index.ts';
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://localhost:8080';
 const WS_URL = API_BASE.replace(/^http/, 'ws') + '/ws';
@@ -95,6 +96,10 @@ export function useOnline() {
           setEnd(null);
           setPhase('matched');
           pendingRef.current = false;
+          // Funnel: an online match began. (We don't have a clean per-user
+          // "first move" hook online — the server is authoritative — so
+          // match.started is the online activation signal.)
+          track('match.started', { mode: 'online', color: msg.color });
           break;
         }
         case 'match.update': {
@@ -110,12 +115,24 @@ export function useOnline() {
           pendingRef.current = false;
           break;
         }
-        case 'match.end':
+        case 'match.end': {
           setEnd({
             result: msg.result,
             reason: msg.reason,
             winner: msg.winner,
             ratingChange: msg.ratingChange,
+          });
+          // Funnel: online match finished, scored from this client's seat.
+          const myColor = match?.myColor;
+          const outcome: 'win' | 'loss' | 'draw' =
+            msg.winner == null ? 'draw' : myColor && msg.winner === myColor ? 'win' : 'loss';
+          track('match.finished', {
+            mode: 'online',
+            outcome,
+            reason: msg.reason,
+            // Authoritative ply count lives server-side; not in match.end today.
+            // Reported as 0 (unknown) rather than guessed — see protocol.ts.
+            plies: 0,
           });
           setPhase('ended');
           setClock((c) => (c ? { ...c, running: null } : c));
@@ -126,6 +143,7 @@ export function useOnline() {
             setUser((u) => (u ? { ...u, rating: mine.after } : u));
           }
           break;
+        }
         case 'error':
           // A rejected move: roll the optimistic board back to authoritative.
           if (pendingRef.current) {
@@ -192,6 +210,9 @@ export function useOnline() {
     (email: string, password: string, username: string) =>
       withError(async () => {
         setUser(await client.register(email, password, username));
+        // Funnel: signup stage. Email/username are NOT sent to analytics — only
+        // the method tag — keeping the event PII-free pre-consent.
+        track('auth.signup_succeeded', { method: 'email' });
         client.connect();
       }),
     [client, withError],
@@ -200,6 +221,7 @@ export function useOnline() {
     (email: string, password: string) =>
       withError(async () => {
         setUser(await client.login(email, password));
+        track('auth.login_succeeded', { method: 'email' });
         client.connect();
       }),
     [client, withError],
@@ -208,6 +230,7 @@ export function useOnline() {
     () =>
       withError(async () => {
         setUser(await client.guest());
+        track('auth.guest_started', {});
         client.connect();
       }),
     [client, withError],

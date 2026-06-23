@@ -63,6 +63,7 @@ import {
   usePieceTheme,
   type PieceTheme,
 } from './pieceTheme.tsx';
+import { track, trackAppOpen, type MatchMode } from './analytics/index.ts';
 
 type Mode = 'hotseat' | 'ai';
 
@@ -159,6 +160,13 @@ export function App() {
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
   const online = useOnline();
+
+  // Funnel: fire the app-open event(s) exactly once per page load (acquisition /
+  // D1-D7 retention signal). Empty deps + StrictMode double-invokes in dev only;
+  // resolveFirstSeen is per-session idempotent so the firstEver flag stays stable.
+  useEffect(() => {
+    trackAppOpen();
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -371,6 +379,32 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   const movableSquares = useMemo(() => new Set(legal.map((m) => m.from)), [legal]);
   const mustCapture = legal.length > 0 && legal.every((m) => m.isCapture);
 
+  // Funnel: report a finished match exactly once. Keyed on move-count so a New
+  // Game (which clears `moves`) re-arms it for the next game. Skips empty boards.
+  const finishedReportedAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (gameOver && moves.length > 0 && finishedReportedAt.current !== moves.length) {
+      finishedReportedAt.current = moves.length;
+      const matchMode: MatchMode = mode === 'ai' ? 'ai' : 'hotseat';
+      // Outcome from the local human's seat: in AI games the human is the non-AI
+      // colour; in hotseat there's no single "me", so report the winner's result
+      // as a win and a draw as a draw (loss only applies when the AI beats you).
+      let outcome: 'win' | 'loss' | 'draw' = 'draw';
+      if (status.state === 'win') {
+        outcome = mode === 'ai' ? (status.winner === aiColor ? 'loss' : 'win') : 'win';
+      }
+      track('match.finished', {
+        mode: matchMode,
+        outcome,
+        // Inside the gameOver guard `status.state` is 'win' | 'draw', both of
+        // which carry a `reason`; the ongoing variant (no reason) can't reach here.
+        reason: (status as { reason: string }).reason,
+        plies: moves.length,
+      });
+    }
+    if (!gameOver) finishedReportedAt.current = null;
+  }, [gameOver, status, moves.length, mode, aiColor]);
+
   const destinations = useMemo(() => {
     if (selected == null) return new Map<number, Move>();
     const map = new Map<number, Move>();
@@ -434,6 +468,19 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
       if (gameOver || isAiTurn || thinking) return;
       const move = destinations.get(square);
       if (selected != null && move) {
+        // Funnel: the human's FIRST committed move of a fresh board is the true
+        // activation moment. `moves.length === 0` means nothing has been played
+        // yet (the AI never moves first into an empty list — White always opens,
+        // and a human-vs-AI game where AI is White still lands here on the human's
+        // first reply, which is fine: it's the user's first action either way).
+        if (moves.length === 0) {
+          const matchMode: MatchMode = mode === 'ai' ? 'ai' : 'hotseat';
+          track('match.started', {
+            mode: matchMode,
+            ...(mode === 'ai' ? { difficulty, color: aiColor === 'W' ? 'B' : 'W' } : {}),
+          });
+          track('match.first_move', { mode: matchMode });
+        }
         playMove(state, move);
         return;
       }
@@ -443,7 +490,20 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
       }
       setSelected(null);
     },
-    [gameOver, isAiTurn, thinking, destinations, selected, state, playMove, movableSquares],
+    [
+      gameOver,
+      isAiTurn,
+      thinking,
+      destinations,
+      selected,
+      state,
+      playMove,
+      movableSquares,
+      moves.length,
+      mode,
+      difficulty,
+      aiColor,
+    ],
   );
 
   const newGame = useCallback(() => {
