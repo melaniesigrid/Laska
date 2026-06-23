@@ -80,10 +80,30 @@ An append-only lab notebook for experiments run on Laska, mostly via the
 
 | ID | Thread | Claim | Status |
 |----|--------|-------|--------|
-| A1 | game AI | depth-3→depth-4 buys ~no strength (eval-bound, not search-bound) | **REFUTED by EXP-002.** Depth conversion IS healthy (~63–67% best-play); apparent weakness is blunder-rate-bound (a product feature), not eval-bound. The EXP-001 signal was N=2 noise. |
-| A2 | game AI | strong-tier games rarely terminate (capture buries, never removes) | observed, EXP-001; reinforced (high ply-cap draw rate dominates close games) |
-| A3 | game AI | `DEFAULT_WEIGHTS` are at a local optimum for d3-vs-d4; perturbations flat or worse | observed, EXP-002 |
-| A4 | game AI | the right lever for tier separation is blunder-rate / depth config, not eval weights | proposed, EXP-002 |
-| B1 | methodology | charter constraints steer agent behavior without re-prompting | observed, EXP-001 & EXP-002 |
-| B2 | methodology | resuming an agent on its own finding yields disciplined follow-through (incl. refuting itself) | observed, EXP-002 |
-| B3 | methodology | concurrent multi-agent edits to one file cause transient red states; in-lane discipline contains them | observed, EXP-002 |
+| A1 | game AI | depth-3→depth-4 buys ~no strength (eval-bound, not search-bound) | observed, EXP-001; under test in EXP-002 |
+| A2 | game AI | strong-tier games rarely terminate (capture buries, never removes) | observed, EXP-001 |
+| B1 | methodology | charter constraints steer agent behavior without re-prompting | observed once, EXP-001 |
+
+---
+
+## EXP-003 — Player-game corpus: a (state, action, return) substrate from saved games
+- **Date:** 2026-06-23 · **Thread:** A (data substrate) · **Run by:** main loop (saved-games feature) · **Repo:** branch `feat/saved-games` off `main`
+- **Motivation:** Strength work so far (EXP-001/002) is *self-play* against the engine's own heuristic. There was no corpus of *played* games — human-vs-AI or hotseat — to mine for openings, blunders, or value targets. The new "save & rewatch" feature records every local game; this entry documents the pipeline that turns that history into training data, and what it is **not** yet allowed to do.
+
+**Hypothesis (to be tested later):** Real played games carry signal self-play doesn't — human opening preferences and recurring losing patterns — usable for (a) an opening book and (b) value-target supervision, without retuning the negamax weights (which EXP-002 found at a local optimum).
+
+**Method (build, not yet a result):**
+- `web/src/savedGames.ts` — saved games store *only* moves (`from/to/captures` + per-ply notes), never board snapshots; positions are reconstructed by replaying through the **real engine** (`rebuildGame`), exactly as `games.ts` validates Lasker's games. A move that won't replay throws — the save is corrupt or the ruleset drifted, surfaced, never papered over.
+- `web/src/training.ts` — `buildTrainingCorpus(games)` emits one sample per ply: `position` = engine canonical string (`encodePosition`, the repetition key) of the state *before* the move, `move` (+ algebraic SAN), `by`, and `outcome` ∈ {1, 0, 0.5, null} labelled **from the mover's perspective** (null = unfinished). Exportable as JSONL from the My Games page.
+- Corpus is **client-side only** so far; no server ingestion, no model.
+
+**Result:** None yet — this is the instrument. (Cf. EXP-001, which was also "build + baseline".)
+
+**Interpretation / governance:**
+- The corpus does **not** feed `chooseMove`, and must not until it clears a strength gate: any opening book or value adjustment derived from it has to beat baseline in self-play across ≥3 seeds before it ships at non-zero weight. New eval terms ship at weight 0 until proven.
+- Honest framing of "train the AI": this delivers the *data prerequisite*. Naive online weight updates from a handful of games would more likely regress (EXP-002), so we stop at a clean, replay-validated, outcome-labelled corpus and a documented consumption path.
+
+**Open questions:**
+- O1. Opening book: does mining the first N plies of won games yield a first-move policy that beats the depth-2 tier? (Benchmark it.)
+- O2. Value supervision: are `(position → outcome)` pairs dense enough at low game counts to fit anything beyond the existing material/officer terms, or is self-play still the only viable value source until the corpus is ~10³ games?
+- O3. Selection bias: human games skew toward beginner blunders — does that *help* the lower tiers (target behaviour) and *hurt* if pooled into one book? Likely needs per-tier partitioning.

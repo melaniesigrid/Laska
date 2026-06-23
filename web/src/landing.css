@@ -319,3 +319,70 @@
   .landing-page .tl-item { grid-template-columns: 1fr; gap: 0.3rem; }
   .landing-page .legend { gap: 1rem; }
 }
+
+/* ---- My Games library + saved-game viewer ----------------------------- */
+.landing-page .corpus-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset);
+  padding: 1.1rem 1.4rem; margin-bottom: clamp(1.5rem, 3vw, 2.2rem);
+}
+.landing-page .corpus-stat { display: flex; align-items: center; gap: 0.8rem; color: var(--accent-dk); }
+.landing-page .corpus-stat > div { display: flex; flex-direction: column; }
+.landing-page .corpus-stat b { color: var(--l-ink); font-size: 0.95rem; }
+.landing-page .corpus-stat span { font-size: 0.82rem; color: var(--l-body); }
+
+.landing-page .saved-grid {
+  display: grid; gap: clamp(1.1rem, 2.2vw, 1.6rem);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+.landing-page .saved-card {
+  background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-raise);
+  padding: clamp(1.3rem, 2.4vw, 1.7rem); display: flex; flex-direction: column; gap: 0.5rem;
+  transition: transform 0.22s ease;
+}
+.landing-page .saved-card:hover { transform: translateY(-3px); }
+.landing-page .saved-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.7rem; }
+.landing-page .saved-card-head h3 { font-size: 1.18rem; line-height: 1.25; }
+.landing-page .saved-result {
+  flex: none; display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap;
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--faint); background: var(--bg); border-radius: var(--r-pill); padding: 0.3rem 0.6rem;
+  box-shadow: var(--nm-inset);
+}
+.landing-page .saved-result.W, .landing-page .saved-result.B { color: var(--accent-dk); }
+.landing-page .saved-meta { display: flex; align-items: center; gap: 0.4rem; font-size: 0.86rem; color: var(--l-body); }
+.landing-page .saved-date { font-size: 0.78rem; color: var(--faint); }
+.landing-page .saved-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+.landing-page .saved-actions .btn { padding: 0.6rem 1rem; }
+.landing-page .saved-actions .btn.icon-only { padding: 0.6rem; }
+
+/* editable title + notes in the saved-game viewer */
+.landing-page .saved-title-input {
+  font-family: 'Fraunces', Georgia, serif; font-weight: 500; color: var(--l-ink);
+  font-size: clamp(2rem, 4.5vw, 3.2rem); line-height: 1.06; letter-spacing: -0.012em;
+  width: 100%; margin: 0.6rem 0 0; background: transparent; border: 0; padding: 0.1rem 0;
+  border-bottom: 2px solid transparent; transition: border-color 0.16s ease;
+}
+.landing-page .saved-title-input:hover { border-bottom-color: color-mix(in srgb, var(--l-shadow) 55%, transparent); }
+.landing-page .saved-title-input:focus { outline: none; border-bottom-color: var(--accent-dk); }
+.landing-page .saved-note-field { display: block; margin-top: 1.2rem; }
+.landing-page .saved-note-label {
+  display: block; font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--faint); font-weight: 600; margin-bottom: 0.5rem;
+}
+.landing-page .saved-note {
+  width: 100%; resize: vertical; font-family: 'Hanken Grotesk', sans-serif; font-size: 0.95rem;
+  line-height: 1.55; color: var(--l-ink); background: var(--bg); border: 0; border-radius: var(--r-sm);
+  padding: 0.8rem 1rem; box-shadow: var(--nm-inset);
+}
+.landing-page .saved-note::placeholder { color: var(--faint); }
+.landing-page .saved-note:focus { outline: none; box-shadow: var(--nm-inset-deep); }
+.landing-page .saved-note.ply-note { margin-top: 0.2rem; }
+.landing-page .note-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: 0.4rem;
+  background: var(--l-accent); vertical-align: middle;
+}
+
+@media (max-width: 520px) {
+  .landing-page .corpus-bar { flex-direction: column; align-items: stretch; }
+}
