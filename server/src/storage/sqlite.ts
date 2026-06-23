@@ -9,6 +9,7 @@
  * wrapping results in resolved promises.
  */
 import { DatabaseSync } from 'node:sqlite';
+import type { RuleVariant } from '../../../src/index.ts';
 import type {
   LeaderboardEntry,
   MatchRecord,
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS matches (
   result               TEXT NOT NULL,
   end_reason           TEXT NOT NULL,
   ranked               INTEGER NOT NULL,
+  variant              TEXT NOT NULL DEFAULT 'lasker-classic',
   white_rating_before  INTEGER NOT NULL,
   black_rating_before  INTEGER NOT NULL,
   white_rating_after   INTEGER NOT NULL,
@@ -73,6 +75,7 @@ interface MatchRow {
   result: string;
   end_reason: string;
   ranked: number;
+  variant: string;
   white_rating_before: number;
   black_rating_before: number;
   white_rating_after: number;
@@ -104,6 +107,7 @@ function rowToMatch(r: MatchRow): MatchRecord {
     result: r.result as MatchRecord['result'],
     endReason: r.end_reason,
     ranked: r.ranked === 1,
+    variant: (r.variant ?? 'lasker-classic') as RuleVariant,
     whiteRatingBefore: r.white_rating_before,
     blackRatingBefore: r.black_rating_before,
     whiteRatingAfter: r.white_rating_after,
@@ -148,6 +152,19 @@ export class SqliteRepository implements Repository {
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec('PRAGMA foreign_keys = ON;');
     this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  /**
+   * Idempotent, additive migrations for pre-existing databases (a fresh DB gets
+   * the columns from SCHEMA above; an old one needs the ALTER). Keep each guarded
+   * so reopening a current DB is a no-op.
+   */
+  private migrate(): void {
+    const matchCols = this.db.prepare("PRAGMA table_info(matches)").all() as { name: string }[];
+    if (!matchCols.some((c) => c.name === 'variant')) {
+      this.db.exec("ALTER TABLE matches ADD COLUMN variant TEXT NOT NULL DEFAULT 'lasker-classic';");
+    }
   }
 
   async close(): Promise<void> {
@@ -228,10 +245,10 @@ export class SqliteRepository implements Repository {
     this.db
       .prepare(
         `INSERT OR REPLACE INTO matches
-          (id, white_id, black_id, moves, result, end_reason, ranked,
+          (id, white_id, black_id, moves, result, end_reason, ranked, variant,
            white_rating_before, black_rating_before, white_rating_after, black_rating_after,
            started_at, ended_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         record.id,
@@ -241,6 +258,7 @@ export class SqliteRepository implements Repository {
         record.result,
         record.endReason,
         record.ranked ? 1 : 0,
+        record.variant,
         record.whiteRatingBefore,
         record.blackRatingBefore,
         record.whiteRatingAfter,

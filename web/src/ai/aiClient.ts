@@ -13,7 +13,7 @@
  * carried as a seed, not a function, because functions can't be postMessage'd.
  */
 import { chooseMove } from '../../../src/index.ts';
-import type { GameState, Difficulty, Move } from '../../../src/index.ts';
+import type { GameState, Difficulty, Move, RuleOptions } from '../../../src/index.ts';
 import type { AIRequest, AIResponse } from './aiWorker.ts';
 
 export interface BestMoveOptions {
@@ -22,6 +22,8 @@ export interface BestMoveOptions {
   depth?: number;
   /** Seed for a reproducible move; omit for normal (Math.random) play. */
   seed?: number;
+  /** Active rule variant; omit for the engine default (lasker-classic). */
+  rules?: RuleOptions;
 }
 
 function lcg(seed: number): () => number {
@@ -35,6 +37,7 @@ function syncMove(state: GameState, opts: BestMoveOptions): Move | null {
     difficulty: opts.difficulty,
     ...(opts.depth !== undefined ? { depth: opts.depth } : {}),
     ...(opts.seed !== undefined ? { random: lcg(opts.seed) } : {}),
+    ...(opts.rules !== undefined ? { rules: opts.rules } : {}),
   });
 }
 
@@ -88,6 +91,7 @@ export function getBestMove(state: GameState, opts: BestMoveOptions): Promise<Mo
     difficulty: opts.difficulty,
     ...(opts.depth !== undefined ? { depth: opts.depth } : {}),
     ...(opts.seed !== undefined ? { seed: opts.seed } : {}),
+    ...(opts.rules !== undefined ? { rules: opts.rules } : {}),
   };
   return new Promise<Move | null>((resolve) => {
     pending.set(id, { resolve, state, opts });

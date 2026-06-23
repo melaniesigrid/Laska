@@ -4,9 +4,11 @@ import {
   applyMove,
   encodePosition,
   decodePosition,
+  rulesForVariant,
   type GameState,
   type Move,
   type PlayerColor,
+  type RuleVariant,
 } from '../../src/index.ts';
 import type { ServerMessage, MoveDTO, ClockDTO } from '../../server/src/net/protocol.ts';
 import { LaskaClient, type ConnStatus, type PublicUser, ApiError } from './net/client.ts';
@@ -21,6 +23,8 @@ export interface MatchInfo {
   myColor: PlayerColor;
   opponent: { userId: string; username: string; rating: number };
   timeControl: { initialMs: number; incrementMs: number };
+  /** Rule variant the server is enforcing for this match. */
+  variant: RuleVariant;
 }
 
 export interface EndInfo {
@@ -84,6 +88,7 @@ export function useOnline() {
             myColor: msg.color,
             opponent: msg.opponent,
             timeControl: msg.timeControl,
+            variant: msg.variant,
           });
           const gs = stateFromPosition(msg.state.position);
           setAuthoritative(gs);
@@ -222,19 +227,24 @@ export function useOnline() {
   }, [client]);
 
   // ---- match actions ----
-  const joinQueue = useCallback(() => {
-    setError(null);
-    setEnd(null);
-    client.send({ type: 'queue.join' });
-  }, [client]);
+  const joinQueue = useCallback(
+    (variant: RuleVariant = 'lasker-classic') => {
+      setError(null);
+      setEnd(null);
+      // Default requests omit the field so the server's default path is exercised.
+      client.send(variant === 'lasker-classic' ? { type: 'queue.join' } : { type: 'queue.join', variant });
+    },
+    [client],
+  );
   const leaveQueue = useCallback(() => client.send({ type: 'queue.leave' }), [client]);
 
   const submitMove = useCallback(
     (move: Move) => {
       if (!match || !rendered) return;
-      // Optimistic: apply locally for instant feedback, then send.
+      // Optimistic: apply locally for instant feedback, then send. Use the match
+      // variant so the optimistic board matches the server's authoritative result.
       pendingRef.current = true;
-      setRendered(applyMove(rendered, move));
+      setRendered(applyMove(rendered, move, rulesForVariant(match.variant)));
       setLastMove({ from: move.from, to: move.to, captures: move.captures, by: match.myColor });
       const payload =
         move.captures.length > 0
@@ -268,11 +278,13 @@ export function useOnline() {
   // Whose turn, and is it mine right now (based on optimistic state)?
   const myTurn = !!(rendered && match && rendered.toMove === match.myColor && phase === 'matched' && !pendingRef.current);
 
-  // Legal moves for me when it's my turn.
+  // Legal moves for me when it's my turn. Preview-only: we pass the MATCH variant
+  // into the engine so highlighting matches what the (authoritative) server will
+  // accept; the server still has final say on every move.
   const legal = useMemo<Move[]>(() => {
     if (!myTurn || !rendered) return [];
-    return legalMoves(rendered);
-  }, [myTurn, rendered]);
+    return legalMoves(rendered, match ? rulesForVariant(match.variant) : undefined);
+  }, [myTurn, rendered, match]);
 
   return {
     status,

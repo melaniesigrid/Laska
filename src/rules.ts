@@ -1,11 +1,19 @@
 /**
  * Laska (Lasca) rules engine — pure functions over immutable state.
  *
- * Public surface:
- *   createInitialState()        -> GameState
- *   legalMoves(state)           -> Move[]
- *   applyMove(state, move)      -> GameState   (does not mutate input)
- *   gameStatus(state, opts?)    -> GameOutcome
+ * Public surface (all rule-bearing functions take an OPTIONAL `rules` arg that
+ * defaults to DEFAULT_RULES = Lasker-classic, so existing callers are unchanged):
+ *   createInitialState()               -> GameState
+ *   legalMoves(state, rules?)          -> Move[]
+ *   applyMove(state, move, rules?)     -> GameState   (does not mutate input)
+ *   gameStatus(state, opts?, rules?)   -> GameOutcome
+ *
+ * RULE VARIANTS (see src/types.ts `RuleVariant` / `rulesForVariant`): the single
+ * configurable point is the officer "same-square re-jump" question.
+ *  - lasker-classic (DEFAULT): ALLOW jumping the same square twice in one turn.
+ *  - nestor-strict: FORBID it (per Néstor Romeral Andrés' 2018 rulebook).
+ * Default behaviour is byte-for-byte the historical engine, so Lasker's games
+ * still replay.
  *
  * PRIMARY-SOURCE VALIDATION (2026-06-22): this engine replays Dr. Emanuel
  * Lasker's OWN explanatory games from his 1911 booklet "Rules of Lasca" end to
@@ -36,7 +44,8 @@
  *    agreement, and a configurable no-progress counter.
  */
 
-import type { Board, Column, GameOutcome, GameState, Move, Piece, PlayerColor } from './types.ts';
+import type { Board, Column, GameOutcome, GameState, Move, Piece, PlayerColor, RuleOptions } from './types.ts';
+import { DEFAULT_RULES } from './types.ts';
 import {
   ALL_DIRECTIONS,
   FORWARD_DIRECTIONS,
@@ -151,7 +160,12 @@ function quietMovesFrom(board: Board, square: number, color: PlayerColor): Move[
  * jumped again this turn. The number of enemy pieces is finite, so the chain
  * length is bounded. (A defensive depth cap is also applied.)
  */
-function captureSequencesFrom(board: Board, square: number, color: PlayerColor): Move[] {
+function captureSequencesFrom(
+  board: Board,
+  square: number,
+  color: PlayerColor,
+  rules: RuleOptions = DEFAULT_RULES,
+): Move[] {
   const results: Move[] = [];
   const MAX_DEPTH = NUM_SQUARES * 2; // far beyond any real chain
 
@@ -170,6 +184,9 @@ function captureSequencesFrom(board: Board, square: number, color: PlayerColor):
     for (const dir of dirs) {
       const mid = step(cur, dir);
       if (mid === -1) continue;
+      // nestor-strict variant: a mid-square already jumped this turn may not be
+      // jumped again. In lasker-classic (default) there is no such restriction.
+      if (rules.sameSquareReJump === 'forbid' && captures.includes(mid)) continue;
       const midCol = work[mid] ?? null;
       if (!controlledBy(midCol, opponent(color))) continue; // must jump an enemy
       const landing = step(mid, dir);
@@ -224,19 +241,21 @@ function captureSequencesFrom(board: Board, square: number, color: PlayerColor):
   return results;
 }
 
+
+
 /**
  * All legal moves for the side to move.
  *
  * Mandatory-capture rule: if any capture exists anywhere, ONLY captures are
  * returned. Otherwise all non-capture moves are returned.
  */
-export function legalMoves(state: GameState): Move[] {
+export function legalMoves(state: GameState, rules: RuleOptions = DEFAULT_RULES): Move[] {
   const { board, toMove } = state;
   const mySquares = controlledSquares(board, toMove);
 
   const captures: Move[] = [];
   for (const sq of mySquares) {
-    const seqs = captureSequencesFrom(board, sq, toMove);
+    const seqs = captureSequencesFrom(board, sq, toMove, rules);
     for (const m of seqs) captures.push(m);
   }
   if (captures.length > 0) return captures;
@@ -258,7 +277,7 @@ export function legalMoves(state: GameState): Move[] {
  * The move is re-simulated from `from` + `path` rather than trusted blindly,
  * so an internally-inconsistent Move throws instead of corrupting the board.
  */
-export function applyMove(state: GameState, move: Move): GameState {
+export function applyMove(state: GameState, move: Move, rules: RuleOptions = DEFAULT_RULES): GameState {
   const board = cloneBoard(state.board);
   const color = state.toMove;
 
@@ -280,10 +299,17 @@ export function applyMove(state: GameState, move: Move): GameState {
     maybePromote(board, dest, color);
   } else {
     let cur = move.from;
+    const seenMids: number[] = [];
     for (let i = 0; i < move.path.length; i++) {
       const landing = move.path[i]!;
       const mid = move.captures[i];
       if (mid === undefined) throw new Error(`Capture step ${i}: missing captured square`);
+      // nestor-strict variant: reject an externally-supplied move that jumps the
+      // same mid-square twice (the server trusts nothing). Allowed in default mode.
+      if (rules.sameSquareReJump === 'forbid' && seenMids.includes(mid)) {
+        throw new Error(`Capture step ${i}: square ${mid} jumped twice (forbidden under nestor-strict)`);
+      }
+      seenMids.push(mid);
       const midCol = board[mid] ?? null;
       if (!controlledBy(midCol, opponent(color))) {
         throw new Error(`Capture step ${i}: square ${mid} is not an enemy column`);
@@ -337,7 +363,11 @@ export interface StatusOptions {
   noProgressPlyLimit?: number;
 }
 
-export function gameStatus(state: GameState, opts: StatusOptions = {}): GameOutcome {
+export function gameStatus(
+  state: GameState,
+  opts: StatusOptions = {},
+  rules: RuleOptions = DEFAULT_RULES,
+): GameOutcome {
   const limit = opts.noProgressPlyLimit ?? DEFAULT_NO_PROGRESS_PLY_LIMIT;
 
   // Loss conditions take priority over draw conditions.
@@ -345,7 +375,9 @@ export function gameStatus(state: GameState, opts: StatusOptions = {}): GameOutc
   if (myPieces.length === 0) {
     return { state: 'win', winner: opponent(state.toMove), reason: 'no-pieces' };
   }
-  const moves = legalMoves(state);
+  // "No legal moves" must be evaluated under the ACTIVE variant — a position
+  // whose only move is a same-square re-jump is a loss under nestor-strict.
+  const moves = legalMoves(state, rules);
   if (moves.length === 0) {
     return { state: 'win', winner: opponent(state.toMove), reason: 'no-moves' };
   }

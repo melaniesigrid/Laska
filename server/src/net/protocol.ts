@@ -3,14 +3,23 @@
  * `type`. These types are the contract between the server and any client (the
  * web app today, React Native later).
  */
-import type { PlayerColor } from '../../../src/index.ts';
+import type { PlayerColor, RuleVariant } from '../../../src/index.ts';
 import type { MatchResult } from '../storage/types.ts';
+
+// Re-export so a single import of this protocol module gives clients the variant
+// type too (web imports these types directly).
+export type { RuleVariant };
 
 // ---- Client -> Server ----------------------------------------------------
 
 export type ClientMessage =
   | { type: 'auth'; token: string }
-  | { type: 'queue.join'; timeControl?: { initialMs: number; incrementMs: number } }
+  | {
+      type: 'queue.join';
+      timeControl?: { initialMs: number; incrementMs: number };
+      /** Requested rule variant. Omitted => 'lasker-classic' (today's behavior). */
+      variant?: RuleVariant;
+    }
   | { type: 'queue.leave' }
   | { type: 'match.move'; matchId: string; from: number; to: number; captures?: number[] }
   | { type: 'match.resign'; matchId: string }
@@ -48,6 +57,8 @@ export interface MatchStateDTO {
   clock: ClockDTO;
   drawOfferBy: PlayerColor | null;
   moveCount: number;
+  /** Rule variant in force for this match, so the client can display it. */
+  variant: RuleVariant;
 }
 
 export interface RatingChangeDTO {
@@ -65,6 +76,8 @@ export type ServerMessage =
       color: PlayerColor;
       opponent: PublicOpponent;
       timeControl: { initialMs: number; incrementMs: number };
+      /** Rule variant in force for this match. */
+      variant: RuleVariant;
       state: MatchStateDTO;
     }
   | { type: 'match.update'; state: MatchStateDTO; lastMove: MoveDTO | null }

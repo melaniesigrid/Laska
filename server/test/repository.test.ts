@@ -30,6 +30,7 @@ function makeMatch(over: Partial<MatchRecord> = {}): MatchRecord {
     result: over.result ?? '1-0',
     endReason: over.endReason ?? 'resignation',
     ranked: over.ranked ?? true,
+    variant: over.variant ?? 'lasker-classic',
     whiteRatingBefore: over.whiteRatingBefore ?? 1200,
     blackRatingBefore: over.blackRatingBefore ?? 1200,
     whiteRatingAfter: over.whiteRatingAfter ?? 1215,
@@ -124,6 +125,14 @@ for (const backend of backends) {
     assert.deepEqual(limited.map((m) => m.id), ['m2', 'm3']);
     // Moves round-trip through serialization.
     assert.deepEqual((await repo.getMatch('m1'))?.moves, [{ from: 7, to: 11, captures: [], by: 'W' }]);
+  });
+
+  test(`[${backend.name}] persists the match rule variant (both values round-trip)`, async () => {
+    const repo = backend.make();
+    await repo.saveMatch(makeMatch({ id: 'classic', variant: 'lasker-classic' }));
+    await repo.saveMatch(makeMatch({ id: 'strict', variant: 'nestor-strict' }));
+    assert.equal((await repo.getMatch('classic'))?.variant, 'lasker-classic');
+    assert.equal((await repo.getMatch('strict'))?.variant, 'nestor-strict');
   });
 
   test(`[${backend.name}] leaderboard excludes guests and unrated, sorts by rating desc`, async () => {

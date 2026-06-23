@@ -60,3 +60,48 @@ test('re-enqueue replaces the prior entry', () => {
   mm.enqueue('a', 1600);
   assert.equal(mm.size, 1);
 });
+
+test('variant is part of the matchmaking key: different variants never pair', () => {
+  const mm = new Matchmaker();
+  const now = 1_000_000;
+  // Identical ratings, but different requested variants -> must NOT pair.
+  mm.enqueue('classic', 1500, now, 'lasker-classic');
+  mm.enqueue('strict', 1500, now, 'nestor-strict');
+  assert.equal(mm.tryMatch(now), null, 'cross-variant pairing is forbidden');
+  assert.equal(mm.size, 2, 'both players stay queued');
+});
+
+test('two players who requested the same variant pair together', () => {
+  const mm = new Matchmaker();
+  const now = 1_000_000;
+  mm.enqueue('s1', 1500, now, 'nestor-strict');
+  mm.enqueue('s2', 1510, now, 'nestor-strict');
+  const pair = mm.tryMatch(now);
+  assert.ok(pair, 'same-variant players pair');
+  assert.deepEqual(new Set([pair!.a.userId, pair!.b.userId]), new Set(['s1', 's2']));
+});
+
+test('a default (no-variant) request is treated as lasker-classic and pairs with an explicit classic', () => {
+  const mm = new Matchmaker();
+  const now = 1_000_000;
+  mm.enqueue('implicit', 1500, now); // no variant -> lasker-classic
+  mm.enqueue('explicit', 1505, now, 'lasker-classic');
+  const pair = mm.tryMatch(now);
+  assert.ok(pair, 'implicit default matches explicit classic');
+  assert.deepEqual(new Set([pair!.a.userId, pair!.b.userId]), new Set(['implicit', 'explicit']));
+});
+
+test('picks the closest same-variant pair even across variants', () => {
+  const mm = new Matchmaker();
+  const now = 1_000_000;
+  mm.enqueue('classicLow', 1500, now, 'lasker-classic');
+  mm.enqueue('strictNear', 1502, now, 'nestor-strict'); // closest by rating, wrong variant
+  mm.enqueue('classicHigh', 1540, now, 'lasker-classic');
+  const pair = mm.tryMatch(now)!;
+  assert.deepEqual(
+    new Set([pair.a.userId, pair.b.userId]),
+    new Set(['classicLow', 'classicHigh']),
+    'only same-variant players are eligible despite a closer cross-variant rating',
+  );
+  assert.ok(mm.has('strictNear'), 'the lone strict player stays queued');
+});

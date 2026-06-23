@@ -12,7 +12,7 @@
  * minimal cast of `self`, which avoids the Window.postMessage signature clash.
  */
 import { chooseMove } from '../../../src/index.ts';
-import type { GameState, Difficulty, Move } from '../../../src/index.ts';
+import type { GameState, Difficulty, Move, RuleOptions } from '../../../src/index.ts';
 
 export interface AIRequest {
   id: number;
@@ -20,6 +20,8 @@ export interface AIRequest {
   difficulty: Difficulty;
   depth?: number;
   seed?: number;
+  /** Active rule variant; omit for the engine default (lasker-classic). */
+  rules?: RuleOptions;
 }
 
 export interface AIResponse {
@@ -42,12 +44,13 @@ const ctx = self as unknown as {
 };
 
 ctx.onmessage = (e) => {
-  const { id, state, difficulty, depth, seed } = e.data;
+  const { id, state, difficulty, depth, seed, rules } = e.data;
   const t0 = now();
   const move = chooseMove(state, {
     difficulty,
     ...(depth !== undefined ? { depth } : {}),
     ...(seed !== undefined ? { random: lcg(seed) } : {}),
+    ...(rules !== undefined ? { rules } : {}),
   });
   ctx.postMessage({ id, move, elapsedMs: now() - t0 });
 };

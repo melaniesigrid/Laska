@@ -16,7 +16,8 @@
  *    columns you command and what you have buried beneath your commanders.
  */
 
-import type { GameState, Move, PlayerColor } from './types.ts';
+import type { GameState, Move, PlayerColor, RuleOptions } from './types.ts';
+import { DEFAULT_RULES } from './types.ts';
 import { NUM_SQUARES, SQUARE_TO_RC, BOARD_DIM, promotionRow } from './board.ts';
 import { legalMoves, applyMove, opponent, DEFAULT_NO_PROGRESS_PLY_LIMIT } from './rules.ts';
 import { encodePosition } from './notation.ts';
@@ -252,6 +253,8 @@ interface SearchConfig {
   quiescence: boolean;
   /** Hard cap on how many extra plies quiescence may extend, as a safety net. */
   maxQuiescencePly: number;
+  /** Active rule variant — affects MOVE GENERATION only (not evaluation). */
+  rules: RuleOptions;
   /** Optional measurement sink (see SearchStats). */
   stats?: SearchStats;
 }
@@ -287,7 +290,7 @@ function negamax(
 
   // Generate once; an empty list means the side to move has no move (no pieces
   // or stalemated) — a loss, scored to prefer being mated as late as possible.
-  const moves = orderMoves(legalMoves(state));
+  const moves = orderMoves(legalMoves(state, cfg.rules));
   if (moves.length === 0) {
     return -(WIN_SCORE - (100 - depth));
   }
@@ -311,7 +314,7 @@ function negamax(
 
   let best = -Infinity;
   for (const move of moves) {
-    const child = applyMove(state, move);
+    const child = applyMove(state, move, cfg.rules);
     const score = -negamax(child, depth - 1, -beta, -alpha, cfg, ply + 1);
     if (score > best) best = score;
     if (cfg.prune) {
@@ -356,6 +359,8 @@ export interface AIOptions {
    * it is off for the lower tiers to keep them beatable and identical to before.
    */
   quiescence?: boolean;
+  /** Active rule variant for move generation (default Lasker-classic). */
+  rules?: RuleOptions;
   /** Optional measurement sink; populated during the search (see SearchStats). */
   stats?: SearchStats;
 }
@@ -399,6 +404,7 @@ function resolveConfig(opts: {
   weights?: EvalWeights;
   prune?: boolean;
   quiescence?: boolean;
+  rules?: RuleOptions;
   stats?: SearchStats;
 } = {}): SearchConfig {
   return {
@@ -406,6 +412,7 @@ function resolveConfig(opts: {
     prune: opts.prune ?? true,
     quiescence: opts.quiescence ?? false,
     maxQuiescencePly: DEFAULT_QUIESCENCE_PLY,
+    rules: opts.rules ?? DEFAULT_RULES,
     ...(opts.stats ? { stats: opts.stats } : {}),
   };
 }
@@ -423,6 +430,8 @@ export interface ScoreOptions {
   quiescence?: boolean;
   /** Alpha-beta pruning. Default true; set false to measure plain negamax. */
   prune?: boolean;
+  /** Active rule variant for move generation (default Lasker-classic). */
+  rules?: RuleOptions;
   /** Optional measurement sink; populated during the search. */
   stats?: SearchStats;
 }
@@ -446,16 +455,17 @@ export function scoreMoves(
     ...(o.weights !== undefined ? { weights: o.weights } : {}),
     ...(o.quiescence !== undefined ? { quiescence: o.quiescence } : {}),
     ...(o.prune !== undefined ? { prune: o.prune } : {}),
+    ...(o.rules !== undefined ? { rules: o.rules } : {}),
     ...(o.stats ? { stats: o.stats } : {}),
   });
 
-  const moves = orderMoves(legalMoves(state));
+  const moves = orderMoves(legalMoves(state, cfg.rules));
   const scored: ScoredMove[] = [];
   // Use a full window per root move so every move gets an EXACT score (needed
   // for honest analysis and reliable tie detection). Pruning still happens
   // deep inside each child search.
   for (const move of moves) {
-    const child = applyMove(state, move);
+    const child = applyMove(state, move, cfg.rules);
     const score = -negamax(child, depth - 1, -Infinity, Infinity, cfg, 1);
     scored.push({ move, score });
   }
@@ -468,7 +478,8 @@ export function scoreMoves(
  * moves (i.e. the game is already lost for the side to move).
  */
 export function chooseMove(state: GameState, opts: AIOptions = {}): Move | null {
-  const moves = legalMoves(state);
+  const rules = opts.rules ?? DEFAULT_RULES;
+  const moves = legalMoves(state, rules);
   if (moves.length === 0) return null;
   if (moves.length === 1) return moves[0]!;
 
@@ -486,6 +497,7 @@ export function chooseMove(state: GameState, opts: AIOptions = {}): Move | null 
   const scored = scoreMoves(state, depth, {
     weights,
     quiescence,
+    rules,
     ...(opts.stats ? { stats: opts.stats } : {}),
   });
   const bestScore = scored[0]!.score;

@@ -238,6 +238,89 @@ project — it shows the milestones and the process, not just the result.
 - ⏳ **Next candidates to document** when shipped: the flagship tutorial, an
   external AI-strength benchmark, and production hardening (migrations/failover).
 
+### 12. SEO & discoverability (⏳ NOT STARTED) — owner: `seo-discoverability-engineer`
+
+Almost nobody knows Laska exists; organic search is the cheapest activation
+channel and is currently **near-zero by construction**. The site is a
+client-rendered React SPA (`web/`, Vite, Vercel) with **one route (`/`)**, an
+almost-empty initial `<head>` (title only), and no robots/sitemap/manifest/
+structured-data. Rich content (rules, Lasker bio, historic games, AI explainer)
+is locked in JSX on a single URL, so it can't rank for its own queries and
+non-JS crawlers (Bing, social scrapers, LLM answer engines) see a blank page.
+
+**Target search clusters** (validate volume in Search Console / Keyword Planner
+before over-investing — niche, so the prize is *owning* it, not high volume):
+- **The game:** `lasca`, `laska` (both spellings — people misspell), `lasca
+  rules`, `how to play lasca`, `lasca board game`, `column draughts`,
+  `column-capturing draughts`, `lasca vs checkers`.
+- **Heritage / traffic magnet:** `emanuel lasker`, `game emanuel lasker
+  invented`, `emanuel lasker checkers variant`, `lasker lasca`. (Won't outrank
+  Wikipedia for his *chess* bio — target the Lasca-invention angle + long-tail.)
+- **Play intent (highest conversion):** `play lasca online`, `lasca online`,
+  `play lasca vs computer`, `lasca ai`, `lasca multiplayer`.
+- **Discovery (people who'd love it, don't know the name):** `checkers
+  variants`, `draughts variants`, `games where captured pieces become prisoners`.
+
+Build order (quick wins first — no re-architecture; then the structural unlock):
+- **Quick wins (no router change):**
+  - Full static `<head>` in `web/index.html`: meta description, `link
+    rel=canonical` → `https://playlaska.com`, Open Graph + Twitter card (+
+    `og-image`), `theme-color`, robots.
+  - `web/public/`: `robots.txt`, `sitemap.xml`, `manifest.webmanifest`,
+    favicon + `apple-touch-icon`, social `og-image`.
+  - Site-level **JSON-LD** in `index.html`: `VideoGame`/`Game` + `Person`
+    (Emanuel Lasker) + `Organization`/`WebSite`. Rich-result + LLM-citation fuel.
+  - `vercel.json`: security/cache headers + canonical-host 301 (pick
+    `playlaska.com` vs `www`, redirect the other). Connect the domain in Vercel.
+  - Stand up **Google Search Console** + **Bing Webmaster Tools**; submit the
+    sitemap. Add analytics (Vercel Analytics / Plausible / GA4).
+- **Structural (the real ranking unlock — eng-reviewed 2026-06-22, ONE PR):**
+  - **Tool decided: `react-router-dom` + `vite-react-ssg`** (react-router is the
+    durable, swappable core; vite-react-ssg prerenders + ships its own `<Head>`,
+    so no `react-helmet-async`). Vike rejected (couples app to its file-routing →
+    worse longevity); puppeteer-prerender rejected (flaky CI). Pin both majors.
+  - **STEP 0 — de-risk spike (REQUIRED before the diff):** prove the raw-TS
+    engine import (`../../src/index.ts`) prerenders + hydrates under
+    vite-react-ssg's SSR build. FAIL → pre-bundle the engine / revisit tool.
+  - Real URLs per surface: `/`, `/rules` (+ `/how-to-play`), `/emanuel-lasker`,
+    `/historic-games` + `/historic-games/<slug>` (needs `getStaticPaths`),
+    `/play` (client-only, NOT prerendered), `/how-the-ai-plays`, `/build`.
+    Convert the `App.tsx` `view` union to routes (pairs with `frontend-board-engineer`).
+  - **Metadata-only** route manifest `web/src/seo/routes.ts` feeds router +
+    sitemap + per-route `<Head>`; sitemap generator imports metadata ONLY (never
+    components — else XML generation replays Lasker's games via the engine).
+  - **SSG-safety audit** all 7 page components (guard `window`/`localStorage`/
+    `document`); fix CSS-hidden `.reveal` content (opacity:0-until-JS = invisible
+    to AI crawlers); isolate `motion`/framer-motion from prerendered routes.
+  - `vercel.json`: serve prerendered files + targeted SPA fallback for `/play`
+    (not a blanket rewrite, or `/play` 404s).
+  - **REQUIRED test:** postbuild check that each `dist/<route>/index.html` has its
+    title/meta/JSON-LD, plus post-deploy `curl -I` route checks (silent empty-head
+    is the critical gap). Web has no test framework today.
+  - Optimize `young-emanuel-lasker.png` (2.2MB → webp <200KB) — it's the LCP
+    element on the `/emanuel-lasker` page. Reviewed plan:
+    `~/.gstack/projects/melaniesigrid-Laska/melaniesigrid-main-seo-rearchitecture-plan.md`.
+- **Content / E-E-A-T (with heritage + tutorial engineers):**
+  - Two pillar pages — "Lasca: rules, strategy & how to play" and "Emanuel
+    Lasker, who invented Lasca" — with tight internal linking to the cluster.
+  - `HowTo` + `FAQPage` schema on the rules page; individual historic-game pages
+    (the moat — unique, primary-source-cited content competitors don't have).
+
+### 13. Internationalization / i18n (⏳ FUTURE — English-only today)
+
+"We will have people all over the world in servers." Plan now so retrofitting is
+cheap; **do not build until there's localized content** (an `hreflang` pointing
+at a non-existent locale is an error, not an SEO win).
+- **URL scheme:** design routes (§12) so a locale prefix (`/es/`, `/de/`,
+  `/ru/`) drops in cleanly. German (Lasker's own language) and Russian (the
+  Moscow 1996 game) are the natural first locales; then Spanish for reach.
+- **Server side:** match locale already lives outside the engine; surface a
+  `locale` on accounts and a UI string catalogue (no string library yet — keep
+  copy centralized so extraction is mechanical later).
+- **SEO when locales land:** per-locale URLs + reciprocal `hreflang` +
+  `x-default`, localized titles/descriptions, and locale-specific sitemaps.
+- The **rules engine never localizes** — only UI copy and content pages do.
+
 ---
 
 ## ⛔️ Real-money tournaments — GATED ON LEGAL REVIEW (do not implement yet)

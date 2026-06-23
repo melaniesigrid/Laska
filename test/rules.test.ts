@@ -13,7 +13,10 @@ import {
   controlledSquares,
 } from '../src/rules.ts';
 import { encodePosition, decodePosition } from '../src/notation.ts';
-import type { Board, GameState, Move, PlayerColor } from '../src/types.ts';
+import { DEFAULT_RULES, rulesForVariant } from '../src/types.ts';
+import type { Board, GameState, Move, PlayerColor, RuleOptions } from '../src/types.ts';
+
+const STRICT: RuleOptions = rulesForVariant('nestor-strict');
 
 // ---- test helpers ---------------------------------------------------------
 
@@ -189,31 +192,29 @@ test('player may choose freely among multiple captures (no maximum-capture rule)
 
 // ---- open question: jumping the same square twice -------------------------
 
-test('officer multi-capture: the SAME square IS jumped twice (documents current behavior)', () => {
-  // OPEN INTERPRETIVE QUESTION. The nestorgames Laska rulebook (Néstor Romeral
-  // Andrés, 2018) says an officer may make several captures in one turn "but not
-  // jumping over the same space more than once." Our engine's capture search
-  // (captureSequencesFrom in src/rules.ts) does NOT track visited mid-squares; it
-  // guarantees termination only by burying the captured top piece at the bottom of
-  // the moving column. So if a jumped column is still ENEMY-controlled on top after
-  // its top piece is taken (a two-deep enemy stack), the same square can be jumped
-  // a second time. This position is the minimal reproduction and IS reachable.
-  //
-  //   Square 0 = White officer.  Square 4 = [Bs(bottom), Bs(top)] (Black-controlled).
-  //   Geometry: 0=(0,0) 4=(1,1) 8=(2,2).
-  //   Jump 1: 0 --NE--> over 4 --> land 8.  Square 4 still has one Bs -> still Black.
-  //   Jump 2: 8 --SW--> over 4 (again!) --> land 0 (now vacant).  Square 4 empties.
-  //
-  // This test ASSERTS the current (rulebook-violating) behavior so it is a
-  // regression anchor. If we ever adopt the nestorgames "no square twice" rule,
-  // this expectation must change (and Lasker's 1911 games must still replay).
-  const s = buildState('W:0=Wo,4=BsBs');
-  const moves = legalMoves(s);
-  const m = sole(moves);
-  assert.deepEqual(m.path, [8, 0]);
-  assert.deepEqual(m.captures, [4, 4], 'square 4 is currently jumped TWICE in one turn');
+// CONFIGURABLE RULE VARIANT. The same-square re-jump question is the one
+// interpretive point in the engine, exposed as a selectable variant:
+//   - lasker-classic (DEFAULT): ALLOW jumping the same square twice in one turn.
+//   - nestor-strict: FORBID it (Néstor Romeral Andrés, 2018 nestorgames rulebook,
+//     "...but not jumping over the same space more than once").
+// Minimal reproduction, reachable in real play:
+//   Square 0 = White officer.  Square 4 = [Bs(bottom), Bs(top)] (Black-controlled).
+//   Geometry: 0=(0,0) 4=(1,1) 8=(2,2).
+//   Jump 1: 0 --NE--> over 4 --> land 8.  Square 4 still has one Bs -> still Black.
+//   Jump 2: 8 --SW--> over 4 (again!) --> land 0 (now vacant).  Square 4 empties.
 
-  const next = applyMove(s, m);
+test('same-square re-jump ALLOW (default): the SAME square IS jumped twice', () => {
+  const s = buildState('W:0=Wo,4=BsBs');
+
+  // Default (no rules arg) and explicit allow must be identical.
+  for (const moves of [legalMoves(s), legalMoves(s, DEFAULT_RULES)]) {
+    const m = sole(moves);
+    assert.deepEqual(m.path, [8, 0]);
+    assert.deepEqual(m.captures, [4, 4], 'square 4 is jumped TWICE in one turn under allow');
+  }
+
+  const m = sole(legalMoves(s));
+  const next = applyMove(s, m); // default rules
   // Both Black soldiers end up buried under the officer, back on square 0.
   assert.deepEqual(next.board[0], [
     { color: 'B', rank: 'soldier' },
@@ -223,6 +224,77 @@ test('officer multi-capture: the SAME square IS jumped twice (documents current 
   assert.equal(next.board[4], null);
   assert.equal(next.board[8], null);
   assert.equal(countPieces(next.board), 3); // nothing leaves the board
+});
+
+test('same-square re-jump FORBID (nestor-strict): the re-jump is gone', () => {
+  const s = buildState('W:0=Wo,4=BsBs');
+  const moves = legalMoves(s, STRICT);
+  // The officer can only make the single jump over 4 (->8); it may NOT turn
+  // around and jump square 4 again, so that is the sole legal move.
+  const m = sole(moves);
+  assert.deepEqual(m.path, [8], 'strict mode: single jump, lands on 8');
+  assert.deepEqual(m.captures, [4], 'strict mode: square 4 jumped exactly once');
+  assert.equal(m.promotion, false);
+
+  const next = applyMove(s, m, STRICT);
+  // One Black soldier taken (buried under the officer on 8); one survives on 4.
+  assert.deepEqual(next.board[8], [
+    { color: 'B', rank: 'soldier' },
+    { color: 'W', rank: 'officer' },
+  ]);
+  assert.deepEqual(next.board[4], [{ color: 'B', rank: 'soldier' }], 'one Black soldier survives on 4');
+  assert.equal(next.board[0], null);
+  assert.equal(countPieces(next.board), 3); // nothing leaves the board
+});
+
+test('gameStatus respects the active variant when deciding "no legal moves"', () => {
+  // A same-square re-jump can only ever EXTEND a capture chain (the first leg has
+  // an empty `captures` list, so it can never be the repeat). The first leg always
+  // lands on a vacant square, so it is itself a completed legal move under strict.
+  // Therefore strict can shorten the legal-move SET but, via the re-jump rule
+  // alone, can never empty it below allow's. We assert that property and that
+  // gameStatus computes its status from the active variant's move set.
+  const s = buildState('W:0=Wo,4=BsBs');
+
+  // Both variants: White is to move and HAS a (different) legal capture set, so
+  // both report 'ongoing' — gameStatus called legalMoves under the right variant.
+  assert.equal(gameStatus(s).state, 'ongoing');
+  assert.equal(gameStatus(s, {}, STRICT).state, 'ongoing');
+  // The move sets genuinely differ (allow: a 2-jump chain; strict: a single jump).
+  assert.deepEqual(legalMoves(s)[0]!.captures, [4, 4]);
+  assert.deepEqual(legalMoves(s, STRICT)[0]!.captures, [4]);
+
+  // A genuinely terminal 'no-moves' position is terminal under BOTH variants (the
+  // re-jump rule changes only chain length, never the edge geometry that strands a
+  // piece). Confirm gameStatus passes its variant through to the legalMoves test.
+  const noMoves = buildState('B:16=Ws,20=Ws,24=Bs'); // Black @24 blocked, no jump
+  assert.deepEqual(gameStatus(noMoves), { state: 'win', winner: 'W', reason: 'no-moves' });
+  assert.deepEqual(gameStatus(noMoves, {}, STRICT), { state: 'win', winner: 'W', reason: 'no-moves' });
+});
+
+test('applyMove rejects a hand-built same-square re-jump under strict, accepts under allow', () => {
+  const s = buildState('W:0=Wo,4=BsBs');
+  // Hand-built move that jumps mid-square 4 TWICE: 0 -> over 4 -> 8 -> over 4 -> 0.
+  const reJump: Move = {
+    from: 0,
+    to: 0,
+    path: [8, 0],
+    captures: [4, 4],
+    isCapture: true,
+    promotion: false,
+  };
+
+  // Allow (default + explicit): the externally-supplied re-jump is accepted.
+  const allowed = applyMove(s, reJump);
+  assert.deepEqual(allowed.board[0], [
+    { color: 'B', rank: 'soldier' },
+    { color: 'B', rank: 'soldier' },
+    { color: 'W', rank: 'officer' },
+  ]);
+  assert.deepEqual(applyMove(s, reJump, DEFAULT_RULES).board[0], allowed.board[0]);
+
+  // Strict: the server trusts nothing — the repeated mid-square is rejected.
+  assert.throws(() => applyMove(s, reJump, STRICT), /jumped twice/);
 });
 
 // ---- promotion ------------------------------------------------------------

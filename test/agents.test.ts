@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createInitialState, legalMoves, applyMove } from '../src/index.ts';
-import type { GameState, Move } from '../src/index.ts';
+import { createInitialState, legalMoves, applyMove, chooseMove } from '../src/index.ts';
+import { DIFFICULTY_DEPTH } from '../src/index.ts';
+import type { GameState, Move, Difficulty } from '../src/index.ts';
 import {
   ROSTER,
   LADDER,
@@ -16,7 +17,7 @@ import {
   roundRobin,
   createMctsAgent,
 } from '../src/agents/index.ts';
-import type { Agent } from '../src/agents/index.ts';
+import type { Agent, AgentContext } from '../src/agents/index.ts';
 
 /** Does `move` appear (by from/to/captures) in the legal move list of `state`? */
 function isLegal(state: GameState, move: Move): boolean {
@@ -124,4 +125,56 @@ test('the LADDER is ordered and references real roster agents', () => {
   for (const a of LADDER) assert.ok(ROSTER[a.id] === a, `${a.id} missing from ROSTER`);
   // Wildcard MCTS exists but is intentionally not on the strength ladder.
   assert.ok(!LADDER.includes(monte));
+});
+
+// ---------------------------------------------------------------------------
+// CROSS-FAMILY strength regression guard.
+//
+// `bench-ai-vs-mcts.ts` measures the production AI (`chooseMove` / negamax) vs
+// the independent MCTS family — the closest thing to an external reference, since
+// no third-party Laska engine exists. This test pins the *reliably true* corner
+// of that benchmark so a regression to the production search/eval (or to MCTS)
+// trips a fast, deterministic alarm.
+//
+// HONESTY: the production negamax is NOT a blanket favourite over MCTS. Measured
+// (2026-06): depth-3 'intermediate' is ~parity with MCTS-80, and HIGHER-budget
+// MCTS (~200 iters) actually BEAT depth-4 'medium' head-to-head on the bench
+// seeds. So this guard is deliberately scoped to where production reliably wins:
+// the depth-4 'medium' tier (best-play, blunder off) vs a LOW-budget MCTS. The
+// threshold has margin (wins clearly, loses zero games at this fixed seed).
+// ---------------------------------------------------------------------------
+
+/** Wrap the production `chooseMove` tier as an Agent so it plugs into the arena. */
+function productionTierAgent(tier: Difficulty): Agent {
+  return {
+    id: `prod-${tier}`,
+    name: `Prod(${tier}, d${DIFFICULTY_DEPTH[tier]})`,
+    blurb: `production negamax at the "${tier}" tier`,
+    family: 'search',
+    chooseMove(state: GameState, ctx?: AgentContext): Move | null {
+      // blunderRate 0: measure the tier's best play, not its human-handicap roll.
+      return chooseMove(state, { difficulty: tier, blunderRate: 0, random: ctx?.random ?? Math.random });
+    },
+  };
+}
+
+test('STRENGTH GUARD (cross-family): production depth-4 beats a low-budget MCTS', () => {
+  // Fixed seed + small game count chosen so this runs in seconds and is stable.
+  // Measured at this exact config: 4W-0D-0L. We assert with margin (>=3 wins,
+  // zero losses) so a stray draw does not make it flaky but a real regression
+  // (production stops dominating low-budget MCTS) does fail it.
+  const prod = productionTierAgent('medium'); // depth 4, best play
+  const mcts = createMctsAgent({ id: 'mcts-50', name: 'MCTS(50)', iterations: 50 });
+  const m = playMatch(prod, mcts, { games: 4, seed: 13, maxPlies: 120 });
+
+  assert.equal(m.aWins + m.bWins + m.draws, m.games);
+  assert.equal(
+    m.bWins,
+    0,
+    `production depth-4 should not LOSE a game to low-budget MCTS here, lost ${m.bWins} (W${m.aWins} D${m.draws})`,
+  );
+  assert.ok(
+    m.aWins >= 3,
+    `production depth-4 should beat low-budget MCTS with margin: won ${m.aWins}/${m.games} (D${m.draws} L${m.bWins})`,
+  );
 });

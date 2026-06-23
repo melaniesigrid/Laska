@@ -57,6 +57,10 @@ theme button, persisted to `laska-theme`):
   neumorphic shadows; gold accent. (Was the old "dark"; its black border was
   unrealistic, so ground was unified with the board and it was renamed.)
 - **classic** — clay board on a deep navy ground.
+- **colors** — regimental: royal-blue + crimson armies on a calm slate
+  neumorphic board; the rank star/pip is a painted **gold** medal (an explicit
+  exception to the debossed coin-tone rule, see below) and gold also drives the
+  selection accent so the theme reads as one piece.
 For a neumorphic theme `--ground` should equal `--pedestal`/`--plate` (the board
 emerges from the same-colour surface via shadow, never a contrasting border).
 All board metrics derive from `--sq` (`clamp(40px,7.4vw,64px)`) at lasca-soft's
@@ -131,3 +135,5 @@ board, the legend swatches, and the landing self-play demo, so they never drift.
 | 2026-06-22 | Added a piece-insignia theme system (Heirloom default: star for generals; + Regiment, Lineage, Dots) | Founder direction: themed pieces where generals get a star instead of two dots. Doubles as a first-timer legibility win and a cosmetics line (monetization). Cosmetic only; distinct from the cut palette-theme system. |
 | 2026-06-22 | Added a Historic-Game replay viewer; shipped Moscow 1996 only, engine-verified | Founder provided three lasca.org game scores. Replay drives the real engine off the recorded score. Moscow 1996 validates end-to-end; the 1976 and Lasker-1911 scores diverge mid-game under our capture rules (likely transcription) — held back rather than ship an unverifiable replay. |
 | 2026-06-22 | Dropped the `.disc.top::before` inner ring on top coins; removed the **Regiment** piece theme (chevron soldier + medal general) | Founder: minimalistic look, dislikes chevrons. Themes now Heirloom/Lineage/Dots; a stored `regiment` falls back to Heirloom via `readStoredPieceTheme`. |
+| 2026-06-22 | Re-cut the rank **pips** to the debossed recipe (coin-tone-darker fill + opposed bevel via `color-mix` off `--cream`/`--rose`), matching the `.insignia` marks | Founder: "the dots don't appear neumorphic" — the old flat translucent fill + single inset shadow read as painted-on, not pressed-in. |
+| 2026-06-22 | Added the **Colors** palette: royal-blue + crimson armies on a slate neumorphic board, with a painted **gold** medal star/pip (embossed, not debossed) and a gold accent | Founder direction: "blue and red theme with yellow stars." The gold star is a deliberate, theme-scoped exception to the debossed coin-tone insignia rule — it reads as a struck regimental medal; all other palettes keep the debossed marks. |

@@ -57,7 +57,9 @@ export function LaskerPage({
         <div className="wrap">
           <div className="lasker-grid" style={{ alignItems: 'center' }}>
             <div className="portrait reveal" style={{ position: 'static' }}>
-              <div className="medallion">EL</div>
+              <div className="medallion medallion-photo">
+                <img src="/young-emanuel-lasker.png" alt="Emanuel Lasker as a young man" loading="lazy" />
+              </div>
               <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <span className="name">Emanuel Lasker</span>
                 <span className="years">1868 — 1941</span>

@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Match, MatchError } from '../src/game/match.ts';
+import { decodePosition, encodePosition, type GameState } from '../../src/index.ts';
+
+/** Build a seed GameState from a FEN-like position string (test setup only). */
+function buildState(position: string): GameState {
+  const { board, toMove } = decodePosition(position);
+  const key = encodePosition({ board, toMove });
+  return { board, toMove, plyNoProgress: 0, positionCounts: { [key]: 1 } };
+}
 
 // Use real time by default so submitMove's default `now` is consistent with
 // creation; timing-specific tests below pass explicit timestamps.
@@ -101,6 +109,54 @@ test('draw offer must come from the opponent to be accepted', () => {
   assert.equal(end.reason, 'agreement');
   assert.equal(end.winner, null);
   assert.equal(end.result, '1/2-1/2');
+});
+
+// ---- per-match rule variant (server-authoritative enforcement) -----------
+//
+// Position W:0=Wo,4=BsBs: a White officer on 0 with two stacked Black soldiers
+// on 4. Under lasker-classic the officer may jump square 4, land on 8, then
+// turn around and jump square 4 a SECOND time, ending back on 0 (a same-square
+// re-jump: from 0 -> to 0, captures [4,4]). Under nestor-strict that re-jump is
+// forbidden, so the only legal capture is a single jump 0 -> 8 (captures [4]).
+const REJUMP_POSITION = 'W:0=Wo,4=BsBs';
+
+function rejumpMatch(variant: 'lasker-classic' | 'nestor-strict') {
+  return new Match({
+    id: `rj-${variant}`,
+    whiteId: 'white',
+    blackId: 'black',
+    ranked: false,
+    variant,
+    initialState: buildState(REJUMP_POSITION),
+  });
+}
+
+test('lasker-classic match ACCEPTS a same-square re-jump (0 -> 0, captures [4,4])', () => {
+  const m = rejumpMatch('lasker-classic');
+  // The re-jump landing (0 -> 0) is legal and applied by the engine.
+  const { move } = m.submitMove('white', { from: 0, to: 0 });
+  assert.deepEqual(move.captures, [4, 4], 'square 4 captured twice in one turn');
+  assert.equal(m.toMove, 'B', 'turn flips after the accepted re-jump');
+});
+
+test('nestor-strict match REJECTS the same-square re-jump but allows the single jump', () => {
+  const strict = rejumpMatch('nestor-strict');
+  // The re-jump (0 -> 0) is NOT legal under strict: the server rejects it.
+  assert.throws(
+    () => strict.submitMove('white', { from: 0, to: 0 }),
+    (e: unknown) => e instanceof MatchError && e.code === 'illegal-move',
+    'strict mode must reject the same-square re-jump',
+  );
+  assert.equal(strict.toMove, 'W', 'turn unchanged after the rejected re-jump');
+  // The single jump (0 -> 8, capturing 4 once) IS legal under strict.
+  const { move } = strict.submitMove('white', { from: 0, to: 8 });
+  assert.deepEqual(move.captures, [4], 'strict allows the single jump capturing square 4 once');
+  assert.equal(strict.toMove, 'B');
+});
+
+test('the match exposes its variant (default lasker-classic when unspecified)', () => {
+  assert.equal(newMatch().variant, 'lasker-classic', 'default variant unchanged');
+  assert.equal(rejumpMatch('nestor-strict').variant, 'nestor-strict');
 });
 
 test('no moves are accepted after the game is over', () => {

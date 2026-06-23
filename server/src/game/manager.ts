@@ -7,6 +7,7 @@
  * authoritative state. The match keeps running on its clock while they are away.
  */
 import { randomUUID } from 'node:crypto';
+import type { RuleVariant } from '../../../src/index.ts';
 import type { Repository, MatchRecord, MatchResult } from '../storage/types.ts';
 import { updateRatings, type Score } from '../rating/elo.ts';
 import { Match, type MatchEndInfo, type TimeControl } from './match.ts';
@@ -37,7 +38,7 @@ export class MatchManager {
   createMatch(
     whiteId: string,
     blackId: string,
-    opts: { ranked: boolean; timeControl?: TimeControl } = { ranked: true },
+    opts: { ranked: boolean; timeControl?: TimeControl; variant?: RuleVariant } = { ranked: true },
   ): Match {
     const id = randomUUID();
     const params: ConstructorParameters<typeof Match>[0] = {
@@ -47,6 +48,7 @@ export class MatchManager {
       ranked: opts.ranked,
     };
     if (opts.timeControl) params.timeControl = opts.timeControl;
+    if (opts.variant) params.variant = opts.variant;
     const match = new Match(params);
     this.active.set(id, match);
     this.byUser.set(whiteId, id);
@@ -121,6 +123,7 @@ export class MatchManager {
       result: end.result,
       endReason: end.reason,
       ranked: match.ranked,
+      variant: match.variant,
       whiteRatingBefore: whiteBefore,
       blackRatingBefore: blackBefore,
       whiteRatingAfter: whiteAfter,

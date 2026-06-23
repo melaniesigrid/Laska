@@ -7,6 +7,7 @@
  * memory never need Postgres installed.
  */
 import { Pool, type PoolConfig } from 'pg';
+import type { RuleVariant } from '../../../src/index.ts';
 import type {
   LeaderboardEntry,
   MatchRecord,
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS matches (
   result               TEXT NOT NULL,
   end_reason           TEXT NOT NULL,
   ranked               BOOLEAN NOT NULL,
+  variant              TEXT NOT NULL DEFAULT 'lasker-classic',
   white_rating_before  INTEGER NOT NULL,
   black_rating_before  INTEGER NOT NULL,
   white_rating_after   INTEGER NOT NULL,
@@ -48,6 +50,9 @@ CREATE TABLE IF NOT EXISTS matches (
 CREATE INDEX IF NOT EXISTS idx_matches_white ON matches(white_id, ended_at DESC);
 CREATE INDEX IF NOT EXISTS idx_matches_black ON matches(black_id, ended_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_rating ON users(rating DESC) WHERE is_guest = false;
+
+-- Additive migration for databases created before the rule-variant column.
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS variant TEXT NOT NULL DEFAULT 'lasker-classic';
 `;
 
 interface UserRow {
@@ -70,6 +75,7 @@ interface MatchRow {
   result: string;
   end_reason: string;
   ranked: boolean;
+  variant: string;
   white_rating_before: number;
   black_rating_before: number;
   white_rating_after: number;
@@ -101,6 +107,7 @@ function rowToMatch(r: MatchRow): MatchRecord {
     result: r.result as MatchRecord['result'],
     endReason: r.end_reason,
     ranked: r.ranked,
+    variant: (r.variant ?? 'lasker-classic') as RuleVariant,
     whiteRatingBefore: r.white_rating_before,
     blackRatingBefore: r.black_rating_before,
     whiteRatingAfter: r.white_rating_after,
@@ -217,10 +224,10 @@ export class PostgresRepository implements Repository {
   async saveMatch(record: MatchRecord): Promise<void> {
     await this.pool.query(
       `INSERT INTO matches
-        (id, white_id, black_id, moves, result, end_reason, ranked,
+        (id, white_id, black_id, moves, result, end_reason, ranked, variant,
          white_rating_before, black_rating_before, white_rating_after, black_rating_after,
          started_at, ended_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO NOTHING`,
       [
         record.id,
@@ -230,6 +237,7 @@ export class PostgresRepository implements Repository {
         record.result,
         record.endReason,
         record.ranked,
+        record.variant,
         record.whiteRatingBefore,
         record.blackRatingBefore,
         record.whiteRatingAfter,

@@ -13,9 +13,12 @@ import {
   applyMove,
   gameStatus,
   encodePosition,
+  rulesForVariant,
   type GameState,
   type Move,
   type PlayerColor,
+  type RuleVariant,
+  type RuleOptions,
 } from '../../../src/index.ts';
 import type { MatchResult, SerializedMove } from '../storage/types.ts';
 
@@ -78,7 +81,11 @@ export class Match {
   readonly ranked: boolean;
   readonly timeControl: TimeControl;
   readonly startedAt: number;
+  /** Rule variant in force for this match. Authoritative for all engine calls. */
+  readonly variant: RuleVariant;
 
+  /** Resolved options for `variant`, threaded into every engine call. */
+  private readonly rules: RuleOptions;
   private state: GameState;
   private moves: SerializedMove[] = [];
   private clock: { whiteMs: number; blackMs: number };
@@ -94,17 +101,26 @@ export class Match {
     blackId: string;
     ranked: boolean;
     timeControl?: TimeControl;
+    /** Defaults to 'lasker-classic' (today's behavior) when omitted. */
+    variant?: RuleVariant;
     now?: number;
+    /**
+     * Seed the starting position (otherwise the standard initial setup). Used by
+     * tests to set up specific positions; not used in normal play.
+     */
+    initialState?: GameState;
   }) {
     this.id = params.id;
     this.whiteId = params.whiteId;
     this.blackId = params.blackId;
     this.ranked = params.ranked;
     this.timeControl = params.timeControl ?? DEFAULT_TIME_CONTROL;
+    this.variant = params.variant ?? 'lasker-classic';
+    this.rules = rulesForVariant(this.variant);
     const now = params.now ?? Date.now();
     this.startedAt = now;
     this.turnStartedAt = now;
-    this.state = createInitialState();
+    this.state = params.initialState ?? createInitialState();
     this.clock = { whiteMs: this.timeControl.initialMs, blackMs: this.timeControl.initialMs };
   }
 
@@ -150,7 +166,7 @@ export class Match {
   }
 
   legalMovesForCurrent(): Move[] {
-    return this.phase === 'active' ? legalMoves(this.state) : [];
+    return this.phase === 'active' ? legalMoves(this.state, this.rules) : [];
   }
 
   /**
@@ -191,7 +207,7 @@ export class Match {
     const timedOut = this.checkTimeout(now);
     if (timedOut) throw new MatchError('not-active', 'Your time expired');
 
-    const legal = legalMoves(this.state);
+    const legal = legalMoves(this.state, this.rules);
     const candidates = legal.filter((m) => m.from === intent.from && m.to === intent.to);
     if (candidates.length === 0) {
       throw new MatchError('illegal-move', `No legal move ${intent.from} -> ${intent.to}`);
@@ -220,13 +236,13 @@ export class Match {
     if (color === 'W') this.clock.whiteMs += this.timeControl.incrementMs;
     else this.clock.blackMs += this.timeControl.incrementMs;
 
-    this.state = applyMove(this.state, chosen);
+    this.state = applyMove(this.state, chosen, this.rules);
     this.moves.push({ from: chosen.from, to: chosen.to, captures: chosen.captures, by: color });
     this.turnStartedAt = now;
     this.drawOfferBy = null; // any move withdraws a pending draw offer
 
     // Engine decides terminal status (win by no-pieces/no-moves, or draw).
-    const status = gameStatus(this.state);
+    const status = gameStatus(this.state, {}, this.rules);
     let ended: MatchEndInfo | null = null;
     if (status.state === 'win') {
       ended = this.finish(

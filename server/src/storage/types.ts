@@ -4,7 +4,7 @@
  * match history) + Redis (presence/matchmaking) without touching game logic.
  * See TODO.md for the production storage migration.
  */
-import type { PlayerColor } from '../../../src/index.ts';
+import type { PlayerColor, RuleVariant } from '../../../src/index.ts';
 
 export interface User {
   id: string;
@@ -35,6 +35,8 @@ export interface MatchRecord {
   /** How the game ended, for dispute resolution / display. */
   endReason: string;
   ranked: boolean;
+  /** Rule variant in force for this match (default 'lasker-classic'). */
+  variant: RuleVariant;
   whiteRatingBefore: number;
   blackRatingBefore: number;
   whiteRatingAfter: number;

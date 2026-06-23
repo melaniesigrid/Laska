@@ -205,6 +205,16 @@ export function BrochurePage({
                 common modern reading — so the decision is yours.
               </p>
             </article>
+            <article className="card">
+              <span className="idx">05</span>
+              <h3>Same square twice</h3>
+              <p>
+                When an officer’s run could carry it back over a square it already jumped, Lasker’s 1911
+                text is silent, so the app offers both readings as a setting. <b>Classic (Lasker)</b>{' '}
+                allows the re-jump; <b>Strict (nestorgames)</b> forbids jumping the same space more than
+                once in a turn, per Néstor Romeral Andrés’ 2018 rulebook. Classic is the default.
+              </p>
+            </article>
           </div>
         </div>
       </section>

@@ -12,12 +12,18 @@ import {
   Trophy,
   Minus,
   Star,
+  Scale,
+  Lightbulb,
+  Save,
+  Check,
+  Library,
 } from 'lucide-react';
 import {
   createInitialState,
   legalMoves,
   applyMove,
   gameStatus,
+  rulesForVariant,
   RC_TO_SQUARE,
   BOARD_DIM,
   DIFFICULTY_DEPTH,
@@ -27,6 +33,7 @@ import {
   type Move,
   type PlayerColor,
   type Difficulty,
+  type RuleVariant,
 } from '../../src/index.ts';
 import { getBestMove } from './ai/aiClient.ts';
 import { BoardView, type MoveFx } from './Board.tsx';
@@ -38,6 +45,16 @@ import { ReplayPage } from './ReplayPage.tsx';
 import { BrochurePage } from './BrochurePage.tsx';
 import { AIPage } from './AIPage.tsx';
 import { BuildStoryPage } from './BuildStoryPage.tsx';
+import { MyGamesPage } from './MyGamesPage.tsx';
+import { SavedGameReplay } from './SavedGameReplay.tsx';
+import {
+  buildSavedGame,
+  mergeIntoSave,
+  getSavedGame,
+  upsertSavedGame,
+  type SavedResult,
+  type NewGameInput,
+} from './savedGames.ts';
 import {
   PieceThemeContext,
   PIECE_THEMES,
@@ -60,8 +77,39 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   expert: 'Expert',
 };
 
+/** One-line, plain-English read on how each tier behaves (UI copy only — the
+ *  real depth/slip numbers live in the engine's DIFFICULTY_* tables). */
+const DIFFICULTY_BLURB: Record<Difficulty, string> = {
+  beginner: 'Blunders often on purpose — a gentle first game.',
+  easy: 'Slips now and then; a relaxed sparring partner.',
+  intermediate: 'A steady, club-level test.',
+  medium: 'Plays solidly and only rarely slips.',
+  hard: 'Reads through exchanges and punishes loose play.',
+  expert: 'Never slips — the full strength of the engine.',
+};
+
+const RULE_VARIANTS = ['lasker-classic', 'nestor-strict'] as const;
+const RULE_VARIANT_LABEL: Record<RuleVariant, string> = {
+  'lasker-classic': 'Classic (Lasker)',
+  'nestor-strict': 'Strict (nestorgames)',
+};
+const RULE_VARIANT_BLURB: Record<RuleVariant, string> = {
+  'lasker-classic': 'Lasker’s 1911 rules — an officer may re-jump the same square within one multi-capture.',
+  'nestor-strict': 'nestorgames 2018 rules — the same square may not be jumped twice in a single turn.',
+};
+
+function readStoredRuleVariant(): RuleVariant {
+  try {
+    const v = localStorage.getItem('laska-rule-variant');
+    if (RULE_VARIANTS.includes(v as RuleVariant)) return v as RuleVariant;
+  } catch {
+    /* ignore */
+  }
+  return 'lasker-classic';
+}
+
 /** Palettes — Stone is the site default (from laska.html); the rest from lasca-soft. */
-const THEMES = ['stone', 'dark', 'light', 'chocolate', 'classic'] as const;
+const THEMES = ['stone', 'dark', 'light', 'chocolate', 'classic', 'colors'] as const;
 type ThemeName = (typeof THEMES)[number];
 const THEME_LABEL: Record<ThemeName, string> = {
   stone: 'Stone',
@@ -69,6 +117,7 @@ const THEME_LABEL: Record<ThemeName, string> = {
   light: 'Light',
   chocolate: 'Chocolate',
   classic: 'Classic',
+  colors: 'Colors',
 };
 
 function readStoredTheme(): ThemeName {
@@ -94,6 +143,70 @@ function readStoredPieceTheme(): PieceTheme {
 function movesFrom(moves: Move[], square: number): Move[] {
   return moves.filter((m) => m.from === square);
 }
+
+/* ---- step-by-step forced captures ----------------------------------------
+   The engine returns each multi-jump as ONE atomic Move whose `path` lists the
+   landing square after every jump. To make the player work the chain out and
+   play it one jump at a time, the web layer walks that path: it offers only the
+   immediate next landing, and re-derives the mid-chain board by replaying a
+   PREFIX of the same Move through the engine's own applyMove (so no rules logic
+   is duplicated here — `src/` stays the single source of truth). */
+
+/** An in-progress multi-capture being played jump-by-jump by a human. */
+interface Chain {
+  start: number; // square the chain began from (the Move's `from`)
+  step: number; // jumps already taken (≥ 1 while a chain is live)
+  pos: number; // square the moving column occupies now (= path[step-1])
+  moves: Move[]; // full Moves still consistent with the jumps taken so far
+}
+
+/** The sub-move covering the first `len` jumps of `rep`, departing from `start`. */
+function prefixMove(rep: Move, len: number, start: number): Move {
+  return {
+    from: start,
+    to: rep.path[len - 1]!,
+    path: rep.path.slice(0, len),
+    captures: rep.captures.slice(0, len),
+    isCapture: true,
+    promotion: rep.promotion && len === rep.path.length,
+  };
+}
+
+/** Just jump `i` of `rep` as a one-step move (for migrating column ids). */
+function singleJump(rep: Move, i: number, start: number): Move {
+  return {
+    from: i === 0 ? start : rep.path[i - 1]!,
+    to: rep.path[i]!,
+    path: [rep.path[i]!],
+    captures: [rep.captures[i]!],
+    isCapture: true,
+    promotion: false,
+  };
+}
+
+/** Group candidate moves by their next landing square at `step`, so the board
+ *  can offer the immediate jumps (and only those) as drop-targets. */
+function nextStepTargets(moves: Move[], step: number): Map<number, Move[]> {
+  const map = new Map<number, Move[]>();
+  for (const m of moves) {
+    const nxt = m.path[step];
+    if (nxt == null) continue; // this Move already ended before `step`
+    const bucket = map.get(nxt);
+    if (bucket) bucket.push(m);
+    else map.set(nxt, [m]);
+  }
+  return map;
+}
+
+/** The longest (most-capturing) move in a non-empty pool — the chain a hint reveals. */
+function longestMove(pool: Move[]): Move {
+  return pool.reduce((a, b) => (b.path.length > a.path.length ? b : a));
+}
+
+/** Beat between hops when the computer plays a multi-jump capture — long enough
+ *  for each glide-and-tuck to land before the next leap (the glide spring settles
+ *  in ~0.3s), short enough that a long chain doesn't drag. */
+const AI_HOP_MS = 380;
 
 /* ---- column identity (for the gliding-piece animation) -------------------
    Engine pieces carry no id, so the web layer assigns a stable id per occupied
@@ -124,9 +237,10 @@ function advanceColumnIds(ids: (string | null)[], prevBoard: Board, move: Move):
 
 export function App() {
   const [view, setView] = useState<
-    'landing' | 'game' | 'lasker' | 'replay' | 'brochure' | 'ai' | 'build'
+    'landing' | 'game' | 'lasker' | 'replay' | 'brochure' | 'ai' | 'build' | 'mygames' | 'watch'
   >('landing');
   const [replayGameId, setReplayGameId] = useState<string | undefined>(undefined);
+  const [watchId, setWatchId] = useState<string | undefined>(undefined);
   const [appMode, setAppMode] = useState<'local' | 'online'>('local');
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
@@ -158,6 +272,11 @@ export function App() {
   const goReplay = (id?: string) => {
     setReplayGameId(id);
     setView('replay');
+  };
+
+  const goWatch = (id: string) => {
+    setWatchId(id);
+    setView('watch');
   };
 
   if (view === 'landing') {
@@ -212,6 +331,21 @@ export function App() {
       />
     );
   }
+  if (view === 'mygames') {
+    return (
+      <MyGamesPage onBack={() => setView('landing')} onWatch={goWatch} onPlay={() => setView('game')} />
+    );
+  }
+  if (view === 'watch' && watchId) {
+    return (
+      <SavedGameReplay
+        id={watchId}
+        onBack={() => setView('mygames')}
+        onMyGames={() => setView('mygames')}
+        pieceTheme={pieceTheme}
+      />
+    );
+  }
 
   return (
     <PieceThemeContext.Provider value={pieceTheme}>
@@ -252,6 +386,9 @@ export function App() {
           >
             <Star size={16} /> {PIECE_THEME_LABEL[pieceTheme]}
           </button>
+          <button className="btn" onClick={() => setView('mygames')} aria-label="Your saved games">
+            <Library size={16} /> My games
+          </button>
         </div>
       </header>
 
@@ -261,7 +398,11 @@ export function App() {
         <div className="sub">The stacking draughts</div>
       </div>
 
-      {appMode === 'local' ? <LocalGame onLearnAI={() => setView('ai')} /> : <OnlinePanel online={online} />}
+      {appMode === 'local' ? (
+        <LocalGame onLearnAI={() => setView('ai')} onOpenMyGames={() => setView('mygames')} />
+      ) : (
+        <OnlinePanel online={online} />
+      )}
 
       <footer className="foot">
         {appMode === 'local'
@@ -273,55 +414,118 @@ export function App() {
   );
 }
 
-function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
+function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpenMyGames: () => void }) {
   const [state, setState] = useState<GameState>(() => createInitialState());
+  // The committed moves of the current game, kept in lockstep with `history` so a
+  // game can be saved and rewatched. Each committed move appends one entry; undo
+  // and new-game trim/clear it exactly as they do `history`.
+  const [moves, setMoves] = useState<Move[]>([]);
+  // The id of the save this game is backed by, once saved — so a second Save
+  // updates that record (carrying its notes) instead of duplicating it.
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
   const [mode, setMode] = useState<Mode>('ai');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [aiColor, setAiColor] = useState<PlayerColor>('B');
+  const [ruleVariant, setRuleVariant] = useState<RuleVariant>(readStoredRuleVariant);
   const [selected, setSelected] = useState<number | null>(null);
+  // A forced multi-capture the human is playing one jump at a time. While set,
+  // the board renders the mid-chain position and offers only the next jump.
+  const [chain, setChain] = useState<Chain | null>(null);
+  // Squares of the hint-revealed forced chain (from + every landing). Cleared on
+  // the next interaction so it never lingers past the move it described.
+  const [hint, setHint] = useState<Set<number> | null>(null);
   const [history, setHistory] = useState<GameState[]>([]);
   const [thinking, setThinking] = useState(false);
   const [colIds, setColIds] = useState<(string | null)[]>(() => freshColumnIds(state.board));
   const [moveFx, setMoveFx] = useState<MoveFx | null>(null);
   const aiTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const status = useMemo(() => gameStatus(state), [state]);
-  const legal = useMemo(() => legalMoves(state), [state]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('laska-rule-variant', ruleVariant);
+    } catch {
+      /* ignore */
+    }
+  }, [ruleVariant]);
+
+  // Resolved rule options for the active variant; threaded into every engine
+  // call so changing the variant recomputes legality immediately.
+  const rules = useMemo(() => rulesForVariant(ruleVariant), [ruleVariant]);
+
+  const status = useMemo(() => gameStatus(state, undefined, rules), [state, rules]);
+  const legal = useMemo(() => legalMoves(state, rules), [state, rules]);
   const gameOver = status.state !== 'ongoing';
 
   const movableSquares = useMemo(() => new Set(legal.map((m) => m.from)), [legal]);
   const mustCapture = legal.length > 0 && legal.every((m) => m.isCapture);
 
-  const destinations = useMemo(() => {
-    if (selected == null) return new Map<number, Move>();
-    const map = new Map<number, Move>();
-    for (const m of movesFrom(legal, selected)) {
-      const existing = map.get(m.to);
-      if (!existing || m.captures.length > existing.captures.length) map.set(m.to, m);
-    }
-    return map;
-  }, [legal, selected]);
+  // The drop-targets are the IMMEDIATE next jumps, never the chain's final
+  // landing: mid-chain it's the candidates' next step; otherwise the selected
+  // piece's first step. Quiet moves are length-1 chains, so this is unchanged
+  // for them. Each target maps to the moves still consistent with reaching it.
+  const stepTargets = useMemo<Map<number, Move[]>>(() => {
+    if (chain) return nextStepTargets(chain.moves, chain.step);
+    if (selected != null) return nextStepTargets(movesFrom(legal, selected), 0);
+    return new Map();
+  }, [chain, selected, legal]);
 
+  const destinations = useMemo(() => new Set(stepTargets.keys()), [stepTargets]);
   const captureTargets = useMemo(
-    () => new Set([...destinations].filter(([, m]) => m.isCapture).map(([sq]) => sq)),
-    [destinations],
+    () => new Set([...stepTargets].filter(([, ms]) => ms[0]!.isCapture).map(([sq]) => sq)),
+    [stepTargets],
   );
 
+  // Mid-chain, render the position after the jumps taken so far. We replay a
+  // prefix of the chain's representative Move through the engine (applyMove
+  // re-simulates from `from` + `path`), and migrate column ids jump-by-jump so
+  // the capturing column glides across each hop and tucks one prisoner per jump.
+  const chainView = useMemo(() => {
+    if (!chain) return null;
+    const rep = chain.moves[0]!;
+    let ids = colIds;
+    let prevBoard = state.board;
+    for (let i = 0; i < chain.step; i++) {
+      ids = advanceColumnIds(ids, prevBoard, singleJump(rep, i, chain.start));
+      prevBoard = applyMove(state, prefixMove(rep, i + 1, chain.start), rules).board;
+    }
+    return { board: prevBoard, ids };
+  }, [chain, state, colIds, rules]);
+
+  const displayBoard = chainView ? chainView.board : state.board;
+  const displayColIds = chainView ? chainView.ids : colIds;
+  const displaySelected = chain ? chain.pos : selected;
+  const displayMovable = chain ? new Set([chain.pos]) : movableSquares;
+  const displayFx: MoveFx | null = chain
+    ? { square: chain.pos, tuckCount: 1, promoted: false }
+    : moveFx;
+
   /** Apply `move` from `prev`, recording history and migrating column ids so the
-   *  moved column glides to its destination. The one path both human and AI use. */
-  const playMove = useCallback((prev: GameState, move: Move) => {
+   *  moved column glides to its destination. The one path both human and AI use.
+   *  `tuck` overrides how many prisoners animate on the landing square — a human
+   *  playing a chain jump-by-jump has already tucked the earlier prisoners, so
+   *  the final commit pops only the last one (the AI commits all at once). */
+  const playMove = useCallback((prev: GameState, move: Move, tuck?: number) => {
     setHistory((h) => [...h, prev]);
+    setMoves((m) => [...m, move]);
+    setJustSaved(false); // the saved snapshot is now stale until re-saved
     setColIds((ids) => advanceColumnIds(ids, prev.board, move));
     // One-shot reward feedback on the landing square: tuck prisoners under the
     // cap and pop a fresh promotion. Cleared (null) on quiet, non-promoting moves.
     setMoveFx(
       move.isCapture || move.promotion
-        ? { square: move.to, tuckCount: move.isCapture ? move.captures.length : 0, promoted: move.promotion }
+        ? {
+            square: move.to,
+            tuckCount: move.isCapture ? (tuck ?? move.captures.length) : 0,
+            promoted: move.promotion,
+          }
         : null,
     );
-    setState(applyMove(prev, move));
+    setState(applyMove(prev, move, rules));
     setSelected(null);
-  }, []);
+    setChain(null);
+    setHint(null);
+  }, [rules]);
 
   const isAiTurn = mode === 'ai' && !gameOver && state.toMove === aiColor;
 
@@ -333,37 +537,95 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
     const started = Date.now();
     // Search runs in a Web Worker so the UI thread never blocks. Keep a minimum
     // visible "thinking" beat so the move doesn't snap in jarringly.
-    getBestMove(snapshot, { difficulty }).then((move) => {
+    getBestMove(snapshot, { difficulty, rules }).then((move) => {
       if (cancelled) return;
       const wait = Math.max(0, 350 - (Date.now() - started));
       aiTimer.current = setTimeout(() => {
         if (cancelled) return;
         setThinking(false);
-        if (move) playMove(snapshot, move);
+        if (!move) return;
+        // Single-step moves (quiet or one jump) just play. A multi-jump capture
+        // is walked hop-by-hop — same mid-chain rendering the human uses — so the
+        // computer's column visibly leaps from prey to prey, tucking one prisoner
+        // per jump, before the turn passes.
+        if (move.path.length <= 1) {
+          playMove(snapshot, move);
+          return;
+        }
+        const total = move.path.length;
+        const advance = (step: number) => {
+          if (cancelled) return;
+          if (step >= total) {
+            // Final hop commits the whole Move; earlier prisoners already tucked,
+            // so only the last one pops (tuck = 1), matching the human chain.
+            playMove(snapshot, move, 1);
+            return;
+          }
+          setChain({ start: move.from, step, pos: move.path[step - 1]!, moves: [move] });
+          aiTimer.current = setTimeout(() => advance(step + 1), AI_HOP_MS);
+        };
+        advance(1);
       }, wait);
     });
     return () => {
       cancelled = true;
       if (aiTimer.current) clearTimeout(aiTimer.current);
+      // Abandon any half-shown AI chain so a cancelled animation can't strand the
+      // board mid-capture (e.g. difficulty changed while the computer was moving).
+      setChain(null);
     };
-  }, [isAiTurn, state, difficulty, playMove]);
+  }, [isAiTurn, state, difficulty, rules, playMove]);
 
   const handleSquareClick = useCallback(
     (square: number) => {
       if (gameOver || isAiTurn || thinking) return;
-      const move = destinations.get(square);
-      if (selected != null && move) {
-        playMove(state, move);
+      setHint(null); // any interaction dismisses a shown hint
+
+      // Did the player click an offered next-jump square? Advance the chain.
+      const candidates = stepTargets.get(square);
+      if (candidates && (chain || selected != null)) {
+        const start = chain ? chain.start : selected!;
+        const nextStep = (chain ? chain.step : 0) + 1;
+        // A landing ends the move iff no candidate keeps capturing past it. The
+        // engine never mixes a stopping and a continuing sequence at the same
+        // square (a capture is forced to continue if it can), so this is uniform.
+        const done = candidates.every((m) => m.path.length === nextStep);
+        if (done) {
+          // Commit the full Move atomically. Per-jump chains have already tucked
+          // earlier prisoners, so only the final one pops now (tuck = 1).
+          playMove(state, candidates[0]!, nextStep > 1 ? 1 : undefined);
+        } else {
+          setChain({ start, step: nextStep, pos: square, moves: candidates });
+        }
         return;
       }
+
+      if (chain) return; // mid-chain: clicking off the path does nothing (capture is forced)
       if (movableSquares.has(square)) {
         setSelected((cur) => (cur === square ? null : square));
         return;
       }
       setSelected(null);
     },
-    [gameOver, isAiTurn, thinking, destinations, selected, state, playMove, movableSquares],
+    [gameOver, isAiTurn, thinking, stepTargets, chain, selected, state, playMove, movableSquares],
   );
+
+  /** Reveal the full forced chain (every square on the route) without playing it
+   *  — the player still clicks through it jump-by-jump. Prefers the longest
+   *  capture; falls back to a quiet move's destination when nothing captures. */
+  const showHint = useCallback(() => {
+    if (chain) {
+      const rep = longestMove(chain.moves);
+      setHint(new Set([chain.pos, ...rep.path.slice(chain.step)]));
+      return;
+    }
+    const pool = selected != null ? movesFrom(legal, selected) : legal;
+    if (pool.length === 0) return;
+    const caps = pool.filter((m) => m.isCapture);
+    const rep = longestMove(caps.length ? caps : pool);
+    if (selected == null) setSelected(rep.from);
+    setHint(new Set([rep.from, ...rep.path]));
+  }, [chain, selected, legal]);
 
   const newGame = useCallback(() => {
     if (aiTimer.current) clearTimeout(aiTimer.current);
@@ -372,11 +634,24 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
     setColIds(freshColumnIds(fresh.board));
     setMoveFx(null);
     setHistory([]);
+    setMoves([]);
+    setSavedId(null);
+    setJustSaved(false);
     setSelected(null);
+    setChain(null);
+    setHint(null);
     setThinking(false);
   }, []);
 
   const undo = useCallback(() => {
+    setHint(null);
+    // Mid-chain nothing is committed yet, so Undo just abandons the in-progress
+    // capture (back to before the piece was picked up) rather than popping a move.
+    if (chain) {
+      setChain(null);
+      setSelected(null);
+      return;
+    }
     setHistory((h) => {
       if (h.length === 0) return h;
       let target = h.length - 1;
@@ -391,9 +666,41 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
       // backwards, which would read as a strange reverse-capture.
       setColIds(freshColumnIds(restored.board));
       setMoveFx(null);
+      // keep the move list in lockstep with the trimmed history
+      setMoves((m) => m.slice(0, target));
+      setJustSaved(false);
       return h.slice(0, target);
     });
-  }, [mode, aiColor]);
+  }, [mode, aiColor, chain]);
+
+  /** Persist the current game to the local library. Re-saving an already-saved
+   *  game updates that record (and keeps any notes added to it) rather than
+   *  creating a duplicate. */
+  const saveGame = useCallback(() => {
+    if (moves.length === 0) return;
+    let result: SavedResult = 'unfinished';
+    let resultReason: string | undefined;
+    if (status.state === 'win') {
+      result = status.winner;
+      resultReason = status.reason;
+    } else if (status.state === 'draw') {
+      result = 'draw';
+      resultReason = status.reason;
+    }
+    const input: NewGameInput = {
+      moves,
+      mode,
+      variant: ruleVariant,
+      result,
+      ...(resultReason ? { resultReason } : {}),
+      ...(mode === 'ai' ? { difficulty, aiColor } : {}),
+    };
+    const existing = savedId ? getSavedGame(savedId) : undefined;
+    const saved = existing ? mergeIntoSave(existing, input) : buildSavedGame(input);
+    upsertSavedGame(saved);
+    setSavedId(saved.id);
+    setJustSaved(true);
+  }, [moves, mode, ruleVariant, status, difficulty, aiColor, savedId]);
 
   const statusLine = useMemo(() => {
     if (status.state === 'win') return `${COLOR_NAME[status.winner]} wins — ${status.reason.replace('-', ' ')}.`;
@@ -406,7 +713,7 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
   const StatusIcon = status.state === 'win' ? Trophy : status.state === 'draw' ? Minus : CircleDot;
 
   return (
-    <>
+    <div className="game">
       <div
         className={`status ${status.state === 'win' ? 'win' : status.state === 'draw' ? 'draw' : ''}${
           (isAiTurn || thinking) ? ' thinking' : ''
@@ -418,30 +725,63 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
         {statusLine}
       </div>
 
-      <BoardView
-        board={state.board}
-        dim={BOARD_DIM}
-        rcToSquare={RC_TO_SQUARE}
-        selected={selected}
-        movable={movableSquares}
-        destinations={new Set(destinations.keys())}
-        onSquareClick={handleSquareClick}
-        interactive={!gameOver && !isAiTurn && !thinking}
-        activeColor={state.toMove}
-        mustCapture={mustCapture}
-        captureTargets={captureTargets}
-        colIds={colIds}
-        moveFx={moveFx}
-      />
+      <div className="board-wrap">
+        <BoardView
+          board={displayBoard}
+          dim={BOARD_DIM}
+          rcToSquare={RC_TO_SQUARE}
+          selected={displaySelected}
+          movable={displayMovable}
+          destinations={destinations}
+          onSquareClick={handleSquareClick}
+          interactive={!gameOver && !isAiTurn && !thinking}
+          activeColor={state.toMove}
+          mustCapture={mustCapture}
+          captureTargets={captureTargets}
+          hint={hint ?? undefined}
+          colIds={displayColIds}
+          moveFx={displayFx}
+        />
+      </div>
 
-      <div className="controls">
-        <button className="btn" onClick={newGame}>
-          <RotateCcw size={16} /> New game
-        </button>
-        <button className="btn" onClick={undo} disabled={history.length === 0 || isAiTurn || thinking}>
-          <Undo2 size={16} /> Undo
-        </button>
-        <div className="segment" role="group" aria-label="Opponent">
+      <aside className="game-side" aria-label="Game controls">
+        <div className="controls primary-controls">
+          <button className="btn" onClick={newGame}>
+            <RotateCcw size={16} /> New game
+          </button>
+          <button className="btn" onClick={undo} disabled={history.length === 0 || isAiTurn || thinking}>
+            <Undo2 size={16} /> Undo
+          </button>
+          <button
+            className={`btn${hint ? ' active' : ''}`}
+            onClick={showHint}
+            disabled={gameOver || isAiTurn || thinking || legal.length === 0}
+            aria-label="Reveal the full forced capture chain"
+            title="Reveal the full forced capture chain — you still play it jump by jump"
+          >
+            <Lightbulb size={16} /> Hint
+          </button>
+        </div>
+
+        <div className="side-card save-card">
+          <button className="btn block" onClick={saveGame} disabled={moves.length === 0}>
+            {justSaved ? <Check size={16} /> : <Save size={16} />}{' '}
+            {justSaved ? 'Saved' : savedId ? 'Update save' : 'Save game'}
+          </button>
+          {justSaved ? (
+            <button className="btn block ghost" onClick={onOpenMyGames}>
+              <Library size={16} /> Watch &amp; annotate
+            </button>
+          ) : (
+            <p className="diff-blurb">
+              {moves.length === 0
+                ? 'Make a move, then save this game to rewatch and annotate it later.'
+                : 'Save this game to your library — rewatch it move-by-move and add notes.'}
+            </p>
+          )}
+        </div>
+
+        <div className="segment opponent-segment" role="group" aria-label="Opponent">
           <button className={mode === 'ai' ? 'active' : ''} onClick={() => setMode('ai')}>
             <Cpu size={15} /> Computer
           </button>
@@ -449,55 +789,62 @@ function LocalGame({ onLearnAI }: { onLearnAI: () => void }) {
             <Users size={15} /> Two players
           </button>
         </div>
-      </div>
 
-      {mode === 'ai' && (
-        <>
-          <div className="controls">
-            <label className="field-label">
-              <span>Difficulty</span>
-              <select
-                className="neu-select"
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-              >
-                {DIFFICULTY_ORDER.map((d) => (
-                  <option key={d} value={d}>
-                    {DIFFICULTY_LABEL[d]} · {DIFFICULTY_DEPTH[d]} ahead
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field-label">
-              <span>Computer plays</span>
-              <select className="neu-select" value={aiColor} onChange={(e) => setAiColor(e.target.value as PlayerColor)}>
-                <option value="B">Black (you first)</option>
-                <option value="W">White (computer first)</option>
-              </select>
-            </label>
-          </div>
-          <details className="ai-note">
-            <summary>
-              <Cpu size={14} /> About the computer opponent
-            </summary>
-            <p>
-              The engine searches the game tree with <b>negamax + alpha-beta pruning</b> over a
-              Laska-specific evaluator — it scores <em>column control</em> (not raw piece count, since
-              Laska never removes a piece), officer rank, held prisoners, promotion progress and
-              mobility. Difficulty sets how many half-moves it looks ahead and how often it plays a
-              deliberate slip, from <b>Beginner</b> (1 ahead, often blunders) to <b>Expert</b> (8
-              ahead, never slips). <b>{DIFFICULTY_LABEL[difficulty]}</b> looks{' '}
-              <b>{DIFFICULTY_DEPTH[difficulty]} half-moves</b> deep.
+        {mode === 'ai' && (
+          <div className="side-card">
+            <div className="card-row">
+              <label className="field-label">
+                <span>Difficulty</span>
+                <select
+                  className="neu-select"
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+                >
+                  {DIFFICULTY_ORDER.map((d) => (
+                    <option key={d} value={d}>
+                      {DIFFICULTY_LABEL[d]} · {DIFFICULTY_DEPTH[d]} ahead
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                <span>Plays</span>
+                <select className="neu-select" value={aiColor} onChange={(e) => setAiColor(e.target.value as PlayerColor)}>
+                  <option value="B">Black (you 1st)</option>
+                  <option value="W">White (PC 1st)</option>
+                </select>
+              </label>
+            </div>
+            <p className="diff-blurb">
+              Looks <b>{DIFFICULTY_DEPTH[difficulty]} half-moves</b> ahead. {DIFFICULTY_BLURB[difficulty]}
             </p>
-            <button className="btn" onClick={onLearnAI} style={{ marginTop: '0.4rem' }}>
+            <button className="btn block subtle" onClick={onLearnAI}>
               <Cpu size={15} /> How the computer plays
             </button>
-          </details>
-        </>
-      )}
+          </div>
+        )}
+
+        <div className="side-card">
+          <label className="field-label">
+            <span className="label-ico"><Scale size={12} /> Rules</span>
+            <select
+              className="neu-select"
+              value={ruleVariant}
+              onChange={(e) => setRuleVariant(e.target.value as RuleVariant)}
+            >
+              {RULE_VARIANTS.map((v) => (
+                <option key={v} value={v}>
+                  {RULE_VARIANT_LABEL[v]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="diff-blurb">{RULE_VARIANT_BLURB[ruleVariant]}</p>
+        </div>
+      </aside>
 
       <Legend />
-    </>
+    </div>
   );
 }
 

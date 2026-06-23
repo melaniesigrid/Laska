@@ -10,6 +10,7 @@ import {
   type Column,
   type PlayerColor,
 } from '../../src/index.ts';
+import { Star } from 'lucide-react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
 import './landing.css';
 
@@ -61,7 +62,27 @@ function DemoColumn({ col }: { col: Column }) {
  * The hero board, playing itself — the real engine + AI driving an unattended
  * game that resets when it ends. Shows the column-stacking live. Non-interactive.
  */
-type DemoResult = { winner: PlayerColor | null };
+type DemoResult = {
+  winner: PlayerColor | null;
+  reason: 'win' | 'draw';
+  moves: number;
+  captures: number;
+  tallest: number;
+};
+
+/** Hard cap on plies so a self-play game always lands on a result quickly —
+ *  this is a showcase, not a marathon. The engine's draw rules usually fire
+ *  first; this just guarantees an end. */
+const DEMO_PLY_CAP = 120;
+
+/** Tallest column currently on the board — the headline "look at the towers" stat. */
+function tallestTower(state: GameState): number {
+  let max = 0;
+  for (const col of state.board) {
+    if (col && col.length > max) max = col.length;
+  }
+  return max;
+}
 
 function DemoBoard() {
   const [state, setState] = useState<GameState>(() => createInitialState());
@@ -72,30 +93,40 @@ function DemoBoard() {
   const boardRef = useRef<HTMLDivElement>(null);
   // the last move's from/to grid indices, so we can slide the landed column in
   const lastMoveRef = useRef<{ fromIdx: number; toIdx: number } | null>(null);
+  // running tallies for the end-of-game scoreboard
+  const statsRef = useRef({ moves: 0, captures: 0 });
 
-  // One self-played game per round. When it ends we STOP and show the result;
-  // "Watch another" bumps `round` to start a fresh game.
+  // One self-played game per round. When it ends we STOP and show the result +
+  // metrics; "Watch another" bumps `round` to start a fresh game.
   useEffect(() => {
     lastMoveRef.current = null;
+    statsRef.current = { moves: 0, captures: 0 };
     setResult(null);
     setState(createInitialState());
     if (prefersReducedMotion()) return; // hold a static opening
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
+    const finish = (winner: PlayerColor | null, reason: 'win' | 'draw') => {
+      const { moves, captures } = statsRef.current;
+      setResult({ winner, reason, moves, captures, tallest: tallestTower(stateRef.current) });
+    };
     const step = () => {
       if (cancelled) return;
       const prev = stateRef.current;
       const status = gameStatus(prev);
       if (status.state !== 'ongoing') {
-        setResult({ winner: status.state === 'win' ? status.winner : null });
-        return; // stop — show who won
+        return finish(status.state === 'win' ? status.winner : null, status.state === 'win' ? 'win' : 'draw');
       }
       if (legalMoves(prev).length === 0) {
-        setResult({ winner: prev.toMove === 'W' ? 'B' : 'W' }); // side to move is stuck
-        return;
+        return finish(prev.toMove === 'W' ? 'B' : 'W', 'win'); // side to move is stuck
+      }
+      if (statsRef.current.moves >= DEMO_PLY_CAP) {
+        return finish(null, 'draw'); // showcase cap reached — call it level
       }
       const move = chooseMove(prev, { depth: 2, blunderRate: 0.18 });
       if (move) {
+        statsRef.current.moves += 1;
+        statsRef.current.captures += move.captures.length;
         lastMoveRef.current = { fromIdx: SQ_TO_IDX[move.from]!, toIdx: SQ_TO_IDX[move.to]! };
         setState(applyMove(prev, move));
       }
@@ -158,16 +189,30 @@ function DemoBoard() {
         </div>
       </div>
       {result ? (
-        <p className="demo-note demo-result">
+        <div className="demo-result">
           <strong>
             {result.winner === null
-              ? 'A draw.'
+              ? 'A drawn game.'
               : `The ${result.winner === 'W' ? 'light' : 'dark'} army wins.`}
           </strong>
+          <dl className="demo-metrics" aria-label="Game summary">
+            <div>
+              <dt>Moves</dt>
+              <dd>{result.moves}</dd>
+            </div>
+            <div>
+              <dt>Captures</dt>
+              <dd>{result.captures}</dd>
+            </div>
+            <div>
+              <dt>Tallest tower</dt>
+              <dd>{result.tallest}</dd>
+            </div>
+          </dl>
           <button className="demo-again" onClick={() => setRound((r) => r + 1)}>
             Watch another
           </button>
-        </p>
+        </div>
       ) : (
         <p className="demo-note">
           <span className="pulse" aria-hidden="true" />
@@ -190,6 +235,7 @@ export function Landing({
   onBrochure,
   onAI,
   onBuild,
+  onLessons,
 }: {
   onPlay: () => void;
   onLasker: () => void;
@@ -197,6 +243,7 @@ export function Landing({
   onBrochure: () => void;
   onAI: () => void;
   onBuild: () => void;
+  onLessons: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -329,7 +376,9 @@ export function Landing({
                 </div>
                 <div className="demo-grp">
                   <span className="demo-piece victim" />
-                  <span className="demo-piece commander" />
+                  <span className="demo-piece commander">
+                    <Star className="promo-star" fill="currentColor" strokeWidth={1.5} aria-hidden="true" />
+                  </span>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -355,6 +404,9 @@ export function Landing({
               rest follows naturally.
             </p>
             <div className="hero-actions" style={{ marginTop: '1.6rem' }}>
+              <button className="btn" onClick={onLessons}>
+                Take the lessons
+              </button>
               <button className="btn" onClick={onBrochure}>
                 Read the full rules
               </button>

@@ -21,6 +21,7 @@
   --cobalt:   #5f8c7e;  /* eucalyptus accent */
   --cast:     96 88 74;
   --ring:     95 140 126;
+  --hint:     226 178 84;  /* warm gold — the revealed-chain hint, reads on every board palette */
   --btn-ink:  #645e51;
   --ink:      #38342c;
   --ink-soft: #7a7363;
@@ -92,6 +93,23 @@
   --btn-ink: #9a6354; --ink: #e8ddcb; --ink-soft: #b6a690; --win: #8fc7a8;
 }
 
+/* ---- COLORS (regimental: royal-blue + crimson armies, gold star insignia) -
+   The two armies are vivid blue and red instead of the warm cream/rose; the
+   board is a calm slate neutral so both factions pop. The rank star is a painted
+   GOLD medal here (an explicit, founder-approved departure from the debossed
+   coin-tone marks — see --star override below + Decisions Log). Gold also drives
+   the selection/signal accent so the theme reads as one piece. */
+:root[data-theme='colors'] {
+  --ground: #20242e; --pedestal: #20242e; --plate: #20242e;
+  --light: #2b303c; --dark: #14171c;
+  --cream: #3f6fd0;  /* blue army  */
+  --rose:  #c2362f;  /* red army   */
+  --sq-light: #20242e; --sq-dark: #262b37; --sq-lo: #14171c; --sq-hi: #2b303c;
+  --cobalt: #e7b53d; --cast: 6 8 12; --ring: 231 181 61;
+  --btn-ink: #d8dde8; --ink: #eef1f7; --ink-soft: #97a0b2; --win: #5fb98a;
+  --star: #f2c84b;   /* gold pip + star insignia */
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; }
 body {
@@ -109,14 +127,14 @@ button { font-family: inherit; }
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background: radial-gradient(125% 110% at 50% 36%, transparent 56%, rgb(var(--cast) / 0.12) 100%);
 }
-[data-theme='dark'] .vignette, [data-theme='chocolate'] .vignette, [data-theme='classic'] .vignette {
+[data-theme='dark'] .vignette, [data-theme='chocolate'] .vignette, [data-theme='classic'] .vignette, [data-theme='colors'] .vignette {
   background: radial-gradient(120% 100% at 50% 38%, transparent 42%, rgba(0,0,0,0.5) 100%);
 }
 .grain {
   position: fixed; inset: 0; z-index: 60; pointer-events: none;
   opacity: 0.04; mix-blend-mode: multiply; background-image: var(--noise); background-size: 200px 200px;
 }
-[data-theme='dark'] .grain, [data-theme='chocolate'] .grain, [data-theme='classic'] .grain { mix-blend-mode: soft-light; opacity: 0.06; }
+[data-theme='dark'] .grain, [data-theme='chocolate'] .grain, [data-theme='classic'] .grain, [data-theme='colors'] .grain { mix-blend-mode: soft-light; opacity: 0.06; }
 
 /* ---- app shell ------------------------------------------------------- */
 .app {
@@ -148,8 +166,97 @@ button { font-family: inherit; }
   font-size: clamp(34px, 6.4vw, 60px); line-height: 0.92; letter-spacing: 0.01em; color: var(--ink);
   text-shadow: 0 1px 0 rgba(255,253,248,0.5);
 }
-[data-theme='dark'] .head .title, [data-theme='chocolate'] .head .title, [data-theme='classic'] .head .title { text-shadow: 0 2px 3px rgba(0,0,0,0.5); }
+[data-theme='dark'] .head .title, [data-theme='chocolate'] .head .title, [data-theme='classic'] .head .title, [data-theme='colors'] .head .title { text-shadow: 0 2px 3px rgba(0,0,0,0.5); }
 .head .sub { font-family: var(--font-display); font-style: italic; font-weight: 400; font-size: clamp(13px, 2vw, 17px); color: var(--ink-soft); margin-top: 10px; }
+
+/* ---- game layout ----------------------------------------------------- */
+/* Mobile-first: everything stacks (status → board → side rail). On desktop
+   (≥960px) this becomes a two-column grid — board on the left, a control rail
+   on the right — so the whole game fits one screen with no scroll. */
+.game {
+  display: flex; flex-direction: column; align-items: center;
+  gap: clamp(16px, 2.6vw, 24px); width: 100%;
+}
+.board-wrap { display: flex; justify-content: center; }
+.game-side {
+  display: flex; flex-direction: column; align-items: center;
+  gap: clamp(13px, 1.8vw, 18px); width: 100%; max-width: 380px;
+}
+.game-side .controls { width: 100%; }
+.opponent-segment { width: 100%; max-width: 340px; }
+.opponent-segment button { flex: 1; justify-content: center; }
+.side-card {
+  width: 100%; max-width: 340px; display: flex; flex-direction: column;
+  align-items: stretch; gap: 12px; padding: 15px 16px; border-radius: 18px;
+  background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+}
+.side-card .field-label { width: 100%; align-items: stretch; }
+.side-card .neu-select { width: 100%; }
+/* two selects (Difficulty + Plays) packed onto one row to keep the rail short */
+.card-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.field-label > span.label-ico { display: inline-flex; align-items: center; gap: 6px; }
+.diff-blurb {
+  margin: 0; font-size: 12.5px; line-height: 1.5; text-align: center; color: var(--ink-soft);
+}
+.diff-blurb b { color: var(--btn-ink); font-weight: 700; }
+.btn.block { width: 100%; justify-content: center; }
+/* lighter-weight CTA inside a card — present but not competing with the controls */
+.btn.subtle { font-size: 10px; padding: 9px 14px; box-shadow: 4px 4px 9px var(--dark), -4px -4px 9px var(--light); }
+/* secondary action under the Save button — recessed so it reads quieter */
+.btn.ghost { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); }
+.save-card { gap: 10px; }
+
+@media (min-width: 960px) {
+  /* tighten the vertical rhythm so the board + rail clear the fold */
+  .app { gap: clamp(12px, 1.4vw, 18px); padding-top: clamp(12px, 1.6vw, 20px); padding-bottom: clamp(14px, 1.8vw, 24px); }
+  /* the in-game masthead shrinks on desktop — playing, not landing */
+  .head .eyebrow { margin-bottom: 5px; }
+  .head .title { font-size: clamp(26px, 3vw, 38px); }
+  .head .sub { display: none; }
+
+  .game {
+    /* board sizes off width AND height so it never overflows the viewport.
+       Redeclare the derived metrics here: their var(--sq) is substituted in
+       this scope, so the whole apparatus tracks the height-aware --sq. */
+    --sq: clamp(40px, min(6.6vw, 7.6vh), 62px);
+    --coin: calc(var(--sq) * 0.875);
+    --peek: calc(var(--sq) * 0.125);
+    --field-pad: calc(var(--sq) * 0.344);
+    --board-pad: calc(var(--sq) * 0.82);
+    --ped-pad: calc(var(--sq) * 0.6);
+    display: grid;
+    /* board spans the first two rows; the legend tucks under it so the two
+       columns balance and neither overruns the fold. */
+    grid-template-columns: auto minmax(270px, 320px);
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      'board  status'
+      'board  side'
+      'legend side';
+    align-items: start; justify-content: center;
+    row-gap: 12px; column-gap: clamp(20px, 2.2vw, 32px);
+    width: auto; max-width: 100%;
+  }
+  .game > .status { grid-area: status; width: 100%; justify-content: flex-start; align-self: start; }
+  .board-wrap { grid-area: board; align-self: start; }
+  .game > .legend { grid-area: legend; align-self: start; justify-content: flex-start; padding-top: 4px; }
+  .game-side {
+    grid-area: side; align-items: stretch; width: 100%; max-width: none; align-self: start; gap: 11px;
+  }
+  .game-side .controls { justify-content: stretch; }
+  .primary-controls .btn { flex: 1; justify-content: center; }
+  .opponent-segment, .side-card { max-width: none; }
+  /* trim card chrome a touch more on desktop where vertical room is scarce */
+  .side-card { padding: 13px 15px; gap: 10px; }
+  .side-card .neu-select { padding: 9px 12px; font-size: 11.5px; }
+}
+
+/* very short desktop windows — hide the rule explainer's prose so it still fits */
+@media (min-width: 960px) and (max-height: 720px) {
+  .head .eyebrow { display: none; }
+  .head .title { font-size: clamp(24px, 2.6vw, 32px); }
+}
 
 /* ---- board: a clean rounded-square neumorphic panel + recessed field --- */
 .stage { position: relative; display: flex; justify-content: center; }
@@ -201,6 +308,11 @@ button { font-family: inherit; }
 }
 .sq.dark.drop-target { box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi), inset 0 0 0 3px rgb(var(--ring) / 0.6); }
 .sq.dark.drop-target.capture { box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi), inset 0 0 0 3.5px var(--cobalt); }
+/* The hint reveals the whole forced chain: every square on the path glows gold.
+   A dashed gold ring sits apart from the cobalt drop-target dot so the player can
+   still see which single jump is next while the full route is laid out. */
+.sq.dark.hint { box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi), inset 0 0 0 2.5px rgb(var(--hint) / 0.85); }
+.sq.dark.hint.drop-target { box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi), inset 0 0 0 3px rgb(var(--hint) / 0.95); }
 .sq.dark.drop-target::after {
   content: ''; position: absolute; left: 50%; top: 50%; z-index: 1; width: 28%; height: 28%;
   transform: translate(-50%, -50%); border-radius: 50%; background: rgb(var(--ring) / 0.3); opacity: 1; mix-blend-mode: normal;
@@ -238,11 +350,23 @@ button { font-family: inherit; }
 .disc.rose { background: radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--rose) 88%, #fff), var(--rose)); }
 .disc:not(.top) { filter: brightness(0.96); }
 
-/* rank pips: 1 = soldier, 2 = officer. Contrast adapts to the coin. */
+/* rank pips: 1 = soldier, 2 = officer. Debossed into the coin with the same
+   recipe as the .insignia marks — the pip is the coin's own tone a step darker,
+   pressed in by an opposed bevel (dark top-left lip + a warm, never-white
+   highlight on the bottom-right), lit from top-left like the rest of the board.
+   color-mix off --cream/--rose so the pips adapt to every palette. */
 .dots { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; gap: calc(var(--coin) * 0.12); }
 .dot-pip { width: calc(var(--coin) * 0.16); height: calc(var(--coin) * 0.16); border-radius: 50%; }
-.disc.cream .dot-pip { background: rgba(70,50,40,0.4); box-shadow: inset 0 1px 1px rgba(40,26,16,0.5); }
-.disc.rose .dot-pip { background: rgba(255,250,245,0.55); box-shadow: inset 0 1px 1px rgba(255,255,255,0.3); }
+.disc.cream .dot-pip {
+  background: color-mix(in srgb, var(--cream) 70%, #6a563f);
+  box-shadow: inset 0.8px 0.9px 1.1px rgba(95,80,58,0.6),
+              inset -0.7px -0.8px 0.9px color-mix(in srgb, var(--light) 82%, #fff);
+}
+.disc.rose .dot-pip {
+  background: color-mix(in srgb, var(--rose) 78%, #000);
+  box-shadow: inset 0.8px 0.9px 1.1px rgba(0,0,0,0.55),
+              inset -0.7px -0.8px 0.9px color-mix(in srgb, var(--rose) 45%, #fff);
+}
 
 /* themed rank insignia (Heirloom star, Regiment chevron/medal, Lineage shield/crown).
    The mark is engraved into the coin via opposed drop-shadows: a dark top lip + a
@@ -265,10 +389,28 @@ button { font-family: inherit; }
   filter: drop-shadow(-0.6px -0.6px 0.4px rgba(0,0,0,0.5)) drop-shadow(0.7px 0.8px 0.5px color-mix(in srgb, var(--rose) 45%, #fff));
 }
 
+/* Colors theme: a gold medal star instead of a debossed coin-tone mark. The
+   star is painted in --star and EMBOSSED (raised) — lit highlight on the
+   top-left, a dark cast on the bottom-right — so it sits proud of the coin like
+   a struck medal. The pips go gold to match. Same rule for both factions. */
+:root[data-theme='colors'] .disc .insignia {
+  color: var(--star);
+  filter: drop-shadow(-0.5px -0.5px 0.3px color-mix(in srgb, var(--star) 55%, #fff))
+          drop-shadow(0.7px 0.9px 0.7px rgba(0,0,0,0.5));
+}
+:root[data-theme='colors'] .disc .dot-pip {
+  background: var(--star);
+  box-shadow: inset 0.6px 0.6px 0.6px color-mix(in srgb, var(--star) 50%, #fff),
+              0 0.8px 1.2px rgba(0,0,0,0.45);
+}
+
 .count {
   position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--coin) * -0.3);
-  font-size: clamp(9px, 1.4vw, 11px); font-weight: 600; letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums; color: var(--btn-ink); mix-blend-mode: multiply;
+  font-size: clamp(9px, 1.4vw, 11px); font-weight: 700; letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums; color: var(--btn-ink);
+  padding: 1px 5px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 
 /* ---- status, controls, legend (neumorphic, on-surface) --------------- */

@@ -58,6 +58,47 @@ export type GameOutcome =
   | { state: 'win'; winner: PlayerColor; reason: 'no-pieces' | 'no-moves' | 'resignation' }
   | { state: 'draw'; reason: 'threefold-repetition' | 'no-progress' | 'agreement' };
 
+/**
+ * Selectable rule variants for the one genuinely contested point in the engine:
+ * whether an officer (king) may jump OVER the same square more than once in a
+ * single capture turn.
+ *
+ *  - 'lasker-classic' (DEFAULT): ALLOW same-square re-jumps. This is the engine's
+ *    historical behaviour and the basis on which Lasker's 1911 games replay. A
+ *    two-deep enemy stack can legally be jumped twice (its top piece is taken on
+ *    the first jump, leaving an enemy commander that may be jumped again).
+ *  - 'nestor-strict': FORBID jumping the same mid-square twice in one turn, per
+ *    Néstor Romeral Andrés' 2018 nestorgames Lasca rulebook ("...but not jumping
+ *    over the same space more than once").
+ *
+ * This is the ONLY behavioural knob in the rules engine; everything else is
+ * fixed by Lasker's original rules.
+ */
+export type RuleVariant = 'lasker-classic' | 'nestor-strict';
+
+/** Resolved rule options threaded through move generation / application. */
+export interface RuleOptions {
+  /** Whether the same mid-square may be jumped more than once per capture turn. */
+  sameSquareReJump: 'allow' | 'forbid';
+}
+
+/** The engine default: Lasker-classic behaviour (same-square re-jumps allowed). */
+export const DEFAULT_RULES: RuleOptions = { sameSquareReJump: 'allow' };
+
+/**
+ * Map a friendly variant name to the resolved {@link RuleOptions}. The web and
+ * server layers select a variant by name and pass the result into `legalMoves`
+ * / `applyMove` / `gameStatus`.
+ */
+export function rulesForVariant(v: RuleVariant): RuleOptions {
+  switch (v) {
+    case 'lasker-classic':
+      return { sameSquareReJump: 'allow' };
+    case 'nestor-strict':
+      return { sameSquareReJump: 'forbid' };
+  }
+}
+
 export interface GameState {
   board: Board;
   /** Whose turn it is. */

@@ -1,9 +1,16 @@
 import { useMemo, useState } from 'react';
-import { RC_TO_SQUARE, BOARD_DIM, type Move, type PlayerColor } from '../../src/index.ts';
+import { Scale } from 'lucide-react';
+import { RC_TO_SQUARE, BOARD_DIM, type Move, type PlayerColor, type RuleVariant } from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
 import { useOnline } from './useOnline.ts';
 
 const COLOR_NAME: Record<PlayerColor, string> = { W: 'White', B: 'Black' };
+
+const RULE_VARIANTS = ['lasker-classic', 'nestor-strict'] as const;
+const RULE_VARIANT_LABEL: Record<RuleVariant, string> = {
+  'lasker-classic': 'Classic (Lasker)',
+  'nestor-strict': 'Strict (nestorgames)',
+};
 
 function fmtClock(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -60,6 +67,7 @@ function AuthPanel({ online }: { online: ReturnType<typeof useOnline> }) {
 
 function Lobby({ online }: { online: ReturnType<typeof useOnline> }) {
   const u = online.user!;
+  const [variant, setVariant] = useState<RuleVariant>('lasker-classic');
   return (
     <div className="panel">
       <div className="status">
@@ -67,15 +75,47 @@ function Lobby({ online }: { online: ReturnType<typeof useOnline> }) {
         {u.isGuest && ' (guest)'} · <span className={`dot ${online.status}`} /> {online.status}
       </div>
       {online.phase === 'idle' && (
-        <div className="buttons">
-          <button onClick={() => online.joinQueue()} disabled={online.status !== 'connected'}>
-            Play online (ranked)
-          </button>
-        </div>
+        <>
+          <div className="controls">
+            <label className="field-label">
+              <span>Rules</span>
+              <select
+                className="neu-select"
+                value={variant}
+                onChange={(e) => setVariant(e.target.value as RuleVariant)}
+              >
+                {RULE_VARIANTS.map((v) => (
+                  <option key={v} value={v}>
+                    {RULE_VARIANT_LABEL[v]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <details className="ai-note">
+            <summary>
+              <Scale size={14} /> About the rule variant
+            </summary>
+            <p>
+              You&rsquo;re only matched with an opponent who chose the same ruleset, and the
+              server enforces it for every move. <b>Classic (Lasker)</b> is the default — an
+              officer may jump back over the same square more than once in a single
+              multi-capture. <b>Strict (nestorgames)</b> forbids re-jumping the same square in
+              one turn, per Néstor Romeral Andrés&rsquo; 2018 nestorgames rulebook.
+            </p>
+          </details>
+          <div className="buttons">
+            <button onClick={() => online.joinQueue(variant)} disabled={online.status !== 'connected'}>
+              Play online (ranked)
+            </button>
+          </div>
+        </>
       )}
       {online.phase === 'queued' && (
         <div className="buttons">
-          <span className="searching">Searching for an opponent near your rating…</span>
+          <span className="searching">
+            Searching for a {RULE_VARIANT_LABEL[variant]} opponent near your rating…
+          </span>
           <button onClick={() => online.leaveQueue()}>Cancel</button>
         </div>
       )}
@@ -187,6 +227,10 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
 
         <div className={`status ${end ? (end.winner == null ? 'draw' : 'win') : ''}`} role="status" aria-live="polite">
           {statusLine}
+        </div>
+
+        <div className="conn-note" title="The server enforces this ruleset for every move.">
+          <Scale size={13} /> {RULE_VARIANT_LABEL[match.variant]}
         </div>
 
         {online.drawOfferBy && online.drawOfferBy === oppColor && !end && (

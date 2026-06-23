@@ -15,7 +15,11 @@ export type {
   Move,
   GameState,
   GameOutcome,
+  RuleVariant,
+  RuleOptions,
 } from './types.ts';
+
+export { DEFAULT_RULES, rulesForVariant } from './types.ts';
 
 export {
   createInitialState,

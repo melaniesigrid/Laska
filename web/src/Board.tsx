@@ -25,6 +25,17 @@ interface BoardViewProps {
   activeColor?: PlayerColor;
   mustCapture?: boolean;
   captureTargets?: Set<number>;
+  /** Squares on the hint-revealed forced chain (from + every landing). Empty unless
+   *  the player pressed Hint; cleared on the next interaction. */
+  hint?: Set<number>;
+  /**
+   * Optional teaching glow (tutorial only). Squares in this set get a soft
+   * `lesson-glow` ring to draw the eye — the piece to tap, the square to aim at,
+   * or a structure a lesson points out. Independent of the cobalt move-signal
+   * rings, so a coached step can highlight a square without claiming it is a
+   * legal destination. Omit on every non-tutorial surface (default off).
+   */
+  highlight?: Set<number>;
   /**
    * Optional stable identity per square (parallel to `board`). When supplied, a
    * column carries its id from one square to the next across a move, so Motion's
@@ -189,7 +200,7 @@ export function BoardView(props: BoardViewProps) {
   const {
     board, dim, rcToSquare, selected, movable, destinations,
     onSquareClick, interactive, mustCapture = false, captureTargets = EMPTY,
-    colIds, moveFx,
+    hint = EMPTY, highlight = EMPTY, colIds, moveFx,
   } = props;
 
   const cells = [];
@@ -206,6 +217,8 @@ export function BoardView(props: BoardViewProps) {
       }
       const column = board[sq] ?? null;
       const classes = ['sq', 'dark', 'play'];
+      if (highlight.has(sq)) classes.push('lesson-glow');
+      if (hint.has(sq)) classes.push('hint');
       if (destinations.has(sq)) classes.push('drop-target');
       if (captureTargets.has(sq)) classes.push('capture');
       if (interactive && movable.has(sq)) classes.push(mustCapture ? 'movable forced' : 'movable');

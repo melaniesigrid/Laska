@@ -180,9 +180,14 @@ export class GameServer {
     }
     const user = await this.repo.getUserById(userId);
     if (!user) return;
-    const member: QueueMember = msg.timeControl
-      ? { userId, rating: user.rating, nodeId: this.cluster.nodeId, joinedAt: Date.now(), timeControl: msg.timeControl }
-      : { userId, rating: user.rating, nodeId: this.cluster.nodeId, joinedAt: Date.now() };
+    // The requested variant is part of the matchmaking key (see matchmaking.ts):
+    // a player is only paired with another who asked for the same variant.
+    const base: QueueMember = { userId, rating: user.rating, nodeId: this.cluster.nodeId, joinedAt: Date.now() };
+    const member: QueueMember = {
+      ...base,
+      ...(msg.timeControl ? { timeControl: msg.timeControl } : {}),
+      ...(msg.variant ? { variant: msg.variant } : {}),
+    };
     await this.cluster.enqueue(member);
     this.send(conn.ws, { type: 'queue.joined' });
     await this.drainMatchmaking();
@@ -196,8 +201,12 @@ export class GameServer {
       const white = aIsWhite ? a : b;
       const black = aIsWhite ? b : a;
       const tc = white.timeControl ?? black.timeControl;
+      // Both members were paired only because they requested the SAME variant
+      // (matchmaking key), so either one is authoritative; default to classic.
+      const variant = white.variant ?? black.variant ?? 'lasker-classic';
       const match = this.manager.createMatch(white.userId, black.userId, {
         ranked: true,
+        variant,
         ...(tc ? { timeControl: tc } : {}),
       });
       await this.cluster.registerMatch(match.id, match.whiteId, match.blackId);
@@ -216,6 +225,7 @@ export class GameServer {
       color: 'W',
       opponent: { userId: black.id, username: black.username, rating: black.rating },
       timeControl: match.timeControl,
+      variant: match.variant,
       state,
     });
     await this.sendToUser(match.blackId, {
@@ -224,6 +234,7 @@ export class GameServer {
       color: 'B',
       opponent: { userId: white.id, username: white.username, rating: white.rating },
       timeControl: match.timeControl,
+      variant: match.variant,
       state,
     });
   }
@@ -287,6 +298,7 @@ export class GameServer {
       clock: match.clockState(),
       drawOfferBy: match.pendingDrawOfferBy,
       moveCount: match.moveCount,
+      variant: match.variant,
     };
   }
 
