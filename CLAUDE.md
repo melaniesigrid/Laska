@@ -113,7 +113,7 @@ Reference docs (point, don't duplicate): `DESIGN.md` (visual/UI source of truth 
 - Missing `.ts`/`.tsx` import extension → runtime failure. The most common mistake in this repo.
 - `server/` needs `--experimental-transform-types` (its package scripts include it); engine/web do not. Use the package scripts, not bare `node`.
 - Server dev auth secrets are random per boot → tokens don't survive a restart unless `LASKA_ACCESS_SECRET` + `LASKA_REFRESH_SECRET` are set.
-- Server env (all optional locally; defaults in `server/src/config.ts`): `PORT` (8080), `LASKA_DB` (`sqlite`|`memory`|`postgres`, default sqlite → `laska.db`), `LASKA_DB_PATH`, `DATABASE_URL` (postgres), `LASKA_CLUSTER` (`memory`|`redis`), `REDIS_URL`, `LASKA_STARTING_RATING` (1200).
+- Server env (all optional locally; defaults in `server/src/config.ts`): `PORT` (8080), `LASKA_DB` (`sqlite`|`memory`|`postgres`, default sqlite → `laska.db`), `LASKA_DB_PATH`, `DATABASE_URL` (postgres), `LASKA_CLUSTER` (`memory`|`redis`), `REDIS_URL`, `LASKA_STARTING_RATING` (1200), `LASKA_AUTH_RATE_MAX` (20) / `LASKA_AUTH_RATE_WINDOW_MS` (60000), `LASKA_TRUSTED_PROXY_HOPS` (0 = trust nothing, key auth rate-limit on socket IP; set to `1` behind Railway, whose proxy APPENDS the real client IP — otherwise `X-Forwarded-For` is spoofable and the throttle is bypassable, see SECURITY-001).
 - No lint/formatter exists — nothing will auto-fix style.
 - The board's display row 0 is the TOP of the screen; White's home (engine row 0) renders at the BOTTOM (`Board.tsx` inverts `displayRow`). Square index ≠ on-screen row.
 
