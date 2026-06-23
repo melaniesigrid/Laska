@@ -25,6 +25,16 @@ export interface ServerConfig {
    * `buildServer` falls back to a safe default when absent.
    */
   authRateLimit?: AuthRateLimitConfig;
+  /**
+   * Number of trusted reverse-proxy hops in front of this server. Used to pick
+   * the real client IP from `X-Forwarded-For` for rate-limit keying. `0` (the
+   * default) trusts nothing and uses the socket address. Railway appends the
+   * real client IP, so set `LASKA_TRUSTED_PROXY_HOPS=1` there.
+   *
+   * Optional so existing test config literals keep compiling; `loadConfig`
+   * always populates it and consumers fall back to `0` (safest) when absent.
+   */
+  trustedProxyHops?: number;
 }
 
 export interface AuthRateLimitConfig {
@@ -41,6 +51,11 @@ function loadAuthRateLimitConfig(env: NodeJS.ProcessEnv): AuthRateLimitConfig {
     max: Number.isFinite(max) && max > 0 ? Math.floor(max) : 20,
     windowMs: Number.isFinite(windowMs) && windowMs > 0 ? Math.floor(windowMs) : 60_000,
   };
+}
+
+function loadTrustedProxyHops(env: NodeJS.ProcessEnv): number {
+  const hops = env.LASKA_TRUSTED_PROXY_HOPS ? Number(env.LASKA_TRUSTED_PROXY_HOPS) : 0;
+  return Number.isFinite(hops) && hops > 0 ? Math.floor(hops) : 0;
 }
 
 function loadClusterConfig(env: NodeJS.ProcessEnv): ClusterConfig {
@@ -77,5 +92,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     cluster: loadClusterConfig(env),
     nodeId: env.LASKA_NODE_ID ?? `node-${randomUUID().slice(0, 8)}`,
     authRateLimit: loadAuthRateLimitConfig(env),
+    trustedProxyHops: loadTrustedProxyHops(env),
   };
 }

@@ -27,14 +27,38 @@ interface Deps {
    */
   authLimiter?: RateLimiter;
   authRateLimit?: { max: number; windowMs: number };
+  /**
+   * Number of trusted reverse-proxy hops in front of the server. Controls how
+   * `clientIp` reads `X-Forwarded-For`. Defaults to 0 (ignore XFF, use socket).
+   */
+  trustedProxyHops?: number;
 }
 
-/** Best-effort client IP for rate-limit keying. */
-function clientIp(req: IncomingMessage): string {
+/**
+ * Best-effort client IP for rate-limit keying.
+ *
+ * `X-Forwarded-For` is client-supplied and only trustworthy up to the proxies
+ * we actually control. A proxy that appends (e.g. Railway) leaves the real
+ * client IP `trustedHops` from the RIGHT of the list; everything to its left is
+ * attacker-controlled and must not be used as the rate-limit key.
+ *
+ * - `trustedHops <= 0`: ignore XFF entirely, use the socket address.
+ * - else: take `list[list.length - trustedHops]`, falling back to the socket
+ *   address when the header is missing/too short.
+ */
+function clientIp(req: IncomingMessage, trustedHops: number): string {
+  const socketAddr = req.socket.remoteAddress ?? 'unknown';
+  if (trustedHops <= 0) return socketAddr;
+
   const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0]!.trim();
-  if (Array.isArray(fwd) && fwd.length > 0) return fwd[0]!.split(',')[0]!.trim();
-  return req.socket.remoteAddress ?? 'unknown';
+  const raw = Array.isArray(fwd) ? fwd.join(',') : typeof fwd === 'string' ? fwd : '';
+  const list = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  if (list.length < trustedHops) return socketAddr;
+  return list[list.length - trustedHops]!;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -94,6 +118,7 @@ const RATE_LIMITED_AUTH_PATHS = new Set([
 
 export function createHttpHandler(deps: Deps) {
   const { auth, repo } = deps;
+  const trustedProxyHops = deps.trustedProxyHops ?? 0;
   const authLimiter =
     deps.authLimiter ?? new RateLimiter(deps.authRateLimit ?? { max: 20, windowMs: 60_000 });
 
@@ -108,7 +133,7 @@ export function createHttpHandler(deps: Deps) {
       // Throttle abuse of the auth endpoints, keyed by client IP + endpoint.
       // Gameplay/WebSocket traffic is never rate-limited here.
       if (method === 'POST' && RATE_LIMITED_AUTH_PATHS.has(path)) {
-        const result = authLimiter.check(`${clientIp(req)} ${path}`);
+        const result = authLimiter.check(`${clientIp(req, trustedProxyHops)} ${path}`);
         if (!result.allowed) {
           const retryAfterSec = Math.ceil(result.retryAfterMs / 1000);
           res.setHeader('retry-after', String(retryAfterSec));

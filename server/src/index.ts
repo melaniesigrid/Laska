@@ -39,6 +39,7 @@ export function buildServer(
   const httpHandler = createHttpHandler({
     auth,
     repo,
+    trustedProxyHops: config.trustedProxyHops ?? 0,
     ...(config.authRateLimit ? { authRateLimit: config.authRateLimit } : {}),
   });
   const http = createServer((req, res) => void httpHandler(req, res));
