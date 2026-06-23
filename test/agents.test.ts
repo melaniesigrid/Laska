@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createInitialState, legalMoves, applyMove } from '../src/index.ts';
-import type { GameState, Move } from '../src/index.ts';
+import { createInitialState, legalMoves, applyMove, gameStatus, chooseMove } from '../src/index.ts';
+import type { GameState, Move, Difficulty } from '../src/index.ts';
+import { newStats } from '../src/ai.ts';
 import {
   ROSTER,
   LADDER,
@@ -117,6 +118,68 @@ test('roundRobin produces consistent standings (points = wins + 0.5*draws)', () 
   }
   // The strongest agent (Viktor) should not finish last in a 3-way RR.
   assert.notEqual(standings[standings.length - 1]!.id, 'viktor');
+});
+
+/**
+ * CROSS-FAMILY strength guard: the PRODUCTION negamax AI (`chooseMove`) must beat
+ * a low-budget MCTS agent — a genuinely different algorithm family. This is the
+ * fast, deterministic counterpart to bench-ai-vs-mcts.ts (which sweeps tiers x
+ * MCTS budgets). It guards against a regression that leaves the shipped AI unable
+ * to out-play even a weak Monte-Carlo opponent.
+ *
+ * Why these knobs: a 24-iteration / 18-ply-rollout MCTS is deliberately weak (the
+ * benchmark shows MCTS only out-results the negamax at much HIGHER budgets), so a
+ * healthy depth-4 'medium' tier beats it with no losses. Fixed base seed 4242 and
+ * 6 colour-balanced games keep it fully deterministic and fast (~1.5s). Measured
+ * here: AI 3W / 3D / 0L. Thresholds are set BELOW the measured margin so a small
+ * eval drift does not flake the test, while ANY loss to weak MCTS — or losing the
+ * head-to-head — trips it. If you intentionally change the eval/search and these
+ * numbers move, re-run bench-ai-vs-mcts.ts and update to the true measured margin;
+ * never weaken the "no losses" floor to make a regression pass.
+ */
+test('STRENGTH GUARD (cross-family): production medium AI beats low-budget MCTS', () => {
+  const TIER: Difficulty = 'medium';
+  const ITERATIONS = 24;
+  const ROLLOUT_CAP = 18;
+  const PLY_CAP = 80;
+  const BASE_SEED = 4242;
+
+  function play(aiIsWhite: boolean, seed: number): 'ai' | 'mcts' | 'draw' {
+    const mcts = createMctsAgent({ iterations: ITERATIONS, rolloutCap: ROLLOUT_CAP });
+    let state: GameState = createInitialState();
+    const rng = makeRng(seed);
+    const stats = newStats();
+    for (let ply = 0; ply < PLY_CAP; ply++) {
+      const status = gameStatus(state);
+      if (status.state === 'win') return (status.winner === 'W') === aiIsWhite ? 'ai' : 'mcts';
+      if (status.state === 'draw') return 'draw';
+      const aiToMove = (state.toMove === 'W') === aiIsWhite;
+      const move = aiToMove
+        ? chooseMove(state, { difficulty: TIER, blunderRate: 0, random: rng, stats })
+        : mcts.chooseMove(state, { random: rng });
+      if (!move) return (state.toMove === 'W') === aiIsWhite ? 'mcts' : 'ai';
+      state = applyMove(state, move);
+    }
+    return 'draw';
+  }
+
+  let aiWins = 0;
+  let mctsWins = 0;
+  let draws = 0;
+  for (let g = 0; g < 3; g++) {
+    // Colour-balanced: AI as White then AI as Black, distinct seeds.
+    let r = play(true, BASE_SEED + g * 2);
+    r === 'ai' ? aiWins++ : r === 'mcts' ? mctsWins++ : draws++;
+    r = play(false, BASE_SEED + g * 2 + 1);
+    r === 'ai' ? aiWins++ : r === 'mcts' ? mctsWins++ : draws++;
+  }
+
+  const summary = `AI ${aiWins}W / ${draws}D / ${mctsWins}L`;
+  // Hard floor: the production AI must never LOSE a game to this weak MCTS.
+  assert.equal(mctsWins, 0, `production AI lost to low-budget MCTS (${summary})`);
+  // It must win the head-to-head with margin (measured 3-0; bar set at >=2).
+  assert.ok(aiWins >= 2, `expected production AI to win >=2 vs low-budget MCTS (${summary})`);
+  assert.ok(aiWins > mctsWins, `expected production AI to out-win low-budget MCTS (${summary})`);
 });
 
 test('the LADDER is ordered and references real roster agents', () => {
