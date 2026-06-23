@@ -1,0 +1,33 @@
+{
+  "_note": "Staged EAS config. ACCOUNT-GATED: builds/submits need Apple Developer + Google Play accounts (see ../MOBILE.md). VERIFY the cli version and schema against current EAS docs before use.",
+  "cli": {
+    "version": ">= 12.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "LASKA_API_BASE": "http://localhost:8080",
+        "LASKA_WS_URL": "ws://localhost:8080"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "LASKA_API_BASE": "https://REPLACE-with-railway-host",
+        "LASKA_WS_URL": "wss://REPLACE-with-railway-host"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "LASKA_API_BASE": "https://REPLACE-with-railway-host",
+        "LASKA_WS_URL": "wss://REPLACE-with-railway-host"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
