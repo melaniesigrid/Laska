@@ -188,6 +188,20 @@ Before the milestones, the one invariant that makes the rest trustworthy:
 - **Honest edge:** this is the milestone that is explicitly **never finished** —
   it's appended to as the build continues (see "Maintaining this log").
 
+### M11 · Engine-driven strategy lessons
+**Agent:** tutorial-content-engineer + frontend-board-engineer · **Order:** retention
+
+- **Shipped:** four interactive lessons for column safety, guarding, the
+  one-handed attack, and attacking over defending. The scripts are data, every
+  expected move is resolved through `legalMoves` at load time, `TutorialBoard`
+  gates input on the real `BoardView`, and completion persists locally. The Navy
+  palette also closes the six-theme cosmetics item.
+- **Verified:** the web production build passes; the lesson picker, guided move,
+  completion persistence, and Navy theme cycle were exercised in a browser.
+- **Honest edge:** this is the first strategy lesson set, not the flagship
+  first-run “learn Laska in five minutes” capture tutorial. Course packaging,
+  account-backed progress, and paid content remain open.
+
 ---
 
 ## What's next (the honest frontier)
@@ -195,7 +209,8 @@ Before the milestones, the one invariant that makes the rest trustworthy:
 These are the next milestones, not yet started or only partial. They live in full
 detail — with effort/impact and guardrails — in [`TODO.md`](TODO.md):
 
-- **Flagship interactive tutorial** (tutorial-content-engineer) — the single
+- **Flagship first-run tutorial** (tutorial-content-engineer) — the strategy
+  lesson set now ships; the five-minute capture-mechanic walkthrough remains the
   biggest activation lever, since most players have never seen Laska.
 - **AI strength benchmarking** (game-ai-engineer) — the opponent's relative
   strength is measured in the arena (`AI_RESEARCH.md` §6); an external,
@@ -203,8 +218,8 @@ detail — with effort/impact and guardrails — in [`TODO.md`](TODO.md):
 - **Retention & monetization** (growth-monetization-engineer) — streaks, puzzles,
   subscription/cosmetics. **Hard guardrail:** real-money tournaments are gated on
   legal review and must not be built until then (see `TODO.md`).
-- **Production hardening** (infra-platform-engineer) — Postgres migrations,
-  match failover, Redis-in-CI.
+- **Production hardening** (infra-platform-engineer) — Postgres migrations and
+  match failover. Redis integration coverage now runs in CI.
 
 ---
 

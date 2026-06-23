@@ -190,6 +190,7 @@ export function Landing({
   onBrochure,
   onAI,
   onBuild,
+  onLessons,
 }: {
   onPlay: () => void;
   onLasker: () => void;
@@ -197,6 +198,7 @@ export function Landing({
   onBrochure: () => void;
   onAI: () => void;
   onBuild: () => void;
+  onLessons: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -363,6 +365,9 @@ export function Landing({
               </button>
               <button className="btn" onClick={onBuild}>
                 How this was built
+              </button>
+              <button className="btn" onClick={onLessons}>
+                Interactive lessons
               </button>
             </div>
           </div>

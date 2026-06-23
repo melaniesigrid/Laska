@@ -4,6 +4,104 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Laska — column-capturing draughts</title>
+
+    <!-- Google Search Console ownership verification (HTML-tag method). The SPA
+         serves this <head> on every path, so Google verifies on the homepage. -->
+    <meta name="google-site-verification" content="Z2-nEYIqwC1JNF7ytg4HGgtgYhjunglzw4ghTpEm4MA" />
+
+    <!-- SEO: canonical host is the bare apex (no www). Description/OG/Twitter and
+         JSON-LD are static so non-JS crawlers (Bing, social, LLM bots) get them
+         in the initial HTML. NOTE: the SPA renders every view under "/", so this
+         single <head> describes the homepage; per-route metadata waits on the
+         Tier-2 routing+prerender work. -->
+    <meta
+      name="description"
+      content="Play Laska (Lasca) online — the column-capturing draughts world chess champion Emanuel Lasker invented in 1911. Learn the rules, face a browser-based AI, replay historic games, or play a friend. No account needed."
+    />
+    <link rel="canonical" href="https://playlaska.com/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#cfcabf" />
+    <meta name="author" content="Northbound Software Studio" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/young-emanuel-lasker.png" />
+
+    <!-- Open Graph (Facebook, LinkedIn, Discord, Slack, LLM scrapers) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Laska" />
+    <meta property="og:title" content="Laska — the stacking draughts Emanuel Lasker invented" />
+    <meta
+      property="og:description"
+      content="Lasca (Laska) is the 1911 column-capturing draughts variant from world chess champion Emanuel Lasker. Learn the rules, play the in-browser AI, and replay historic games."
+    />
+    <meta property="og:url" content="https://playlaska.com/" />
+    <meta property="og:image" content="https://playlaska.com/young-emanuel-lasker.png" />
+    <meta property="og:image:alt" content="Portrait of a young Emanuel Lasker, inventor of Laska." />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Laska — the stacking draughts Emanuel Lasker invented" />
+    <meta
+      name="twitter:description"
+      content="Play Lasca (Laska) online: Emanuel Lasker's 1911 column-capturing draughts. Rules, AI opponent, and historic games — in your browser, no account needed."
+    />
+    <meta name="twitter:image" content="https://playlaska.com/young-emanuel-lasker.png" />
+
+    <!-- Structured data: the game (VideoGame), the publishing studio
+         (Organization), and the site (WebSite). Helps Google/Bing and answer
+         engines parse what Laska is and who makes it. Keep facts honest. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "VideoGame",
+            "@id": "https://playlaska.com/#game",
+            "name": "Laska",
+            "alternateName": ["Lasca", "Laska draughts"],
+            "url": "https://playlaska.com/",
+            "image": "https://playlaska.com/young-emanuel-lasker.png",
+            "description": "Laska (Lasca) is a column-capturing draughts variant invented in 1911 by world chess champion Emanuel Lasker. Captured pieces are stacked into columns rather than removed, and only the top piece of a column controls it.",
+            "genre": ["Board game", "Abstract strategy", "Draughts variant"],
+            "gamePlatform": ["Web browser"],
+            "playMode": ["SinglePlayer", "MultiPlayer"],
+            "applicationCategory": "Game",
+            "operatingSystem": "Any (web browser)",
+            "inLanguage": "en",
+            "author": {
+              "@type": "Person",
+              "name": "Emanuel Lasker",
+              "sameAs": "https://en.wikipedia.org/wiki/Emanuel_Lasker"
+            },
+            "publisher": { "@id": "https://playlaska.com/#studio" },
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/InStock"
+            }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://playlaska.com/#studio",
+            "name": "Northbound Software Studio",
+            "url": "https://playlaska.com/"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://playlaska.com/#website",
+            "name": "Laska",
+            "url": "https://playlaska.com/",
+            "description": "Play Laska (Lasca) online — the column-capturing draughts Emanuel Lasker invented in 1911.",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://playlaska.com/#studio" },
+            "about": { "@id": "https://playlaska.com/#game" }
+          }
+        ]
+      }
+    </script>
+
     <!-- Display: Fraunces (editorial variable serif w/ italic axis, fits a 1911
          chess-champion's game). Body/UI labels: Bricolage Grotesque (distinctive
          grotesque). Coordinates/clocks: Space Mono. -->

@@ -155,6 +155,18 @@ const MILESTONES: Milestone[] = [
     edge:
       'The one milestone that’s never finished — it’s appended to as the build continues.',
   },
+  {
+    id: 'M11',
+    icon: GraduationCap,
+    agent: 'tutorial-content-engineer + frontend',
+    title: 'Engine-driven strategy lessons',
+    shipped:
+      'Four interactive lessons teach column safety, guarding, the one-handed attack, and attacking over defending. Every expected move is checked by the real engine before the lesson can load, and progress persists locally.',
+    verified:
+      'The production build passes; the picker, guided move, completion persistence, and six-theme cycle were exercised in a real browser.',
+    edge:
+      'This is the first strategy set, not yet the flagship first-run “learn Laska in five minutes” capture tutorial. Account-backed progress and course packaging remain open.',
+  },
 ];
 
 export function BuildStoryPage({ onBack, onPlay, onAI }: { onBack: () => void; onPlay: () => void; onAI: () => void }) {
@@ -244,7 +256,7 @@ export function BuildStoryPage({ onBack, onPlay, onAI }: { onBack: () => void; o
             <article className="card note">
               <span className="idx">100</span>
               <h3>Measured, not claimed</h3>
-              <p>47 engine, AI &amp; arena tests plus 53 server tests — 100 automated tests, all green on Node 22. Reproducible with <code>npm test</code>.</p>
+              <p>55 engine, AI &amp; arena tests plus 68 server tests — 123 automated tests, all green on Node 22. Reproducible with <code>npm test</code>.</p>
             </article>
           </div>
         </div>
@@ -306,7 +318,7 @@ export function BuildStoryPage({ onBack, onPlay, onAI }: { onBack: () => void; o
           <div className="terms reveal">
             <div className="term">
               <span className="term-name">The flagship tutorial</span>
-              <p>Most players have never seen Laska — a great “learn it in five minutes” is the single biggest lever on whether anyone stays. It’s the next milestone, not yet built.</p>
+              <p>Four engine-driven strategy lessons now ship. The first-run “learn Laska in five minutes” capture walkthrough is still the larger activation milestone ahead.</p>
             </div>
             <div className="term">
               <span className="term-name">Benchmarking the opponent</span>
@@ -314,7 +326,7 @@ export function BuildStoryPage({ onBack, onPlay, onAI }: { onBack: () => void; o
             </div>
             <div className="term">
               <span className="term-name">Production hardening</span>
-              <p>Postgres migrations, match failover, and running the Redis suite in CI remain before the online stack is truly production-grade.</p>
+              <p>Redis now runs in CI. Postgres migrations and live-match failover remain before the online stack is truly production-grade.</p>
             </div>
             <div className="term">
               <span className="term-name">One hard line</span>

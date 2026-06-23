@@ -1,0 +1,6 @@
+# playlaska.com — Laska (Lasca), Emanuel Lasker's 1911 column-capturing draughts.
+# All crawlers welcome, including answer-engine bots.
+User-agent: *
+Allow: /
+
+Sitemap: https://playlaska.com/sitemap.xml

@@ -6,20 +6,19 @@ retention → monetization → polish/analytics.**
 
 ## ✅ Done and tested
 
-- **Rules engine** (`src/`) — pure `legalMoves` / `applyMove` / `gameStatus`,
-  FEN-like notation. 20 tests. Verified against authoritative sources.
-- **AI opponent** (`src/ai.ts`) — negamax + alpha-beta, Laska heuristic,
-  difficulty tiers. 11 tests.
+- **Rules engine + AI** (`src/`) — pure `legalMoves` / `applyMove` / `gameStatus`,
+  FEN-like notation, negamax + alpha-beta, Laska heuristic, and difficulty tiers.
+  55 tests, including arena and historic-replay coverage.
 - **Local web vertical slice** (`web/`) — React + Vite, hot-seat + vs-AI, legible
   column stacks. Builds clean; QA'd in a browser.
 - **Server-authoritative backend** (`server/`) — accounts (scrypt + signed
   tokens, guest + linking), in-memory repository behind a `Repository`
   interface, **Elo** ranking, **matchmaking** by rating, real-time **matches**
   over WebSocket with per-move clock, draw offers, resignation, reconnection
-  resync, and match-history/leaderboard REST. 34 tests incl. a 2-client
+  resync, and match-history/leaderboard REST. 68 tests incl. a 2-client
   end-to-end integration test.
 
-> Total: **65 automated tests** across engine, AI, and server, all passing on
+> Total: **123 automated tests** across engine, AI, and server, all passing on
 > Node ≥ 22. Engine/AI run with native type-stripping; the server adds
 > `--experimental-transform-types` (for TS parameter properties / enums).
 
@@ -37,6 +36,8 @@ Implemented and verified in-browser against a live server + bot opponent:
   `match.update`; roll back on a server `error`), live clocks, draw/resign.
 - `web/src/Online.tsx` — auth panel, lobby/queue, live match with both clocks,
   end screen with rating delta. Top-level Local/Online tabs in `App.tsx`.
+- ✅ A signed-in player can switch to **Local → Computer** without signing out;
+  the online session remains available when they switch back.
 - Remaining polish: flip the board for the Black player; a richer reconnect/
   "opponent disconnected" banner; an online-disambiguation UI for the rare
   capture chains that share a landing square (client currently sends the longest).
@@ -84,13 +85,12 @@ ownership, and cross-node message routing:
   chocolate material), and a brand-new **Dark** added — Stone inverted (warm-charcoal
   neumorphism). Five palettes now: Stone, Dark, Light, Chocolate, Classic. See DESIGN.md.
 
-- ⏳ **New theme mode — "Navy":** navy-blue board/background, yellow stars (general
-  insignia), blue + red pieces. Add as a sixth `[data-theme]` palette in
-  `web/src/styles.css` (keep neumorphic `--ground` = `--pedestal`/`--plate`) + wire
-  into the theme cycle; update DESIGN.md. See `web/src/pieceTheme.tsx` for star tone.
+- ✅ **New theme mode — "Navy":** sixth palette with one navy neumorphic
+  board/background material, gold general insignia, and blue + red pieces;
+  wired into the persisted theme cycle and documented in `DESIGN.md`.
 - ⏳ Remaining for production hardening:
-  - **Wire the Redis test into CI** — stand up a Redis service in the CI job and
-    set `REDIS_URL` so `test:redis` runs on every push (it passes locally today).
+  - ✅ **Redis test in CI** — the dedicated CI job starts Redis 7, sets
+    `REDIS_URL`, and runs `npm run test:redis` on every push/PR.
   - **Owner-affinity optimization**: today the pairing node owns the match even
     if both players are on other nodes; prefer the node hosting a player to cut
     hops. Sticky LB routing by user would remove most forwarding entirely.
@@ -109,7 +109,8 @@ ownership, and cross-node message routing:
   Review Guideline before submission.
 - Consider a managed provider (Clerk / Auth0 / Supabase / Firebase) instead of
   the custom auth; the server only depends on `verifyToken → TokenPayload`.
-- Rate-limit auth endpoints; add account lockout / captcha on abuse.
+- ✅ Auth endpoints are rate-limited and covered by `server/test/rateLimit.test.ts`.
+  Account lockout / captcha on demonstrated abuse remains open.
 
 ### 4. Ranking depth
 - Optional upgrade Elo → **Glicko-2** (rating deviation + volatility for
@@ -170,6 +171,9 @@ in `TUTORIAL.md` (rules, the four capture beats, copy). Build order:
   - **Endgames** — converting a material/column edge; avoiding the draw counter.
   - Free intro lesson per course; full course behind the subscription / one-time
     purchase (see Monetization → Lessons & courses).
+  - ✅ First strategy lesson set shipped: four engine-validated, interactive
+    lessons (column safety, guarding, one-handed attack, attack over defence)
+    with guided moves and local progress. Course packaging/paywall remains open.
 - **Tech notes.** Tutorial steps as data (`{position, prompt, expectedMove(s),
   hint, successText}`), rendered over `BoardView`. A `TutorialBoard` wrapper adds
   step highlighting + move gating. Progress saved to `localStorage` (later: account).
