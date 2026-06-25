@@ -17,10 +17,19 @@ import {
   Trophy,
   Minus,
   CircleDot,
+  Sparkles,
 } from 'lucide-react';
 import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
+import {
+  useGameAnalysis,
+  EvalBar,
+  AnalysisSummary,
+  ReviewBadge,
+  BestLine,
+  QualityMark,
+} from './gameAnalysis.tsx';
 import {
   getSavedGame,
   rebuildGame,
@@ -32,6 +41,14 @@ import './landing.css';
 
 const EMPTY = new Set<number>();
 const AUTOPLAY_MS = 1500;
+
+/** A finished game's eval is its result, not a search (a terminal position has no
+ *  legal moves to score). White-positive, in evaluation units. */
+function terminalWhiteEval(result: SavedGame['result']): number {
+  if (result === 'W') return 1200;
+  if (result === 'B') return -1200;
+  return 0; // draw (unfinished games never reach here — they still have moves)
+}
 
 const RESULT_LABEL: Record<SavedGame['result'], string> = {
   W: 'White wins',
@@ -81,6 +98,21 @@ export function SavedGameReplay({
   }, [game, rebuilt]);
 
   const lastPly = plies.length;
+
+  // A signature of the actual moves — note/title edits don't change it, so an
+  // existing analysis survives annotating, but a re-recorded game invalidates it.
+  const moveSig = useMemo(
+    () => (game ? game.moves.map((m) => `${m.from}-${m.to}-${m.captures.length}`).join('|') : ''),
+    [game],
+  );
+  // Engine review of every position, on demand and off-thread (shared with the
+  // historic-games viewer). `moveSig` as the reset key keeps an existing analysis
+  // alive across note/title edits but discards it when the move list changes.
+  const review = useGameAnalysis(
+    rebuilt && !rebuilt.error ? rebuilt.states : [],
+    rebuilt && !rebuilt.error ? rebuilt.resolved : [],
+    { resetKey: moveSig, terminalEval: game ? terminalWhiteEval(game.result) : 0 },
+  );
 
   useEffect(() => {
     if (!playing) return;
@@ -153,6 +185,13 @@ export function SavedGameReplay({
 
   const ResultIcon = game.result === 'draw' ? Minus : game.result === 'unfinished' ? CircleDot : Trophy;
 
+  // Review of the move that produced the CURRENT position, and the engine eval of
+  // that position — both null until the game has been analysed.
+  const currentReview = ply > 0 ? review.reviews[ply - 1] ?? null : null;
+  const currentWhiteEval = review.analysis ? review.analysis[ply]?.whiteEval ?? null : null;
+  // The engine's preferred move at the current position, shown as a hint.
+  const bestNext = review.analysis?.[ply]?.scored[0]?.move ?? null;
+
   return (
     <div className="landing-page">
       <ReplayHeader onBack={onBack} onMyGames={onMyGames} />
@@ -205,12 +244,39 @@ export function SavedGameReplay({
           </PieceThemeContext.Provider>
 
           <div className="replay-panel">
+            <div className="analysis-block reveal in">
+              {!review.analysis ? (
+                <button
+                  className="btn analyse-btn"
+                  onClick={review.run}
+                  disabled={review.analyzing || lastPly === 0}
+                >
+                  <Sparkles size={16} />
+                  {review.analyzing
+                    ? `Analysing… ${review.progress}/${review.total}`
+                    : 'Analyse this game'}
+                </button>
+              ) : (
+                <>
+                  <EvalBar white={currentWhiteEval ?? 0} />
+                  <AnalysisSummary summary={review.summary!} />
+                  {bestNext && ply < lastPly && (
+                    <p className="best-from-here">
+                      Engine likes <b>{moveToSan(bestNext)}</b> here.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+
             <div className="replay-note reveal in">
               <span className="replay-ply-label">
                 {ply === 0
                   ? 'Opening position'
                   : `${current!.moveNo}. ${current!.side === 'W' ? 'White' : 'Black'} — ${current!.san}`}
+                <ReviewBadge review={currentReview} />
               </span>
+              <BestLine review={currentReview} sanOf={moveToSan} />
               {ply === 0 ? (
                 <p>Step through your game, or press play. Add a note to any move below.</p>
               ) : (
@@ -260,6 +326,7 @@ export function SavedGameReplay({
                     <span className="move-no">{r + 1}.</span>
                     <button className={`move-cell${ply === r * 2 + 1 ? ' active' : ''}`} onClick={() => go(r * 2 + 1)}>
                       {w?.san}
+                      <QualityMark review={review.reviews[r * 2]} />
                       {w?.note ? <span className="note-dot" aria-label="has a note" /> : null}
                     </button>
                     <button
@@ -268,6 +335,7 @@ export function SavedGameReplay({
                       disabled={!b}
                     >
                       {b?.san ?? ''}
+                      <QualityMark review={review.reviews[r * 2 + 1]} />
                       {b?.note ? <span className="note-dot" aria-label="has a note" /> : null}
                     </button>
                   </div>

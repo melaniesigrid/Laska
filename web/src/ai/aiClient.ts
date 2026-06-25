@@ -1,19 +1,24 @@
 /**
- * Async, framework-agnostic entry point to the AI opponent. The React layer
- * calls `getBestMove(state, { difficulty })` and awaits a move — it never
- * touches the engine or blocks on search.
+ * Async, framework-agnostic entry point to the AI engine. The React layer calls
+ * `getBestMove(state, { difficulty })` to get the opponent's move, or
+ * `analyzePosition(state, { depth })` to score every legal move for the hint
+ * button and the post-game review — and awaits a result. It never touches the
+ * engine or blocks the UI thread on search.
  *
- *   const move = await getBestMove(state, { difficulty: 'expert' });
+ *   const move   = await getBestMove(state, { difficulty: 'expert' });
+ *   const scored = await analyzePosition(state, { depth: 5 });
  *
- * Runs the search in a Web Worker (`aiWorker.ts`) when the environment supports
- * one, and falls back to a synchronous in-thread call otherwise (SSR, ancient
- * browsers, or a worker that failed to spawn) so callers get one stable API.
+ * Both run the search in a Web Worker (`aiWorker.ts`) when the environment
+ * supports one, and fall back to a synchronous in-thread call otherwise (SSR,
+ * ancient browsers, or a worker that failed to spawn) so callers get one stable
+ * API regardless.
  *
- * Pass a numeric `seed` for reproducible games (tests, replays). Determinism is
- * carried as a seed, not a function, because functions can't be postMessage'd.
+ * Pass a numeric `seed` to `getBestMove` for reproducible games (tests, replays).
+ * Determinism is carried as a seed, not a function, because functions can't be
+ * postMessage'd. Analysis is already deterministic, so it needs no seed.
  */
-import { chooseMove } from '../../../src/index.ts';
-import type { GameState, Difficulty, Move } from '../../../src/index.ts';
+import { chooseMove, scoreMoves } from '../../../src/index.ts';
+import type { GameState, Difficulty, Move, ScoredMove } from '../../../src/index.ts';
 import type { AIRequest, AIResponse } from './aiWorker.ts';
 
 export interface BestMoveOptions {
@@ -22,6 +27,11 @@ export interface BestMoveOptions {
   depth?: number;
   /** Seed for a reproducible move; omit for normal (Math.random) play. */
   seed?: number;
+}
+
+export interface AnalyzeOptions {
+  /** Search depth in plies. Quiescence is always on for honest scores. */
+  depth: number;
 }
 
 function lcg(seed: number): () => number {
@@ -38,10 +48,15 @@ function syncMove(state: GameState, opts: BestMoveOptions): Move | null {
   });
 }
 
+function syncAnalyze(state: GameState, opts: AnalyzeOptions): ScoredMove[] {
+  return scoreMoves(state, opts.depth, { quiescence: true });
+}
+
 interface Pending {
-  resolve: (m: Move | null) => void;
-  state: GameState;
-  opts: BestMoveOptions;
+  /** Resolve with whatever the matching response carries (move | scored). */
+  resolve: (value: unknown) => void;
+  /** Recompute in-thread if the worker dies mid-flight, so no promise hangs. */
+  fallback: () => unknown;
 }
 
 let worker: Worker | null = null;
@@ -59,13 +74,13 @@ function getWorker(): Worker | null {
       const p = pending.get(e.data.id);
       if (p) {
         pending.delete(e.data.id);
-        p.resolve(e.data.move);
+        p.resolve(e.data.kind === 'analyze' ? e.data.scored : e.data.move);
       }
     };
     // If the worker dies, drain every in-flight request synchronously so no
     // promise hangs, and fall back to the in-thread path for future calls.
     worker.onerror = () => {
-      for (const [, p] of pending) p.resolve(syncMove(p.state, p.opts));
+      for (const [, p] of pending) p.resolve(p.fallback());
       pending.clear();
       worker = null;
     };
@@ -83,6 +98,7 @@ export function getBestMove(state: GameState, opts: BestMoveOptions): Promise<Mo
 
   const id = nextId++;
   const req: AIRequest = {
+    kind: 'move',
     id,
     state,
     difficulty: opts.difficulty,
@@ -90,7 +106,28 @@ export function getBestMove(state: GameState, opts: BestMoveOptions): Promise<Mo
     ...(opts.seed !== undefined ? { seed: opts.seed } : {}),
   };
   return new Promise<Move | null>((resolve) => {
-    pending.set(id, { resolve, state, opts });
+    pending.set(id, {
+      resolve: resolve as (value: unknown) => void,
+      fallback: () => syncMove(state, opts),
+    });
+    w.postMessage(req);
+  });
+}
+
+/** Score every legal move from the side to move (best first), off the main
+ *  thread. Powers the hint button and the post-game review. Resolves to an empty
+ *  array when the position is terminal (no legal moves). */
+export function analyzePosition(state: GameState, opts: AnalyzeOptions): Promise<ScoredMove[]> {
+  const w = getWorker();
+  if (!w) return Promise.resolve(syncAnalyze(state, opts));
+
+  const id = nextId++;
+  const req: AIRequest = { kind: 'analyze', id, state, depth: opts.depth };
+  return new Promise<ScoredMove[]>((resolve) => {
+    pending.set(id, {
+      resolve: resolve as (value: unknown) => void,
+      fallback: () => syncAnalyze(state, opts),
+    });
     w.postMessage(req);
   });
 }

@@ -349,6 +349,67 @@
 .landing-page .move-cell.empty, .landing-page .move-cell:disabled { cursor: default; }
 .landing-page .move-cell:focus-visible { outline: 2px solid var(--accent-dk); outline-offset: 1px; }
 
+/* ---- Post-game review (engine analysis) ---------------------------------
+   Move-quality hues are semantic status colours (not part of the board palette),
+   so they live as their own tokens here and stay constant across themes. */
+.landing-page {
+  --q-good: #5f8c7e;
+  --q-inaccuracy: #c79a3a;
+  --q-mistake: #c8772f;
+  --q-blunder: #b5483b;
+}
+.landing-page .analysis-block { display: flex; flex-direction: column; gap: 0.9rem; }
+.landing-page .analyse-btn { align-self: flex-start; }
+/* Advantage bar: a recessed well, White's share filling from the left. */
+.landing-page .eval-bar {
+  position: relative; height: 1.7rem; border-radius: var(--r-pill); overflow: hidden;
+  background: color-mix(in srgb, var(--l-shadow) 55%, var(--bg));
+  box-shadow: var(--nm-inset);
+}
+.landing-page .eval-fill {
+  position: absolute; inset: 0 auto 0 0; height: 100%;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--l-light) 70%, var(--bg)), var(--l-light));
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.landing-page .eval-readout {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: 'Hanken Grotesk', sans-serif; font-weight: 700; font-size: 0.8rem;
+  letter-spacing: 0.04em; color: var(--l-ink); font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--l-light) 80%, transparent);
+}
+.landing-page .analysis-summary { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.landing-page .summary-side {
+  flex: 1 1 0; min-width: 7rem; display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem; background: var(--bg); border-radius: var(--r-sm); box-shadow: var(--nm-inset);
+  padding: 0.55rem 0.8rem;
+}
+.landing-page .summary-name { font-family: 'Fraunces', serif; font-size: 0.92rem; color: var(--l-ink); }
+.landing-page .summary-counts { display: inline-flex; gap: 0.5rem; font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.landing-page .summary-counts em { font-style: normal; }
+.landing-page .best-from-here { font-size: 0.9rem; color: var(--faint); margin: 0; }
+.landing-page .best-from-here b { color: var(--accent-dk); }
+.landing-page .best-line { font-size: 0.9rem; color: var(--faint); margin: 0 0 0.6rem; }
+.landing-page .best-line b { color: var(--accent-dk); }
+/* Quality colour tokens, shared by the per-move marks, the summary and badge. */
+.landing-page .q-good { color: var(--q-good); }
+.landing-page .q-inaccuracy { color: var(--q-inaccuracy); }
+.landing-page .q-mistake { color: var(--q-mistake); }
+.landing-page .q-blunder { color: var(--q-blunder); }
+/* A pill badge next to the stepped move's heading. */
+.landing-page .quality-badge {
+  margin-left: 0.6rem; font-family: 'Hanken Grotesk', sans-serif; font-style: normal;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 0.15rem 0.5rem; border-radius: var(--r-pill); vertical-align: 0.08em;
+  background: var(--bg); box-shadow: var(--nm-raise-sm);
+}
+.landing-page .quality-badge.q-best { color: var(--q-good); }
+.landing-page .quality-badge.q-good { color: var(--q-good); }
+.landing-page .quality-badge.q-inaccuracy { color: var(--q-inaccuracy); }
+.landing-page .quality-badge.q-mistake { color: var(--q-mistake); }
+.landing-page .quality-badge.q-blunder { color: var(--q-blunder); }
+/* Compact mark in the move list (sub-par moves only). */
+.landing-page .q-mark { margin-left: 0.3rem; font-size: 0.78rem; font-weight: 800; }
+
 @media (prefers-reduced-motion: reduce) {
   .landing-page .reveal { opacity: 1 !important; transform: none !important; }
 }
