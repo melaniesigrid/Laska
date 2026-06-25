@@ -275,6 +275,37 @@ project — it shows the milestones and the process, not just the result.
 - ⏳ **Next candidates to document** when shipped: the flagship tutorial, an
   external AI-strength benchmark, and production hardening (migrations/failover).
 
+### 12. Charter-scoped web engineers — greenfield scaffolding (overnight lane: PR-only)
+
+Three new domains now have dedicated owners in `.claude/agents/`. Each task below
+is **bounded, owner-tagged, and in the web PR-only lane** — the overnight dispatcher
+may route it to the named subagent but must open a PR for review, never auto-merge
+(web has no automated browser tests). Verify loop for all three: from `web/` →
+`npx tsc --noEmit`, then run the app for any visible surface. Each owns only its
+listed files and consumes the engine read-only via `src/index.ts`.
+
+- **[puzzle-generator-engineer]** Scaffold the puzzle pipeline in `web/src/puzzles/`
+  (`generate.ts` miner, `verify.ts` engine oracle, `types.ts`, `dailyPuzzle.ts`,
+  `dataset.ts`) + `PUZZLES.md`. Mine forcing/tactical moments from finished games
+  (`web/src/games.ts` + saved games); **every shipped puzzle's solution must be proven
+  legal-and-winning through `src/index.ts`** before it enters `dataset.ts` — never a
+  hand-asserted best move. Deliver a small seeded, verified set + a deterministic
+  puzzle-of-the-day selector. Feeds — does not own — the growth daily-puzzle loop
+  (retention §5) and tutorial Phase 3.
+- **[opening-book-curator-engineer]** Populate `web/src/openings.ts` + new
+  `web/src/openingsData.ts` with 2–3 named openings (e.g. Hague opening, Berlin
+  defence, Wing gambit) as **engine-validated line data** — each ply replays through
+  `src/index.ts` at import, the way `games.ts` does — plus a read-only
+  `web/src/OpeningsPage.tsx` study view in the neumorphic style (see `DESIGN.md`) and
+  `OPENINGS.md`. Wiring the page into the router/`App.tsx` is **Frontend's** lane —
+  hand it off, don't edit `App.tsx`. Distinct from the tutorial's paid Openings course
+  (Phase 4), which consumes this repertoire as data.
+- **[i18n-localization-engineer]** Scaffold `web/src/i18n/` (`index.ts`, `provider.tsx`,
+  `useTranslation.ts`, `keys.ts`, `locales/` with an English baseline + one stub locale)
+  + `I18N.md`. Provide a `LocaleProvider` + `t()` hook that **reads** the route locale
+  prefix the SEO re-arch left ready. Do **not** touch `web/src/seo/`, `web/index.html`,
+  `vercel.json`, the routes, or `App.tsx` — the provider wrap is handed to Frontend.
+
 ---
 
 ## ⛔️ Real-money tournaments — GATED ON LEGAL REVIEW (do not implement yet)

@@ -7,15 +7,35 @@ import {
   ChevronRight,
   Play,
   Pause,
+  Sparkles,
 } from 'lucide-react';
 import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
 import { HISTORIC_GAMES } from './games.ts';
+import { moveToSan } from './savedGames.ts';
+import {
+  useGameAnalysis,
+  EvalBar,
+  AnalysisSummary,
+  ReviewBadge,
+  BestLine,
+  QualityMark,
+} from './gameAnalysis.tsx';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
 import './landing.css';
 
 const EMPTY = new Set<number>();
 const AUTOPLAY_MS = 1500;
+
+/** A finished historic game's eval comes from its recorded result, since the
+ *  final position usually isn't a no-legal-moves terminal (games end by
+ *  resignation). White-positive; falls back to 0 (even) when unclear. */
+function terminalWhiteEval(result: string): number {
+  const r = result.toLowerCase();
+  if (r.startsWith('white') || r.startsWith('1-0')) return 1200;
+  if (r.startsWith('black') || r.startsWith('0-1')) return -1200;
+  return 0;
+}
 
 /**
  * Replay a recorded historic game on the real board, one ply at a time. The
@@ -62,6 +82,17 @@ export function ReplayPage({
 
   const state = game.states[ply]!;
   const current = ply > 0 ? game.plies[ply - 1] : undefined;
+
+  // Engine review of every position, on demand and off-thread (shared with the
+  // saved-game viewer). Keyed on the game id so switching games drops the old run.
+  const moves = useMemo(() => game.plies.map((p) => p.move), [game]);
+  const review = useGameAnalysis(game.states, moves, {
+    resetKey: game.id,
+    terminalEval: terminalWhiteEval(game.result),
+  });
+  const currentReview = ply > 0 ? review.reviews[ply - 1] ?? null : null;
+  const currentWhiteEval = review.analysis ? review.analysis[ply]?.whiteEval ?? null : null;
+  const bestNext = review.analysis?.[ply]?.scored[0]?.move ?? null;
 
   // ring the square the last move landed on
   const landing = useMemo(() => (current ? new Set([current.move.to]) : EMPTY), [current]);
@@ -145,11 +176,36 @@ export function ReplayPage({
           </PieceThemeContext.Provider>
 
           <div className="replay-panel">
+            <div className="analysis-block reveal in">
+              {!review.analysis ? (
+                <button
+                  className="btn analyse-btn"
+                  onClick={review.run}
+                  disabled={review.analyzing || lastPly === 0}
+                >
+                  <Sparkles size={16} />
+                  {review.analyzing ? `Analysing… ${review.progress}/${review.total}` : 'Analyse this game'}
+                </button>
+              ) : (
+                <>
+                  <EvalBar white={currentWhiteEval ?? 0} />
+                  <AnalysisSummary summary={review.summary!} />
+                  {bestNext && ply < lastPly && (
+                    <p className="best-from-here">
+                      Engine likes <b>{moveToSan(bestNext)}</b> here.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+
             <div className="replay-note reveal in">
               <span className="replay-ply-label">
                 {ply === 0 ? 'Opening' : `${current!.moveNo}. ${current!.side === 'W' ? 'White' : 'Black'} — ${current!.san}`}
+                <ReviewBadge review={currentReview} />
               </span>
               {noteText && <p>{noteText}</p>}
+              <BestLine review={currentReview} sanOf={moveToSan} />
             </div>
 
             <div className="replay-controls">
@@ -190,6 +246,7 @@ export function ReplayPage({
                       onClick={() => go(r * 2 + 1)}
                     >
                       {w?.san}
+                      <QualityMark review={review.reviews[r * 2]} />
                     </button>
                     <button
                       className={`move-cell${b ? '' : ' empty'}${ply === r * 2 + 2 ? ' active' : ''}`}
@@ -197,6 +254,7 @@ export function ReplayPage({
                       disabled={!b}
                     >
                       {b?.san ?? ''}
+                      <QualityMark review={review.reviews[r * 2 + 1]} />
                     </button>
                   </div>
                 );

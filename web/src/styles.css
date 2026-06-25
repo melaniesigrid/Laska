@@ -342,6 +342,26 @@ button { font-family: inherit; }
   50%      { opacity: 1;    transform: scale(1.08); }
 }
 
+/* Hint banner — a recessed pill naming the engine's suggested move. Shares the
+   board's accent (`--cobalt`/`--ring`) with the on-board highlight ring so the
+   text and the lit squares read as one cue. */
+.hint-banner {
+  display: inline-flex; align-items: center; gap: 10px; align-self: center;
+  font-family: var(--font-display); font-weight: 500; font-size: clamp(13px, 1.8vw, 15px);
+  color: var(--btn-ink); padding: 10px 16px; border-radius: 14px; background: var(--pedestal);
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light),
+              inset 0 0 0 1.5px rgb(var(--ring) / 0.45);
+}
+.hint-banner .ico { color: var(--cobalt); flex: 0 0 auto; }
+.hint-banner b { color: var(--ink); font-weight: 700; }
+.hint-dismiss {
+  margin-left: 2px; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  font-weight: 700; color: var(--ink-soft); padding: 2px 4px;
+}
+.hint-dismiss:hover { color: var(--cobalt); }
+.hint-dismiss:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; border-radius: 6px; }
+
 .controls { display: flex; gap: clamp(10px, 1.6vw, 16px); align-items: center; flex-wrap: wrap; justify-content: center; }
 .btn {
   display: inline-flex; align-items: center; gap: 9px; font-weight: 600; font-size: 11px;

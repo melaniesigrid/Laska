@@ -16,6 +16,7 @@ import {
   Save,
   Check,
   Library,
+  Lightbulb,
 } from 'lucide-react';
 import {
   createInitialState,
@@ -34,7 +35,7 @@ import {
   type PlayerColor,
   type Difficulty,
 } from '../../src/index.ts';
-import { getBestMove } from './ai/aiClient.ts';
+import { getBestMove, analyzePosition } from './ai/aiClient.ts';
 import { BoardView, type MoveFx } from './Board.tsx';
 import { OnlinePanel } from './Online.tsx';
 import { useOnline } from './useOnline.ts';
@@ -51,6 +52,7 @@ import {
   mergeIntoSave,
   getSavedGame,
   upsertSavedGame,
+  moveToSan,
   type SavedResult,
   type NewGameInput,
 } from './savedGames.ts';
@@ -68,6 +70,11 @@ import { track, trackAppOpen, type MatchMode } from './analytics/index.ts';
 type Mode = 'hotseat' | 'ai';
 
 const COLOR_NAME: Record<PlayerColor, string> = { W: 'White', B: 'Black' };
+
+/** Plies the Hint button looks ahead. Fixed and strong (quiescence on) so a hint
+ *  is always the engine's genuine best move, independent of the chosen tier — the
+ *  point of a hint is the right answer, not a level-appropriate one. */
+const HINT_DEPTH = 5;
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   beginner: 'Beginner',
@@ -365,7 +372,16 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   const [colIds, setColIds] = useState<(string | null)[]>(() => freshColumnIds(state.board));
   const [moveFx, setMoveFx] = useState<MoveFx | null>(null);
   const [resignedWinner, setResignedWinner] = useState<PlayerColor | null>(null);
+  // Hint: the engine's best move for the side to move, surfaced on demand and
+  // highlighted on the board. Cleared on any board change so it can never point
+  // at a stale position. `hintLoading` covers the off-thread search.
+  const [hint, setHint] = useState<Move | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
   const aiTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Always-current state, so an async hint can verify the board didn't move on
+  // under it before it shows (object identity changes on every committed move).
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // Resignation isn't a board position the engine can derive, so it's tracked
   // here and folded into the outcome the rest of the UI already renders.
@@ -425,6 +441,7 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   const playMove = useCallback((prev: GameState, move: Move) => {
     setHistory((h) => [...h, prev]);
     setMoves((m) => [...m, move]);
+    setHint(null); // a hint is about the position before this move; drop it
     setJustSaved(false); // the saved snapshot is now stale until re-saved
     setColIds((ids) => advanceColumnIds(ids, prev.board, move));
     // One-shot reward feedback on the landing square: tuck prisoners under the
@@ -439,6 +456,33 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   }, []);
 
   const isAiTurn = mode === 'ai' && !gameOver && state.toMove === aiColor;
+
+  /** Ask the engine for the best move and highlight it. Off-thread, so the UI
+   *  never blocks; the result is discarded if the board moved on meanwhile. */
+  const requestHint = useCallback(() => {
+    if (gameOver || isAiTurn || thinking || hintLoading) return;
+    const snapshot = state;
+    setSelected(null);
+    setHint(null);
+    setHintLoading(true);
+    analyzePosition(snapshot, { depth: HINT_DEPTH }).then((scored) => {
+      setHintLoading(false);
+      if (stateRef.current !== snapshot) return; // a move landed; hint is stale
+      const best = scored[0]?.move ?? null;
+      setHint(best);
+      if (best) {
+        track('hint.used', {
+          mode: mode === 'ai' ? 'ai' : 'hotseat',
+          ...(mode === 'ai' ? { difficulty } : {}),
+        });
+      }
+    });
+  }, [gameOver, isAiTurn, thinking, hintLoading, state, mode, difficulty]);
+
+  const hintSquares = useMemo(
+    () => (hint ? new Set([hint.from, hint.to]) : undefined),
+    [hint],
+  );
 
   useEffect(() => {
     if (!isAiTurn) return;
@@ -466,6 +510,7 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   const handleSquareClick = useCallback(
     (square: number) => {
       if (gameOver || isAiTurn || thinking) return;
+      setHint(null); // any interaction dismisses the hint highlight
       const move = destinations.get(square);
       if (selected != null && move) {
         // Funnel: the human's FIRST committed move of a fresh board is the true
@@ -519,6 +564,7 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
     setSelected(null);
     setThinking(false);
     setResignedWinner(null);
+    setHint(null);
   }, []);
 
   const resign = useCallback(() => {
@@ -531,6 +577,7 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
 
   const undo = useCallback(() => {
     setResignedWinner(null);
+    setHint(null);
     setHistory((h) => {
       if (h.length === 0) return h;
       let target = h.length - 1;
@@ -606,6 +653,7 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
         captureTargets={captureTargets}
         colIds={colIds}
         moveFx={moveFx}
+        highlight={hintSquares}
       />
 
       <div className="control-deck">
@@ -620,12 +668,32 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
           {statusLine}
         </div>
 
+        {hint && (
+          <div className="hint-banner" role="status" aria-live="polite">
+            <Lightbulb size={16} className="ico" />
+            <span>
+              Try <b>{moveToSan(hint)}</b>
+              {hint.isCapture ? ` — captures ${hint.captures.length}` : ''}.
+            </span>
+            <button className="hint-dismiss" onClick={() => setHint(null)} aria-label="Dismiss hint">
+              Got it
+            </button>
+          </div>
+        )}
+
         <div className="controls">
           <button className="btn" onClick={newGame}>
             <RotateCcw size={16} /> New game
           </button>
           <button className="btn" onClick={undo} disabled={history.length === 0 || isAiTurn || thinking}>
             <Undo2 size={16} /> Undo
+          </button>
+          <button
+            className="btn"
+            onClick={requestHint}
+            disabled={gameOver || isAiTurn || thinking || hintLoading || legal.length === 0}
+          >
+            <Lightbulb size={16} /> {hintLoading ? 'Thinking…' : 'Hint'}
           </button>
           <button className="btn" onClick={resign} disabled={gameOver || isAiTurn || thinking}>
             <Flag size={16} /> Resign

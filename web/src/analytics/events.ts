@@ -36,6 +36,7 @@ export type AnalyticsEvent =
   | 'match.started' // a match began (local hotseat/AI or online)
   | 'match.first_move' // the user's FIRST committed move of a match (true activation)
   | 'match.finished' // a match reached a terminal outcome
+  | 'hint.used' // the player asked the engine for the best move in a live game
   // --- signup -------------------------------------------------------------
   | 'auth.guest_started' // anonymous online session created
   | 'auth.signup_succeeded' // a real account was registered
@@ -66,6 +67,7 @@ export interface AnalyticsEventProps {
     reason?: string;
     plies: number;
   };
+  'hint.used': { mode: MatchMode; difficulty?: string };
 
   'auth.guest_started': Record<string, never>;
   'auth.signup_succeeded': { method: 'email' };
@@ -100,6 +102,7 @@ export const EVENT_STAGE: Record<AnalyticsEvent, FunnelStage> = {
   'match.started': 'activation',
   'match.first_move': 'activation',
   'match.finished': 'activation',
+  'hint.used': 'activation',
   'auth.guest_started': 'signup',
   'auth.signup_succeeded': 'signup',
   'auth.login_succeeded': 'signup',
