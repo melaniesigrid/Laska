@@ -218,6 +218,8 @@ export function App() {
         onAI={() => setView('ai')}
         onBuild={() => setView('build')}
         onLessons={() => setView('lessons')}
+        themeLabel={THEME_LABEL[theme]}
+        onCycleTheme={cycleTheme}
       />
     );
   }

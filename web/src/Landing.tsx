@@ -10,6 +10,7 @@ import {
   type Column,
   type PlayerColor,
 } from '../../src/index.ts';
+import { Palette } from 'lucide-react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
 import './landing.css';
 
@@ -191,6 +192,8 @@ export function Landing({
   onAI,
   onBuild,
   onLessons,
+  themeLabel,
+  onCycleTheme,
 }: {
   onPlay: () => void;
   onLasker: () => void;
@@ -199,6 +202,8 @@ export function Landing({
   onAI: () => void;
   onBuild: () => void;
   onLessons: () => void;
+  themeLabel: string;
+  onCycleTheme: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -233,10 +238,20 @@ export function Landing({
           <span className="mark">
             Las<span>k</span>a
           </span>
-          <button className="btn" onClick={onPlay}>
-            <span className="dot" />
-            Play the game
-          </button>
+          <div className="topbar-actions">
+            <button
+              className="btn"
+              onClick={onCycleTheme}
+              aria-label={`Color theme: ${themeLabel}. Click to change.`}
+              title="Change color theme"
+            >
+              <Palette size={16} /> {themeLabel}
+            </button>
+            <button className="btn" onClick={onPlay}>
+              <span className="dot" />
+              Play the game
+            </button>
+          </div>
         </div>
       </header>
 

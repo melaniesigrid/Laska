@@ -4,16 +4,31 @@
    game board's stylesheet. Stone + eucalyptus palette (the site default).
    ========================================================================== */
 .landing-page {
-  --bg: #e8e4db;
-  --l-light: #fbf8f2;
-  --l-shadow: #c4beb1;
-  --l-ink: #38342c;
-  --l-body: #645e51;
-  --faint: #7a7363;
-  --l-accent: #5f8c7e;
-  --accent-dk: #4a7165;
-  --piece-dark-1: #4b463c; --piece-dark-2: #322e27;
-  --piece-light-1: #f2ede3; --piece-light-2: #d9d2c4;
+  /* The website rides the game's active palette. Every colour token below maps
+     to a game token in styles.css, so [data-theme] on <html> reskins the whole
+     site — Stone / Dark / Navy / Light / Chocolate / Classic — exactly like the
+     board. (These values equalled the Stone palette when hardcoded; now they
+     follow it live.) */
+  --bg: var(--ground);
+  --l-light: var(--light);
+  --l-shadow: var(--dark);
+  --l-ink: var(--ink);
+  /* Body copy sits on the page ground, so soften the heading ink toward the
+     ground rather than borrowing --btn-ink (which is tuned for clay BUTTONS and
+     reads muddy on the split Classic/Navy grounds). */
+  --l-body: color-mix(in srgb, var(--ink) 75%, var(--ground));
+  --faint: var(--ink-soft);
+  --l-accent: var(--cobalt);
+  --accent-dk: var(--win);
+  /* demo-board coins follow the game's cream/rose armies (see .disc in styles.css):
+     stop 1 = top-left highlight, stop 2 = the army base colour. */
+  --piece-light-1: color-mix(in srgb, var(--cream) 92%, #fff); --piece-light-2: var(--cream);
+  --piece-dark-1: color-mix(in srgb, var(--rose) 88%, #fff); --piece-dark-2: var(--rose);
+  /* card surfaces, hairlines and secondary text, derived from the live palette
+     (previously referenced but never defined — they resolved to nothing). */
+  --card: color-mix(in srgb, var(--bg) 88%, var(--l-light));
+  --line: color-mix(in srgb, var(--l-ink) 14%, transparent);
+  --muted: var(--l-body);
   --maxw: 1120px;
   --pad: clamp(1.25rem, 5vw, 3.5rem);
   --section-y: clamp(5rem, 11vw, 9rem);
@@ -53,6 +68,7 @@
 .landing-page .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 74px; }
 .landing-page .mark { font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.35rem; color: var(--l-ink); letter-spacing: 0.02em; }
 .landing-page .mark span { color: var(--accent-dk); }
+.landing-page .topbar-actions { display: flex; align-items: center; gap: 0.6rem; }
 
 .landing-page .btn {
   display: inline-flex; align-items: center; gap: 0.55rem; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.9rem;
