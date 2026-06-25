@@ -76,7 +76,10 @@
 /* hero board — the original laska.html board (small flat discs), now playing
    itself. Columns show as a commander disc with prisoner rims peeking below. */
 .landing-page .board-frame { background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise); padding: clamp(1rem, 2.5vw, 1.6rem); width: 100%; max-width: 430px; margin-inline: auto; }
-.landing-page .board { aspect-ratio: 1/1; width: 100%; background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset-deep); padding: clamp(0.5rem, 1.8vw, 0.9rem); display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(2px, 0.6vw, 5px); }
+/* Scoped to .board-frame so it styles ONLY the landing's marketing demo board
+   (.board-frame > .board > .cell) and never leaks onto the real engine board
+   (BoardView renders .stage > .board), which is themed by styles.css. */
+.landing-page .board-frame .board { aspect-ratio: 1/1; width: 100%; background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset-deep); padding: clamp(0.5rem, 1.8vw, 0.9rem); display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(2px, 0.6vw, 5px); }
 /* each cell is its own query container so the coin + stack offset scale to it */
 .landing-page .cell { position: relative; border-radius: 7px; container-type: size; --lcoin: 70cqmin; --lpeek: 11cqmin; }
 .landing-page .cell.play { box-shadow: inset 2px 2px 4px var(--l-shadow), inset -2px -2px 4px var(--l-light); }
