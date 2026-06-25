@@ -8,6 +8,7 @@ import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Board } from '../components/Board.tsx';
 import { Button } from '../components/Button.tsx';
+import { CaptureChooser } from '../components/CaptureChooser.tsx';
 import { StatusPill } from '../components/StatusPill.tsx';
 import { useGame, type GameMode } from '../hooks/useGame.ts';
 import { useTheme } from '../theme/ThemeProvider.tsx';
@@ -29,7 +30,7 @@ export function GameScreen({ route }: PlayStackScreenProps<'Game'>) {
     <View
       style={[
         styles.container,
-        { backgroundColor: palette.ground, paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.md },
+        { backgroundColor: palette.backdrop, paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.md },
       ]}
     >
       <StatusPill outcome={game.outcome} toMove={game.state.toMove} thinking={game.thinking} />
@@ -42,6 +43,7 @@ export function GameScreen({ route }: PlayStackScreenProps<'Game'>) {
           palette={palette}
           size={boardSize}
           onTapSquare={game.tap}
+          lastMove={game.lastMove}
         />
       </View>
 
@@ -55,6 +57,13 @@ export function GameScreen({ route }: PlayStackScreenProps<'Game'>) {
           style={styles.ctrl}
         />
       </View>
+
+      <CaptureChooser
+        choices={game.pendingChoices}
+        palette={palette}
+        onChoose={game.chooseMove}
+        onCancel={game.cancelChoices}
+      />
     </View>
   );
 }

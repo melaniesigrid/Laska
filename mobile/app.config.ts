@@ -32,6 +32,7 @@ const config: ExpoConfig = {
   },
   plugins: [
     // VERIFY each plugin name/version for the installed SDK.
+    'expo-font', // embeds Fraunces + Hanken Grotesk for dev/prod builds
     'expo-secure-store',
     [
       'expo-notifications',

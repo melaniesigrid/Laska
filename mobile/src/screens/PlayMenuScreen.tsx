@@ -20,7 +20,7 @@ export function PlayMenuScreen({ navigation }: PlayStackScreenProps<'PlayMenu'>)
 
   return (
     <ScrollView
-      style={{ backgroundColor: palette.ground }}
+      style={{ backgroundColor: palette.backdrop }}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.xl }]}
     >
       <Text style={[styles.title, { color: palette.text }]}>Laska</Text>

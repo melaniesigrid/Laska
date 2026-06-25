@@ -14,11 +14,18 @@ import { PlayMenuScreen } from '../screens/PlayMenuScreen.tsx';
 import { GameScreen } from '../screens/GameScreen.tsx';
 import { OnlineScreen } from '../screens/OnlineScreen.tsx';
 import { ProfileScreen } from '../screens/ProfileScreen.tsx';
+import { TabIcon, type TabIconName } from '../components/TabIcon.tsx';
 import { useTheme } from '../theme/ThemeProvider.tsx';
 import type { PlayStackParamList, TabParamList } from './types.ts';
 
 const PlayStack = createNativeStackNavigator<PlayStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
+
+const TAB_ICON: Record<keyof TabParamList, TabIconName> = {
+  Play: 'play',
+  Online: 'online',
+  Profile: 'profile',
+};
 
 const linking: LinkingOptions<TabParamList> = {
   prefixes: ['laska://'],
@@ -36,13 +43,20 @@ function PlayNavigator() {
   return (
     <PlayStack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: palette.ground },
+        headerStyle: { backgroundColor: palette.backdrop },
         headerTintColor: palette.text,
+        headerTitleStyle: { fontFamily: 'Fraunces_600SemiBold' },
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: palette.ground },
+        contentStyle: { backgroundColor: palette.backdrop },
       }}
     >
-      <PlayStack.Screen name="PlayMenu" component={PlayMenuScreen} options={{ headerShown: false }} />
+      <PlayStack.Screen
+        name="PlayMenu"
+        component={PlayMenuScreen}
+        // Hidden header, but set the title so Game's back button reads "Menu"
+        // instead of the raw route name "PlayMenu".
+        options={{ headerShown: false, title: 'Menu' }}
+      />
       <PlayStack.Screen name="Game" component={GameScreen} options={{ title: 'Game' }} />
     </PlayStack.Navigator>
   );
@@ -53,12 +67,16 @@ export function RootNavigator() {
   return (
     <NavigationContainer linking={linking}>
       <Tabs.Navigator
-        screenOptions={{
+        screenOptions={({ route }) => ({
           headerShown: false,
           tabBarActiveTintColor: palette.accent,
           tabBarInactiveTintColor: palette.textMuted,
-          tabBarStyle: { backgroundColor: palette.ground, borderTopColor: palette.shade },
-        }}
+          tabBarLabelStyle: { fontFamily: 'HankenGrotesk_600SemiBold' },
+          tabBarStyle: { backgroundColor: palette.backdrop, borderTopColor: palette.shade },
+          tabBarIcon: ({ color, size }) => (
+            <TabIcon name={TAB_ICON[route.name as keyof typeof TAB_ICON]} color={color} size={size} />
+          ),
+        })}
       >
         <Tabs.Screen name="Play" component={PlayNavigator} />
         <Tabs.Screen name="Online" component={OnlineScreen} />

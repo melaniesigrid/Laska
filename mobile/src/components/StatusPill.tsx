@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider.tsx';
+import { inset } from '../theme/neumorphic.ts';
 import { radius, spacing, type } from '../theme/tokens.ts';
 import type { GameOutcome, PlayerColor } from '../engine/index.ts';
 
@@ -26,9 +27,11 @@ export function StatusPill({
   thinking: boolean;
 }) {
   const { palette } = useTheme();
+  // Win is the only celebratory state; everything else reads in the button ink.
+  const ink = outcome.state === 'win' ? palette.win : palette.btnInk;
   return (
-    <View style={[styles.pill, { backgroundColor: palette.shade }]}>
-      <Text style={[styles.text, { color: palette.text }]}>
+    <View style={[styles.pill, inset(palette, 4)]}>
+      <Text style={[styles.text, { color: ink }]}>
         {statusText(outcome, toMove, thinking)}
       </Text>
     </View>
@@ -37,7 +40,7 @@ export function StatusPill({
 
 const styles = StyleSheet.create({
   pill: {
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.pill,
     alignSelf: 'center',

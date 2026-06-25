@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { PALETTES, PaletteName, Palette, STONE } from './tokens';
+import { getPref, setPref } from '../storage/prefs.ts';
 
 interface ThemeContextValue {
   palette: Palette;
@@ -13,12 +14,29 @@ const ThemeContext = createContext<ThemeContextValue>({
   setPalette: () => {},
 });
 
+const THEME_KEY = 'laska-theme';
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // v1 ships Stone; the setter exists so a palette switcher can land later
-  // (persist the choice to AsyncStorage at that point — see storage/prefs).
   const [name, setName] = useState<PaletteName>('stone');
+
+  // Restore the saved palette on mount (the web persists to `laska-theme` too).
+  useEffect(() => {
+    let alive = true;
+    getPref<PaletteName>(THEME_KEY, 'stone').then((saved) => {
+      if (alive && saved in PALETTES) setName(saved);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const setPalette = (n: PaletteName) => {
+    setName(n);
+    void setPref(THEME_KEY, n);
+  };
+
   const value = useMemo<ThemeContextValue>(
-    () => ({ palette: PALETTES[name], name, setPalette: setName }),
+    () => ({ palette: PALETTES[name], name, setPalette }),
     [name],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -32,8 +32,19 @@ export interface UseGame {
   targets: number[];
   /** True while the AI is computing its move. */
   thinking: boolean;
+  /** The from/to of the most recent move, for the board's glide animation. */
+  lastMove: { from: number; to: number } | null;
   /** Tap a square: select own column, move to a target, or deselect. */
   tap: (square: number) => void;
+  /**
+   * Pending capture routes when several legal chains share the tapped landing
+   * square (length > 1 ⇒ show the chooser). Empty otherwise.
+   */
+  pendingChoices: Move[];
+  /** Commit one of the pendingChoices. */
+  chooseMove: (move: Move) => void;
+  /** Dismiss the route chooser without moving. */
+  cancelChoices: () => void;
   reset: () => void;
   /** Resign the side to move (used by the Flag control). */
   resign: () => void;
@@ -44,6 +55,8 @@ export function useGame(mode: GameMode): UseGame {
   const [selected, setSelected] = useState<number | null>(null);
   const [thinking, setThinking] = useState(false);
   const [resigned, setResigned] = useState<PlayerColor | null>(null);
+  const [pendingChoices, setPendingChoices] = useState<Move[]>([]);
+  const [lastMove, setLastMove] = useState<{ from: number; to: number } | null>(null);
 
   const moves = useMemo(() => legalMoves(state), [state]);
   const outcome: GameOutcome = useMemo(() => {
@@ -68,20 +81,25 @@ export function useGame(mode: GameMode): UseGame {
   const apply = useCallback((m: Move) => {
     setState((s) => applyMove(s, m));
     setSelected(null);
+    setPendingChoices([]);
+    setLastMove({ from: m.from, to: m.to });
   }, []);
 
   const tap = useCallback(
     (square: number) => {
       if (outcome.state !== 'ongoing' || thinking || isAITurn) return;
 
-      // Tapping a highlighted target applies the move.
+      // Tapping a highlighted target applies the move. If several capture chains
+      // land on this square, surface them so the player picks the exact route
+      // instead of silently committing the first.
       if (selected != null) {
-        // NOTE: if several capture sequences land on the same square, we take
-        // the first. Capture-path disambiguation UI is a known v1 polish item
-        // (see ../../MOBILE.md / web Online.tsx capture disambiguation).
-        const move = moves.find((m) => m.from === selected && m.to === square);
-        if (move) {
-          apply(move);
+        const options = moves.filter((m) => m.from === selected && m.to === square);
+        if (options.length === 1) {
+          apply(options[0]!);
+          return;
+        }
+        if (options.length > 1) {
+          setPendingChoices(options);
           return;
         }
       }
@@ -89,15 +107,21 @@ export function useGame(mode: GameMode): UseGame {
       // Otherwise (re)select if the square holds a movable column of our side.
       const hasMove = moves.some((m) => m.from === square);
       setSelected(hasMove ? square : null);
+      setPendingChoices([]);
     },
     [outcome.state, thinking, isAITurn, selected, moves, apply],
   );
+
+  const chooseMove = useCallback((move: Move) => apply(move), [apply]);
+  const cancelChoices = useCallback(() => setPendingChoices([]), []);
 
   const reset = useCallback(() => {
     setState(createInitialState());
     setSelected(null);
     setResigned(null);
     setThinking(false);
+    setPendingChoices([]);
+    setLastMove(null);
   }, []);
 
   const resign = useCallback(() => {
@@ -114,7 +138,10 @@ export function useGame(mode: GameMode): UseGame {
     getBestMove(state, { difficulty: mode.difficulty })
       .then((m) => {
         if (cancelled || runId !== aiRunId.current) return;
-        if (m) setState((s) => applyMove(s, m));
+        if (m) {
+          setState((s) => applyMove(s, m));
+          setLastMove({ from: m.from, to: m.to });
+        }
       })
       .finally(() => {
         if (!cancelled && runId === aiRunId.current) setThinking(false);
@@ -124,5 +151,5 @@ export function useGame(mode: GameMode): UseGame {
     };
   }, [mode, isAITurn, state]);
 
-  return { state, outcome, selected, targets, thinking, tap, reset, resign };
+  return { state, outcome, selected, targets, thinking, lastMove, tap, pendingChoices, chooseMove, cancelChoices, reset, resign };
 }

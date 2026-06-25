@@ -1,43 +1,46 @@
 /**
- * Neumorphic shadow helpers. The web uses two offset box-shadows (a top-left
- * highlight + a bottom-right shade). RN/iOS shadow props support only ONE offset
- * direction per View, and Android uses `elevation` (no offset control). So:
+ * Neumorphic shadow helpers — a faithful port of the web's two-shadow language
+ * (../../web/src/styles.css). React Native 0.81 on the New Architecture supports
+ * the `boxShadow` style prop with MULTIPLE shadows and `inset`, so we emit the
+ * exact same recipe the web uses: a clay shade bottom-right + a cream highlight
+ * top-left, flipped to `inset` for recessed surfaces.
  *
- *  - RAISED surfaces: a single bottom-right shadow + a light top border read as
- *    lifted. For full two-shadow fidelity, stack two absolutely-positioned shadow
- *    layers behind the surface (see Board/Coin components) — that's the faithful
- *    route but heavier; this helper is the lightweight default.
- *  - RECESSED surfaces: RN cannot inset-shadow a View. Approximate with a darker
- *    fill + an inner hairline. True inset shadows need react-native-svg or an
- *    inner-shadow lib — VERIFY/choose one when board fidelity is tuned.
+ * This is the single place shadow math lives. Tune depth here, not per-component.
  *
- * Keep this the single place shadow math lives so the look stays consistent.
+ *   raised()  → lifted button / card / board panel      (web `.btn`, `.board`)
+ *   inset()   → recessed pill / tray / segmented rail    (web `.status`, `.field`)
+ *   pressed() → a button being held down                 (web `.btn:active`)
  */
-import { Platform, ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
 import type { Palette } from './tokens';
 
+type Shadows = NonNullable<ViewStyle['boxShadow']>;
+
+/** Lifted surface: dark shade bottom-right + cream highlight top-left (outset). */
 export function raised(p: Palette, depth = 6): ViewStyle {
-  return Platform.select<ViewStyle>({
-    ios: {
-      shadowColor: p.shade,
-      shadowOffset: { width: depth * 0.6, height: depth * 0.6 },
-      shadowOpacity: 0.9,
-      shadowRadius: depth,
-      backgroundColor: p.ground,
-    },
-    android: {
-      elevation: depth,
-      backgroundColor: p.ground,
-    },
-    default: { backgroundColor: p.ground },
-  })!;
+  const blur = depth * 2;
+  return {
+    backgroundColor: p.ground,
+    boxShadow: [
+      { offsetX: depth, offsetY: depth, blurRadius: blur, color: p.shade },
+      { offsetX: -depth, offsetY: -depth, blurRadius: blur, color: p.highlight },
+    ] satisfies Shadows,
+  };
 }
 
-export function pressed(p: Palette): ViewStyle {
-  // Pressed = the web's inset look. Flatten elevation and darken slightly.
+/** Recessed surface: the same pair, inset — the tray/pill/rail look. */
+export function inset(p: Palette, depth = 5): ViewStyle {
+  const blur = depth * 1.9;
   return {
-    backgroundColor: p.shade,
-    shadowOpacity: 0,
-    elevation: 0,
+    backgroundColor: p.ground,
+    boxShadow: [
+      { inset: true, offsetX: depth, offsetY: depth, blurRadius: blur, color: p.shade },
+      { inset: true, offsetX: -depth, offsetY: -depth, blurRadius: blur, color: p.highlight },
+    ] satisfies Shadows,
   };
+}
+
+/** Held-down button: web `.btn:active` flips raised → a slightly tighter inset. */
+export function pressed(p: Palette, depth = 5): ViewStyle {
+  return inset(p, depth);
 }

@@ -1,7 +1,33 @@
 # Laska Mobile — Native App Architecture (iOS + Android)
 
-> Status: **scaffold** (v1). Owner-facing engineering doc for shipping the Laska web
-> app as a production React Native app to the Apple App Store and Google Play.
+> Status: **two playable verticals** (v1, scaffold + local + online). Owner-facing
+> engineering doc for shipping the Laska web app as a production React Native app
+> to the Apple App Store and Google Play.
+>
+> Implemented & typechecking clean (`npx tsc --noEmit`):
+> - **Local play** — hot-seat + vs-AI (all difficulty tiers) on the shared engine
+>   (`screens/GameScreen.tsx`, `hooks/useGame.ts`, SVG `components/Board.tsx`).
+> - **Online ranked play** — guest **or email/password** auth → matchmaking queue →
+>   a fully playable, server-authoritative match on the board: optimistic moves with
+>   rollback, both clocks, draw offers, resignation, and an end screen with the
+>   rating delta (`screens/OnlineScreen.tsx`, `hooks/useOnline.ts` — a port of
+>   `web/src/useOnline.ts`). The board flips 180° for the Black player and
+>   highlights the last move. A **reconnect banner** pauses move input and the
+>   in-match controls while the socket is down (the board resyncs on reconnect),
+>   and the lobby shows a live **top-players leaderboard** (public REST endpoint).
+> - **Capture-path disambiguation** — when several capture chains share a landing
+>   square, a route chooser (`components/CaptureChooser.tsx`) sends the exact full
+>   `captures` path; shared by local and online play (no silent first-pick).
+> - **Shared online session** — a single `LaskaClient` lives in `online/OnlineProvider.tsx`
+>   at the nav root (`useOnlineSession()`), so the Online and Profile tabs share one
+>   socket and one consistent account state (no more per-screen desynced clients).
+> - **Profile tab** (`screens/ProfileScreen.tsx`) — account card (rating, rated games,
+>   guest/email, connection), **guest → email/password upgrade** (`client.linkGuest`),
+>   and a **Stone/Dark theme toggle**.
+>
+> Known v1 gaps (see body): account deletion needs a server `DELETE /account`
+> endpoint (shown disabled until it lands), push registration endpoint, theme
+> persistence to AsyncStorage, and font assets.
 >
 > Accuracy note: the Expo/RN ecosystem moves fast. Every version number, store
 > rule, and price in this doc is marked **VERIFY** where it is time-sensitive.
