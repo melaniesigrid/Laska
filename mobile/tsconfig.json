@@ -1,0 +1,26 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "moduleResolution": "bundler",
+    "paths": {
+      "@engine": [
+        "../src/index.ts"
+      ],
+      "@engine/*": [
+        "../src/*"
+      ],
+      "@protocol": [
+        "../server/src/net/protocol.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "app.config.ts",
+    "../src/**/*.ts"
+  ]
+}
