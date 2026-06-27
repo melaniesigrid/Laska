@@ -37,6 +37,7 @@ import {
   upsertSavedGame,
   type SavedGame,
 } from './savedGames.ts';
+import { ShareButton } from './ShareButton.tsx';
 import './landing.css';
 
 const EMPTY = new Set<number>();
@@ -194,7 +195,11 @@ export function SavedGameReplay({
 
   return (
     <div className="landing-page">
-      <ReplayHeader onBack={onBack} onMyGames={onMyGames} />
+      <ReplayHeader
+        onBack={onBack}
+        onMyGames={onMyGames}
+        shareMoves={game.moves.map((m) => ({ from: m.from, to: m.to }))}
+      />
 
       <section className="hero" style={{ paddingTop: 'clamp(2rem,5vw,4rem)', paddingBottom: 'clamp(1.5rem,4vw,2.5rem)' }}>
         <div className="wrap">
@@ -358,16 +363,27 @@ export function SavedGameReplay({
   );
 }
 
-function ReplayHeader({ onBack, onMyGames }: { onBack: () => void; onMyGames: () => void }) {
+function ReplayHeader({
+  onBack,
+  onMyGames,
+  shareMoves = [],
+}: {
+  onBack: () => void;
+  onMyGames: () => void;
+  shareMoves?: { from: number; to: number }[];
+}) {
   return (
     <header className="topbar">
       <div className="wrap">
         <button className="btn" onClick={onBack}>
           <ArrowLeft size={16} /> Back
         </button>
-        <button className="btn" onClick={onMyGames}>
-          <Library size={16} /> My games
-        </button>
+        <div className="topbar-actions">
+          {shareMoves.length > 0 && <ShareButton moves={shareMoves} />}
+          <button className="btn" onClick={onMyGames}>
+            <Library size={16} /> My games
+          </button>
+        </div>
       </div>
     </header>
   );

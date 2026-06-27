@@ -22,6 +22,7 @@ import {
   QualityMark,
 } from './gameAnalysis.tsx';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
+import { ShareButton } from './ShareButton.tsx';
 import './landing.css';
 
 const EMPTY = new Set<number>();
@@ -48,14 +49,19 @@ export function ReplayPage({
   pieceTheme,
   gameId,
   featured,
+  eyebrow,
+  fine,
 }: {
   onBack: () => void;
   onPlay: () => void;
   pieceTheme: PieceTheme;
   gameId?: string;
   /** A pre-built game to show instead of the historic library (no tabs) — used
-   *  for the landing-page self-play demo the engine just finished. */
+   *  for the landing-page self-play demo and for shared replays. */
   featured?: HistoricGame;
+  /** Override the section eyebrow / footer line (e.g. for a shared replay). */
+  eyebrow?: string;
+  fine?: string;
 }) {
   // The historic library has a game switcher; a featured game stands alone.
   const games = featured ? [featured] : HISTORIC_GAMES;
@@ -92,6 +98,8 @@ export function ReplayPage({
   // Engine review of every position, on demand and off-thread (shared with the
   // saved-game viewer). Keyed on the game id so switching games drops the old run.
   const moves = useMemo(() => game.plies.map((p) => p.move), [game]);
+  // Origin/destination of each ply — all a shareable link carries (share.ts).
+  const shareMoves = useMemo(() => moves.map((m) => ({ from: m.from, to: m.to })), [moves]);
   const review = useGameAnalysis(game.states, moves, {
     resetKey: game.id,
     terminalEval: terminalWhiteEval(game.result),
@@ -129,16 +137,19 @@ export function ReplayPage({
           <button className="btn" onClick={onBack}>
             <ArrowLeft size={16} /> Back
           </button>
-          <button className="btn" onClick={onPlay}>
-            <span className="dot" />
-            Play the game
-          </button>
+          <div className="topbar-actions">
+            <ShareButton moves={shareMoves} />
+            <button className="btn" onClick={onPlay}>
+              <span className="dot" />
+              Play the game
+            </button>
+          </div>
         </div>
       </header>
 
       <section className="hero" style={{ paddingTop: 'clamp(2rem,5vw,4rem)', paddingBottom: 'clamp(1.5rem,4vw,2.5rem)' }}>
         <div className="wrap">
-          <p className="eyebrow">{featured ? 'The featured game' : 'A game from history'}</p>
+          <p className="eyebrow">{eyebrow ?? (featured ? 'The featured game' : 'A game from history')}</p>
           {!featured && HISTORIC_GAMES.length > 1 && (
             <div className="replay-tabs">
               {HISTORIC_GAMES.map((g, i) => (
@@ -276,9 +287,10 @@ export function ReplayPage({
             Las<span>k</span>a
           </span>
           <span className="fine">
-            {featured
-              ? 'The engine’s own game, replayed move-by-move on the live engine.'
-              : 'Historic game replayed move-by-move on the live engine.'}
+            {fine ??
+              (featured
+                ? 'The engine’s own game, replayed move-by-move on the live engine.'
+                : 'Historic game replayed move-by-move on the live engine.')}
           </span>
         </div>
       </footer>
