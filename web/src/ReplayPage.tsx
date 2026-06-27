@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
-import { HISTORIC_GAMES } from './games.ts';
+import { HISTORIC_GAMES, type HistoricGame } from './games.ts';
 import { moveToSan } from './savedGames.ts';
 import {
   useGameAnalysis,
@@ -47,15 +47,21 @@ export function ReplayPage({
   onPlay,
   pieceTheme,
   gameId,
+  featured,
 }: {
   onBack: () => void;
   onPlay: () => void;
   pieceTheme: PieceTheme;
   gameId?: string;
+  /** A pre-built game to show instead of the historic library (no tabs) — used
+   *  for the landing-page self-play demo the engine just finished. */
+  featured?: HistoricGame;
 }) {
-  const initialIdx = Math.max(0, HISTORIC_GAMES.findIndex((g) => g.id === gameId));
+  // The historic library has a game switcher; a featured game stands alone.
+  const games = featured ? [featured] : HISTORIC_GAMES;
+  const initialIdx = featured ? 0 : Math.max(0, HISTORIC_GAMES.findIndex((g) => g.id === gameId));
   const [gameIdx, setGameIdx] = useState(initialIdx);
-  const game = HISTORIC_GAMES[gameIdx]!;
+  const game = games[gameIdx]!;
   const lastPly = game.plies.length;
   const [ply, setPly] = useState(0); // 0 = opening position
   const [playing, setPlaying] = useState(false);
@@ -132,8 +138,8 @@ export function ReplayPage({
 
       <section className="hero" style={{ paddingTop: 'clamp(2rem,5vw,4rem)', paddingBottom: 'clamp(1.5rem,4vw,2.5rem)' }}>
         <div className="wrap">
-          <p className="eyebrow">A game from history</p>
-          {HISTORIC_GAMES.length > 1 && (
+          <p className="eyebrow">{featured ? 'The featured game' : 'A game from history'}</p>
+          {!featured && HISTORIC_GAMES.length > 1 && (
             <div className="replay-tabs">
               {HISTORIC_GAMES.map((g, i) => (
                 <button
@@ -269,7 +275,11 @@ export function ReplayPage({
           <span className="mark">
             Las<span>k</span>a
           </span>
-          <span className="fine">Historic game replayed move-by-move on the live engine.</span>
+          <span className="fine">
+            {featured
+              ? 'The engine’s own game, replayed move-by-move on the live engine.'
+              : 'Historic game replayed move-by-move on the live engine.'}
+          </span>
         </div>
       </footer>
     </div>
