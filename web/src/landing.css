@@ -4,16 +4,31 @@
    game board's stylesheet. Stone + eucalyptus palette (the site default).
    ========================================================================== */
 .landing-page {
-  --bg: #e8e4db;
-  --l-light: #fbf8f2;
-  --l-shadow: #c4beb1;
-  --l-ink: #38342c;
-  --l-body: #645e51;
-  --faint: #7a7363;
-  --l-accent: #5f8c7e;
-  --accent-dk: #4a7165;
-  --piece-dark-1: #4b463c; --piece-dark-2: #322e27;
-  --piece-light-1: #f2ede3; --piece-light-2: #d9d2c4;
+  /* The website rides the game's active palette. Every colour token below maps
+     to a game token in styles.css, so [data-theme] on <html> reskins the whole
+     site — Stone / Dark / Navy / Light / Chocolate / Classic — exactly like the
+     board. (These values equalled the Stone palette when hardcoded; now they
+     follow it live.) */
+  --bg: var(--ground);
+  --l-light: var(--light);
+  --l-shadow: var(--dark);
+  --l-ink: var(--ink);
+  /* Body copy sits on the page ground, so soften the heading ink toward the
+     ground rather than borrowing --btn-ink (which is tuned for clay BUTTONS and
+     reads muddy on the split Classic/Navy grounds). */
+  --l-body: color-mix(in srgb, var(--ink) 75%, var(--ground));
+  --faint: var(--ink-soft);
+  --l-accent: var(--cobalt);
+  --accent-dk: var(--win);
+  /* demo-board coins follow the game's cream/rose armies (see .disc in styles.css):
+     stop 1 = top-left highlight, stop 2 = the army base colour. */
+  --piece-light-1: color-mix(in srgb, var(--cream) 92%, #fff); --piece-light-2: var(--cream);
+  --piece-dark-1: color-mix(in srgb, var(--rose) 88%, #fff); --piece-dark-2: var(--rose);
+  /* card surfaces, hairlines and secondary text, derived from the live palette
+     (previously referenced but never defined — they resolved to nothing). */
+  --card: color-mix(in srgb, var(--bg) 88%, var(--l-light));
+  --line: color-mix(in srgb, var(--l-ink) 14%, transparent);
+  --muted: var(--l-body);
   --maxw: 1120px;
   --pad: clamp(1.25rem, 5vw, 3.5rem);
   --section-y: clamp(5rem, 11vw, 9rem);
@@ -53,6 +68,7 @@
 .landing-page .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 74px; }
 .landing-page .mark { font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.35rem; color: var(--l-ink); letter-spacing: 0.02em; }
 .landing-page .mark span { color: var(--accent-dk); }
+.landing-page .topbar-actions { display: flex; align-items: center; gap: 0.6rem; }
 
 .landing-page .btn {
   display: inline-flex; align-items: center; gap: 0.55rem; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.9rem;
@@ -75,8 +91,15 @@
 
 /* hero board — the original laska.html board (small flat discs), now playing
    itself. Columns show as a commander disc with prisoner rims peeking below. */
-.landing-page .board-frame { background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise); padding: clamp(1rem, 2.5vw, 1.6rem); width: 100%; max-width: 430px; margin-inline: auto; }
-.landing-page .board { aspect-ratio: 1/1; width: 100%; background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset-deep); padding: clamp(0.5rem, 1.8vw, 0.9rem); display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(2px, 0.6vw, 5px); }
+/* The demo board is the game's board material, not the page ground: frame =
+   --pedestal, field = --plate (see styles.css). Identical to --bg in five
+   themes, but Classic floats a clay board on a navy ground — this makes the
+   demo board match the real one there instead of going navy-on-navy. */
+.landing-page .board-frame { background: var(--pedestal); border-radius: var(--r-lg); box-shadow: var(--nm-raise); padding: clamp(1rem, 2.5vw, 1.6rem); width: 100%; max-width: 430px; margin-inline: auto; }
+/* Scoped to .board-frame so it styles ONLY the landing's marketing demo board
+   (.board-frame > .board > .cell) and never leaks onto the real engine board
+   (BoardView renders .stage > .board), which is themed by styles.css. */
+.landing-page .board-frame .board { aspect-ratio: 1/1; width: 100%; background: var(--plate); border-radius: var(--r-md); box-shadow: var(--nm-inset-deep); padding: clamp(0.5rem, 1.8vw, 0.9rem); display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(2px, 0.6vw, 5px); }
 /* each cell is its own query container so the coin + stack offset scale to it */
 .landing-page .cell { position: relative; border-radius: 7px; container-type: size; --lcoin: 70cqmin; --lpeek: 11cqmin; }
 .landing-page .cell.play { box-shadow: inset 2px 2px 4px var(--l-shadow), inset -2px -2px 4px var(--l-light); }
@@ -164,11 +187,14 @@
 
 .landing-page .demo-note { margin-top: 1.2rem; text-align: center; font-size: 0.86rem; color: var(--faint); display: flex; align-items: center; justify-content: center; gap: 0.55rem; }
 .landing-page .demo-note .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--l-accent); animation: notePulse 1.7s infinite; }
-.landing-page .demo-result { gap: 1rem; font-size: 0.95rem; }
+.landing-page .demo-result { gap: 0.7rem 1rem; font-size: 0.95rem; flex-wrap: wrap; }
 .landing-page .demo-result strong { font-family: 'Fraunces', serif; font-weight: 500; color: var(--l-ink); }
-.landing-page .demo-again { font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.02em; color: var(--l-ink); background: var(--bg); border: none; border-radius: var(--r-pill); padding: 0.5rem 1.1rem; cursor: pointer; box-shadow: var(--nm-raise-sm); transition: box-shadow 0.16s ease, transform 0.16s ease, color 0.16s ease; }
+.landing-page .demo-again { display: inline-flex; align-items: center; gap: 0.35rem; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.02em; color: var(--l-ink); background: var(--bg); border: none; border-radius: var(--r-pill); padding: 0.5rem 1.1rem; cursor: pointer; box-shadow: var(--nm-raise-sm); transition: box-shadow 0.16s ease, transform 0.16s ease, color 0.16s ease; }
 .landing-page .demo-again:hover { color: var(--accent-dk); }
 .landing-page .demo-again:active { box-shadow: var(--nm-inset); transform: translateY(1px); }
+/* subtle inline link to analyse the demo while it is still playing */
+.landing-page .demo-analyze { display: inline-flex; align-items: center; gap: 0.3rem; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.82rem; color: var(--l-accent); background: none; border: 0; padding: 0; cursor: pointer; transition: color 0.16s ease; }
+.landing-page .demo-analyze:hover { color: var(--accent-dk); text-decoration: underline; }
 @keyframes notePulse { 0% { box-shadow: 0 0 0 0 rgba(95,140,126,0.45); } 70% { box-shadow: 0 0 0 7px rgba(95,140,126,0); } 100% { box-shadow: 0 0 0 0 rgba(95,140,126,0); } }
 @media (prefers-reduced-motion: reduce) { .landing-page .piece, .landing-page .demo-note .pulse { animation: none !important; } }
 
