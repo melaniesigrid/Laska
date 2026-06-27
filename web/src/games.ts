@@ -19,6 +19,7 @@ import {
   type GameState,
   type Move,
 } from '../../src/index.ts';
+import { moveToSan } from './savedGames.ts';
 
 /** Algebraic square (e.g. "c3") → engine square index 0..24. */
 function sq(alg: string): number {
@@ -121,6 +122,28 @@ function build(raw: RawGame): HistoricGame {
     return { san: rp.san, side, moveNo: Math.floor(i / 2) + 1, note: rp.note, move };
   });
   const { numeric: _omit, ...meta } = raw;
+  return { ...meta, plies, states };
+}
+
+/**
+ * Assemble a `HistoricGame` from a list of already-resolved engine moves — used
+ * for live games the engine just played (e.g. the landing-page self-play demo),
+ * so they replay and analyse through the exact same viewer as the recorded
+ * historic scores. SAN is generated from each move; states are folded from the
+ * opening. The moves are trusted (they came from the engine), so no re-resolving.
+ */
+export function buildLiveGame(
+  moves: Move[],
+  meta: Omit<HistoricGame, 'plies' | 'states'>,
+): HistoricGame {
+  let state = createInitialState();
+  const states: GameState[] = [state];
+  const plies: ReplayPly[] = moves.map((move, i) => {
+    const side: 'W' | 'B' = i % 2 === 0 ? 'W' : 'B';
+    state = applyMove(state, move);
+    states.push(state);
+    return { san: moveToSan(move), side, moveNo: Math.floor(i / 2) + 1, move };
+  });
   return { ...meta, plies, states };
 }
 

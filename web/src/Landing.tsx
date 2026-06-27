@@ -8,9 +8,10 @@ import {
   RC_TO_SQUARE,
   type GameState,
   type Column,
+  type Move,
   type PlayerColor,
 } from '../../src/index.ts';
-import { Palette } from 'lucide-react';
+import { Palette, Sparkles } from 'lucide-react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
 import './landing.css';
 
@@ -64,13 +65,19 @@ function DemoColumn({ col }: { col: Column }) {
  */
 type DemoResult = { winner: PlayerColor | null };
 
-function DemoBoard() {
+/** What the engine just played, handed to the analysis viewer. `result` is the
+ *  recorded outcome ('unfinished' when the player opens it mid-game). */
+export type DemoSnapshot = (moves: Move[], result: 'W' | 'B' | 'draw' | 'unfinished') => void;
+
+function DemoBoard({ onAnalyze }: { onAnalyze: DemoSnapshot }) {
   const [state, setState] = useState<GameState>(() => createInitialState());
   const [result, setResult] = useState<DemoResult | null>(null);
   const [round, setRound] = useState(0);
   const stateRef = useRef(state);
   stateRef.current = state;
   const boardRef = useRef<HTMLDivElement>(null);
+  // every move the engine has played this round, in order — replayed/analysed on demand
+  const movesRef = useRef<Move[]>([]);
   // the last move's from/to grid indices, so we can slide the landed column in
   const lastMoveRef = useRef<{ fromIdx: number; toIdx: number } | null>(null);
 
@@ -78,6 +85,7 @@ function DemoBoard() {
   // "Watch another" bumps `round` to start a fresh game.
   useEffect(() => {
     lastMoveRef.current = null;
+    movesRef.current = [];
     setResult(null);
     setState(createInitialState());
     if (prefersReducedMotion()) return; // hold a static opening
@@ -97,6 +105,7 @@ function DemoBoard() {
       }
       const move = chooseMove(prev, { depth: 2, blunderRate: 0.18 });
       if (move) {
+        movesRef.current.push(move);
         lastMoveRef.current = { fromIdx: SQ_TO_IDX[move.from]!, toIdx: SQ_TO_IDX[move.to]! };
         setState(applyMove(prev, move));
       }
@@ -108,6 +117,21 @@ function DemoBoard() {
       clearTimeout(timer);
     };
   }, [round]);
+
+  // Hand the recorded game to the analysis viewer. `finished` carries the result;
+  // opening it while the engine is still playing analyses the game so far.
+  const analyze = (finished: boolean) => {
+    const moves = movesRef.current;
+    if (moves.length === 0) return;
+    const outcome = !finished
+      ? 'unfinished'
+      : result?.winner === 'W'
+        ? 'W'
+        : result?.winner === 'B'
+          ? 'B'
+          : 'draw';
+    onAnalyze(moves.slice(), outcome);
+  };
 
   // After each move, slide the landed column from its source square to the
   // destination — so a capture reads as motion, not a snap.
@@ -165,6 +189,9 @@ function DemoBoard() {
               ? 'A draw.'
               : `The ${result.winner === 'W' ? 'light' : 'dark'} army wins.`}
           </strong>
+          <button className="demo-again" onClick={() => analyze(true)}>
+            <Sparkles size={14} /> Analyze this game
+          </button>
           <button className="demo-again" onClick={() => setRound((r) => r + 1)}>
             Watch another
           </button>
@@ -174,6 +201,11 @@ function DemoBoard() {
           <span className="pulse" aria-hidden="true" />
           Live demo — the engine is playing itself. Watch a captured piece slip beneath its captor and
           the columns rise.
+          {movesRef.current.length >= 4 && (
+            <button className="demo-analyze" onClick={() => analyze(false)}>
+              <Sparkles size={13} /> Analyze this game
+            </button>
+          )}
         </p>
       )}
     </>
@@ -194,6 +226,7 @@ export function Landing({
   onLessons,
   themeLabel,
   onCycleTheme,
+  onAnalyzeFeatured,
 }: {
   onPlay: () => void;
   onLasker: () => void;
@@ -204,6 +237,7 @@ export function Landing({
   onLessons: () => void;
   themeLabel: string;
   onCycleTheme: () => void;
+  onAnalyzeFeatured: DemoSnapshot;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -277,7 +311,7 @@ export function Landing({
           </div>
 
           <div className="reveal order-art">
-            <DemoBoard />
+            <DemoBoard onAnalyze={onAnalyzeFeatured} />
             <div className="legend">
               <span className="swatch">
                 <i className="dark" /> One army, 11 pieces

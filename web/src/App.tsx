@@ -42,6 +42,7 @@ import { useOnline } from './useOnline.ts';
 import { Landing } from './Landing.tsx';
 import { LaskerPage } from './LaskerPage.tsx';
 import { ReplayPage } from './ReplayPage.tsx';
+import { buildLiveGame, type HistoricGame } from './games.ts';
 import { BrochurePage } from './BrochurePage.tsx';
 import { AIPage } from './AIPage.tsx';
 import { BuildStoryPage } from './BuildStoryPage.tsx';
@@ -88,6 +89,15 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 /** Palettes — Stone is the site default (from laska.html); the rest from lasca-soft. */
 const THEMES = ['stone', 'dark', 'navy', 'light', 'chocolate', 'classic'] as const;
 type ThemeName = (typeof THEMES)[number];
+/** Demo (engine-vs-engine) outcome → the result string the replay viewer shows
+ *  and parses for the terminal eval (see ReplayPage.terminalWhiteEval). */
+const FEATURED_RESULT_TEXT: Record<'W' | 'B' | 'draw' | 'unfinished', string> = {
+  W: 'White wins',
+  B: 'Black wins',
+  draw: 'Draw',
+  unfinished: 'Unfinished',
+};
+
 const THEME_LABEL: Record<ThemeName, string> = {
   stone: 'Stone',
   dark: 'Dark',
@@ -160,9 +170,11 @@ export function App() {
     | 'lessons'
     | 'mygames'
     | 'watch'
+    | 'featured'
   >('landing');
   const [replayGameId, setReplayGameId] = useState<string | undefined>(undefined);
   const [watchId, setWatchId] = useState<string | undefined>(undefined);
+  const [featuredGame, setFeaturedGame] = useState<HistoricGame | undefined>(undefined);
   const [appMode, setAppMode] = useState<'local' | 'online'>('local');
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
@@ -208,6 +220,27 @@ export function App() {
     setView('watch');
   };
 
+  // The landing-page demo (engine vs engine) hands us its move list; assemble a
+  // game and open it in the same replay/analysis viewer as the historic scores.
+  const analyzeFeatured = (moves: Move[], result: 'W' | 'B' | 'draw' | 'unfinished') => {
+    // A signature so re-analysing a *different* demo game resets the engine review.
+    const sig = moves.map((m) => `${m.from}-${m.to}-${m.captures.length}`).join('|');
+    setFeaturedGame(
+      buildLiveGame(moves, {
+        id: `featured-${sig}`,
+        title: 'The engine plays itself',
+        white: 'Light army',
+        black: 'Dark army',
+        event: 'The engine vs itself',
+        result: FEATURED_RESULT_TEXT[result],
+        sourceNote: 'Played live in your browser, on the real engine.',
+        intro:
+          'This game was just played by the engine against itself — every move chosen by the same AI you play against. Step through it, or let the engine review each move and grade the play.',
+      }),
+    );
+    setView('featured');
+  };
+
   if (view === 'landing') {
     return (
       <Landing
@@ -220,6 +253,7 @@ export function App() {
         onLessons={() => setView('lessons')}
         themeLabel={THEME_LABEL[theme]}
         onCycleTheme={cycleTheme}
+        onAnalyzeFeatured={analyzeFeatured}
       />
     );
   }
@@ -260,6 +294,16 @@ export function App() {
         onPlay={() => setView('game')}
         pieceTheme={pieceTheme}
         gameId={replayGameId}
+      />
+    );
+  }
+  if (view === 'featured' && featuredGame) {
+    return (
+      <ReplayPage
+        onBack={() => setView('landing')}
+        onPlay={() => setView('game')}
+        pieceTheme={pieceTheme}
+        featured={featuredGame}
       />
     );
   }
