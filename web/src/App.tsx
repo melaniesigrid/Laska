@@ -43,6 +43,7 @@ import { Landing } from './Landing.tsx';
 import { LaskerPage } from './LaskerPage.tsx';
 import { ReplayPage } from './ReplayPage.tsx';
 import { buildLiveGame, type HistoricGame } from './games.ts';
+import { readShareCode, clearShareParam, gameFromCode } from './share.ts';
 import { BrochurePage } from './BrochurePage.tsx';
 import { AIPage } from './AIPage.tsx';
 import { BuildStoryPage } from './BuildStoryPage.tsx';
@@ -174,7 +175,11 @@ export function App() {
   >('landing');
   const [replayGameId, setReplayGameId] = useState<string | undefined>(undefined);
   const [watchId, setWatchId] = useState<string | undefined>(undefined);
-  const [featuredGame, setFeaturedGame] = useState<HistoricGame | undefined>(undefined);
+  // The single-game replay viewer (engine self-play demo, or a shared link). The
+  // optional copy lets a shared replay relabel the section without a new view.
+  const [featured, setFeatured] = useState<
+    { game: HistoricGame; eyebrow?: string; fine?: string } | undefined
+  >(undefined);
   const [appMode, setAppMode] = useState<'local' | 'online'>('local');
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
@@ -225,8 +230,8 @@ export function App() {
   const analyzeFeatured = (moves: Move[], result: 'W' | 'B' | 'draw' | 'unfinished') => {
     // A signature so re-analysing a *different* demo game resets the engine review.
     const sig = moves.map((m) => `${m.from}-${m.to}-${m.captures.length}`).join('|');
-    setFeaturedGame(
-      buildLiveGame(moves, {
+    setFeatured({
+      game: buildLiveGame(moves, {
         id: `featured-${sig}`,
         title: 'The engine plays itself',
         white: 'Light army',
@@ -237,9 +242,26 @@ export function App() {
         intro:
           'This game was just played by the engine against itself — every move chosen by the same AI you play against. Step through it, or let the engine review each move and grade the play.',
       }),
-    );
+    });
     setView('featured');
   };
+
+  // A `?g=` link carries a whole game in the URL — decode it and open the same
+  // replay/analysis viewer. Runs once on mount; clears the param afterward so a
+  // refresh or in-app navigation lands on the normal site.
+  useEffect(() => {
+    const code = readShareCode();
+    if (!code) return;
+    const game = gameFromCode(code);
+    clearShareParam();
+    if (!game) return; // malformed or doesn't replay — ignore, stay on landing
+    setFeatured({
+      game,
+      eyebrow: 'A shared game',
+      fine: 'A game shared with you, replayed move-by-move on the live engine.',
+    });
+    setView('featured');
+  }, []);
 
   if (view === 'landing') {
     return (
@@ -297,13 +319,15 @@ export function App() {
       />
     );
   }
-  if (view === 'featured' && featuredGame) {
+  if (view === 'featured' && featured) {
     return (
       <ReplayPage
         onBack={() => setView('landing')}
         onPlay={() => setView('game')}
         pieceTheme={pieceTheme}
-        featured={featuredGame}
+        featured={featured.game}
+        eyebrow={featured.eyebrow}
+        fine={featured.fine}
       />
     );
   }
