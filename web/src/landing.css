@@ -118,6 +118,31 @@
 /* themed rank insignia (star/medal/crown/shield) — sized as a share of the disc,
    engraved via drop-shadow since this board doesn't define the game's --coin */
 .landing-page .piece .insignia { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 54%; height: 54%; pointer-events: none; }
+/* The hero demo reuses <Insignia>, but its coins are .piece — not the game's
+   .disc — so the deboss + themed-star rules in styles.css (scoped to .disc)
+   never reach it, and the general's star fell back to the default ink colour.
+   Mirror those rules here so the star reads identically on the hero board. */
+.landing-page .piece.light .insignia {
+  color: color-mix(in srgb, var(--cream) 70%, #6a563f);
+  filter: drop-shadow(-0.6px -0.6px 0.4px rgba(95,80,58,0.5)) drop-shadow(0.7px 0.8px 0.5px color-mix(in srgb, var(--light) 85%, #fff));
+}
+.landing-page .piece.dark .insignia {
+  color: color-mix(in srgb, var(--rose) 78%, #000);
+  filter: drop-shadow(-0.6px -0.6px 0.4px rgba(0,0,0,0.5)) drop-shadow(0.7px 0.8px 0.5px color-mix(in srgb, var(--rose) 45%, #fff));
+}
+/* Generals wear high-contrast metal stars on the red/blue palettes, matching
+   the game board: Navy = gold, Confetti = sunny yellow. The `.insignia.ins-officer`
+   pair is intentional — it outranks the `.piece.<faction> .insignia` deboss rules
+   on specificity, so the star colour wins regardless of source order (landing.css
+   is injected per-page in dev, which duplicates the deboss rule after these). */
+[data-theme='navy'] .landing-page .piece .insignia.ins-officer {
+  color: #f0c84b;
+  filter: drop-shadow(-0.6px -0.6px 0.4px rgba(75,52,4,0.72)) drop-shadow(0.7px 0.8px 0.5px rgba(255,235,145,0.52));
+}
+[data-theme='confetti'] .landing-page .piece .insignia.ins-officer {
+  color: var(--dot-sun);
+  filter: drop-shadow(-0.6px -0.6px 0.4px rgba(120,90,10,0.55)) drop-shadow(0.7px 0.8px 0.5px rgba(255,240,170,0.6));
+}
 
 /* ---- interactive strategy lessons ---------------------------------- */
 .landing-page .lesson-grid {
@@ -186,7 +211,7 @@
 @keyframes pieceIn { from { opacity: 0; transform: scale(0.78); } to { opacity: 1; transform: scale(1); } }
 
 .landing-page .demo-note { margin-top: 1.2rem; text-align: center; font-size: 0.86rem; color: var(--faint); display: flex; align-items: center; justify-content: center; gap: 0.55rem; }
-.landing-page .demo-note .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--l-accent); animation: notePulse 1.7s infinite; }
+.landing-page .demo-note .pulse { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--l-accent); animation: notePulse 1.7s infinite; }
 .landing-page .demo-result { gap: 0.7rem 1rem; font-size: 0.95rem; flex-wrap: wrap; }
 .landing-page .demo-result strong { font-family: 'Fraunces', serif; font-weight: 500; color: var(--l-ink); }
 .landing-page .demo-again { display: inline-flex; align-items: center; gap: 0.35rem; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.02em; color: var(--l-ink); background: var(--bg); border: none; border-radius: var(--r-pill); padding: 0.5rem 1.1rem; cursor: pointer; box-shadow: var(--nm-raise-sm); transition: box-shadow 0.16s ease, transform 0.16s ease, color 0.16s ease; }
@@ -525,4 +550,29 @@
 
 @media (max-width: 520px) {
   .landing-page .corpus-bar { flex-direction: column; align-items: stretch; }
+}
+
+/* ==========================================================================
+   CONFETTI — landing overrides. The landing already maps to the theme tokens
+   (--l-accent = --cobalt, --accent-dk = --win), so under Confetti its display
+   accent would inherit the mint --win green. Repoint the display accent to the
+   grape --cobalt so the whole landing speaks ONE accent language (matching the
+   app chrome), and flatten the landing buttons into the same candy controls.
+   The hero self-play board keeps its neumorphic sculpting (the hybrid).
+   ========================================================================== */
+[data-theme='confetti'] .landing-page {
+  /* display/italic accent ("erased", the mark, hovers, focus) joins the grape
+     interactive accent instead of staying on the mint win-colour. */
+  --accent-dk: var(--cobalt);
+}
+[data-theme='confetti'] .landing-page .btn {
+  background: #fff; color: var(--l-ink);
+  box-shadow: 0 3px 0 var(--dark), 0 8px 16px rgb(var(--cast) / 0.12);
+}
+[data-theme='confetti'] .landing-page .btn:hover { color: var(--cobalt); transform: translateY(-1px); }
+[data-theme='confetti'] .landing-page .btn:active {
+  box-shadow: 0 1px 0 var(--dark); transform: translateY(2px);
+}
+[data-theme='confetti'] .landing-page .btn-lg {
+  box-shadow: 0 4px 0 var(--dark), 0 10px 22px rgb(var(--cast) / 0.12);
 }
