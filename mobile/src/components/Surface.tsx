@@ -1,6 +1,6 @@
 /**
  * Surface — a neumorphic card/panel. The reusable building block for cards in
- * Profile/Online/CaptureChooser, replacing the old flat `backgroundColor` views.
+ * Profile/Online, replacing the old flat `backgroundColor` views.
  *
  *   <Surface>            raised card (lifted from the page)
  *   <Surface variant="inset">   recessed tray (sunk into the page)

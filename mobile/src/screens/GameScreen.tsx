@@ -8,7 +8,6 @@ import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Board } from '../components/Board.tsx';
 import { Button } from '../components/Button.tsx';
-import { CaptureChooser } from '../components/CaptureChooser.tsx';
 import { StatusPill } from '../components/StatusPill.tsx';
 import { useGame, type GameMode } from '../hooks/useGame.ts';
 import { useTheme } from '../theme/ThemeProvider.tsx';
@@ -37,7 +36,7 @@ export function GameScreen({ route }: PlayStackScreenProps<'Game'>) {
 
       <View style={styles.boardWrap}>
         <Board
-          board={game.state.board}
+          board={game.board}
           selected={game.selected}
           targets={game.targets}
           palette={palette}
@@ -57,13 +56,6 @@ export function GameScreen({ route }: PlayStackScreenProps<'Game'>) {
           style={styles.ctrl}
         />
       </View>
-
-      <CaptureChooser
-        choices={game.pendingChoices}
-        palette={palette}
-        onChoose={game.chooseMove}
-        onCancel={game.cancelChoices}
-      />
     </View>
   );
 }

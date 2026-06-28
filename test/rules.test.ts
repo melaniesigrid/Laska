@@ -9,8 +9,10 @@ import {
   createInitialState,
   legalMoves,
   applyMove,
+  moveStepBoards,
   gameStatus,
   controlledSquares,
+  commander,
 } from '../src/rules.ts';
 import { encodePosition, decodePosition } from '../src/notation.ts';
 import type { Board, GameState, Move, PlayerColor } from '../src/types.ts';
@@ -185,6 +187,46 @@ test('player may choose freely among multiple captures (no maximum-capture rule)
   assert.equal(moves.length, 2);
   assert.deepEqual(toSet(moves.map((m) => m.to)), toSet([14, 16]));
   assert.ok(moves.every((m) => m.captures.length === 1));
+});
+
+test('moveStepBoards yields one board per jump, ending at the applyMove board', () => {
+  // White @0 jumps 4 (->8) then 12 (->16): two hops, two snapshots.
+  const s = buildState('W:0=Ws,4=Bs,12=Bs');
+  const m = sole(legalMoves(s));
+  const steps = moveStepBoards(s, m);
+  assert.equal(steps.length, 2);
+
+  // After hop 1: column sits on 8 with the first prisoner buried; 4 is emptied,
+  // but the second victim @12 is still on the board, untouched.
+  assert.equal(steps[0]![0], null);
+  assert.equal(steps[0]![4], null);
+  assert.deepEqual(steps[0]![8], [
+    { color: 'B', rank: 'soldier' },
+    { color: 'W', rank: 'soldier' },
+  ]);
+  assert.deepEqual(steps[0]![12], [{ color: 'B', rank: 'soldier' }]);
+  assert.equal(steps[0]![16], null);
+
+  // The final snapshot is exactly the applyMove result (and never mutated input).
+  assert.deepEqual(steps[1], applyMove(s, m).board);
+  assert.deepEqual(s.board[12], [{ color: 'B', rank: 'soldier' }], 'input not mutated');
+});
+
+test('moveStepBoards on a quiet move is a single snapshot, with promotion applied', () => {
+  // A quiet (non-capture) move returns just the landing board.
+  const s = buildState('W:0=Ws');
+  const m = sole(legalMoves(s).filter((mv) => mv.from === 0 && mv.to === 4));
+  const steps = moveStepBoards(s, m);
+  assert.equal(steps.length, 1);
+  assert.deepEqual(steps[0], applyMove(s, m).board);
+
+  // Promotion lands only on the final square — a soldier reaching the back rank.
+  // A White soldier @18 (row 5) steps to row 6 (21 or 22) and is crowned.
+  const p = buildState('W:18=Ws');
+  const pm = legalMoves(p)[0]!;
+  assert.equal(pm.promotion, true);
+  const pSteps = moveStepBoards(p, pm);
+  assert.equal(commander(pSteps.at(-1)![pm.to] ?? null)!.rank, 'officer');
 });
 
 // ---- open question: jumping the same square twice -------------------------

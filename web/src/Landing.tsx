@@ -13,6 +13,7 @@ import {
 } from '../../src/index.ts';
 import { Palette, Sparkles } from 'lucide-react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
+import { DotMascot } from './mascots.tsx';
 import './landing.css';
 
 const prefersReducedMotion = () =>
@@ -485,7 +486,14 @@ export function Landing({
 
           <div className="lasker-grid" style={{ marginTop: 'clamp(2.5rem,5vw,3.5rem)' }}>
             <div className="portrait reveal">
-              <div className="medallion">EL</div>
+              <img
+                className="portrait-photo"
+                src="/young-emanuel-lasker.png"
+                alt="Portrait of a young Emanuel Lasker, inventor of Laska."
+                width={180}
+                height={180}
+                loading="lazy"
+              />
               <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <span className="name">Emanuel Lasker</span>
                 <span className="years">1868 — 1941</span>
@@ -584,7 +592,8 @@ export function Landing({
       <section id="play" className="closing">
         <div className="wrap">
           <div className="panel reveal">
-            <p className="eyebrow" style={{ marginBottom: '1.2rem' }}>
+            <DotMascot color="var(--l-accent)" mood="idle" size={92} label="Laska mascot" />
+            <p className="eyebrow" style={{ marginTop: '0.4rem', marginBottom: '1.2rem' }}>
               Your move
             </p>
             <h2>

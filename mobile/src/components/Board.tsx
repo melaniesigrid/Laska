@@ -330,22 +330,15 @@ function Insignia({
   const main = white ? 'rgba(106,86,63,0.9)' : 'rgba(0,0,0,0.42)';
   const off = r * 0.06;
 
-  if (officer) {
-    const size = r * 0.56;
-    return (
-      <G>
-        <Polygon points={starPoints(cx - off, cy - off, size)} fill={bevelDark} />
-        <Polygon points={starPoints(cx + off, cy + off, size)} fill={bevelLight} />
-        <Polygon points={starPoints(cx, cy, size)} fill={main} />
-      </G>
-    );
-  }
-  const pipR = r * 0.16;
+  // Only generals are marked (an engraved star); soldiers are a plain coin —
+  // matching the web's Heirloom theme (../../web/src/pieceTheme.tsx).
+  if (!officer) return null;
+  const size = r * 0.56;
   return (
     <G>
-      <Circle cx={cx - off} cy={cy - off} r={pipR} fill={bevelDark} />
-      <Circle cx={cx + off} cy={cy + off} r={pipR} fill={bevelLight} />
-      <Circle cx={cx} cy={cy} r={pipR} fill={main} />
+      <Polygon points={starPoints(cx - off, cy - off, size)} fill={bevelDark} />
+      <Polygon points={starPoints(cx + off, cy + off, size)} fill={bevelLight} />
+      <Polygon points={starPoints(cx, cy, size)} fill={main} />
     </G>
   );
 }

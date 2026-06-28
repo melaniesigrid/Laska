@@ -22,8 +22,13 @@ import {
   createInitialState,
   legalMoves,
   applyMove,
+  moveStepBoards,
+  beginCaptureChain,
+  nextHopTargets,
+  advanceCaptureChain,
   gameStatus,
   opponent,
+  type CaptureChain,
   RC_TO_SQUARE,
   BOARD_DIM,
   DIFFICULTY_DEPTH,
@@ -68,6 +73,7 @@ import {
   type PieceTheme,
 } from './pieceTheme.tsx';
 import { track, trackAppOpen, type MatchMode } from './analytics/index.ts';
+import { DotMascot } from './mascots.tsx';
 
 type Mode = 'hotseat' | 'ai';
 
@@ -87,8 +93,9 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   expert: 'Expert',
 };
 
-/** Palettes — Stone is the site default (from laska.html); the rest from lasca-soft. */
-const THEMES = ['stone', 'dark', 'navy', 'light', 'chocolate', 'classic'] as const;
+/** Palettes — Navy (blue/red armies, gold star) is the site default; the rest
+ *  carried over from laska.html / lasca-soft. */
+const THEMES = ['navy', 'stone', 'dark', 'light', 'chocolate', 'twilight', 'confetti'] as const;
 type ThemeName = (typeof THEMES)[number];
 /** Demo (engine-vs-engine) outcome → the result string the replay viewer shows
  *  and parses for the terminal eval (see ReplayPage.terminalWhiteEval). */
@@ -105,17 +112,20 @@ const THEME_LABEL: Record<ThemeName, string> = {
   navy: 'Navy',
   light: 'Light',
   chocolate: 'Chocolate',
-  classic: 'Classic',
+  twilight: 'Twilight',
+  confetti: 'Confetti',
 };
 
 function readStoredTheme(): ThemeName {
   try {
     const t = localStorage.getItem('laska-theme');
+    // Migrate the old 'classic' key to its new name so a saved choice survives.
+    if (t === 'classic') return 'twilight';
     if (THEMES.includes(t as ThemeName)) return t as ThemeName;
   } catch {
     /* ignore */
   }
-  return 'stone';
+  return 'navy';
 }
 
 function readStoredPieceTheme(): PieceTheme {
@@ -144,6 +154,24 @@ const nextColumnId = () => `col-${columnIdSeq++}`;
 function freshColumnIds(board: Board): (string | null)[] {
   return board.map((col) => (col ? nextColumnId() : null));
 }
+
+/** One jump of a chain, framed as a Move so a single hop can reuse the column-id
+ *  migration below. `captured` is the square jumped this hop (omit for a quiet
+ *  step). Only ever a single step, so `to`/`path` carry just the landing. */
+function hopMove(from: number, to: number, captured: number | undefined): Move {
+  return {
+    from,
+    to,
+    path: [to],
+    captures: captured === undefined ? [] : [captured],
+    isCapture: captured !== undefined,
+    promotion: false,
+  };
+}
+
+/** How long each leap of an animated multi-jump dwells before the next, in ms.
+ *  Tuned just above the glide spring so a hop fully lands before the next fires. */
+const HOP_MS = 300;
 
 /** Carry ids forward through `move`: the mover keeps its id at the destination;
  *  a jumped column that had a single piece is emptied; multi-piece victims keep
@@ -442,6 +470,14 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   const [colIds, setColIds] = useState<(string | null)[]>(() => freshColumnIds(state.board));
   const [moveFx, setMoveFx] = useState<MoveFx | null>(null);
   const [resignedWinner, setResignedWinner] = useState<PlayerColor | null>(null);
+  // A multi-jump in progress, shown one leap at a time. `stepBoard` overrides the
+  // committed `state.board` while a chain plays out (the engine state only flips
+  // once, on the final landing). `capture` tracks a HUMAN chain mid-flight: the
+  // origin, the landing squares already clicked, and the legal moves still
+  // consistent with that prefix — so the next click need only pick a leap.
+  const [stepBoard, setStepBoard] = useState<Board | null>(null);
+  const [capture, setCapture] = useState<CaptureChain | null>(null);
+  const aiHopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Hint: the engine's best move for the side to move, surfaced on demand and
   // highlighted on the board. Cleared on any board change so it can never point
   // at a stale position. `hintLoading` covers the off-thread search.
@@ -491,39 +527,141 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
     if (!gameOver) finishedReportedAt.current = null;
   }, [gameOver, status, moves.length, mode, aiColor]);
 
+  // The squares the player can click next. Mid-capture these are the landing
+  // squares for the NEXT leap only (`path[depth]`); otherwise the first step of
+  // each move from the selected column. The mapped Move is the deepest
+  // representative — used only to tell capture targets from quiet steps.
+  // The capture chain in play: the one mid-flight, or — for a freshly selected
+  // capturing column — a fresh chain so the FIRST leap is offered. Null when the
+  // selection has only quiet moves (then `destinations` lights their landings).
+  const activeChain = useMemo<CaptureChain | null>(() => {
+    if (capture) return capture;
+    if (selected != null) return beginCaptureChain(legal, selected);
+    return null;
+  }, [capture, selected, legal]);
+
   const destinations = useMemo(() => {
-    if (selected == null) return new Map<number, Move>();
+    if (activeChain) return nextHopTargets(activeChain);
     const map = new Map<number, Move>();
-    for (const m of movesFrom(legal, selected)) {
-      const existing = map.get(m.to);
-      if (!existing || m.captures.length > existing.captures.length) map.set(m.to, m);
+    if (selected != null) {
+      for (const m of movesFrom(legal, selected)) if (!map.has(m.to)) map.set(m.to, m);
     }
     return map;
-  }, [legal, selected]);
+  }, [activeChain, legal, selected]);
+
+  // The square the moving column currently sits on: the last leap landed during
+  // a capture chain, or the selected column otherwise.
+  const movingSquare = capture ? capture.steps[capture.steps.length - 1]! : selected;
 
   const captureTargets = useMemo(
     () => new Set([...destinations].filter(([, m]) => m.isCapture).map(([sq]) => sq)),
     [destinations],
   );
 
-  /** Apply `move` from `prev`, recording history and migrating column ids so the
-   *  moved column glides to its destination. The one path both human and AI use. */
-  const playMove = useCallback((prev: GameState, move: Move) => {
+  /** Commit the engine state + bookkeeping for a fully-played `move`. The visual
+   *  staging (column-id glide, reward fx, the step-board override) is left to the
+   *  caller, because a quiet move, an animated AI chain and a hand-played human
+   *  chain each arrive here having already drawn their own final frame. */
+  const commitMove = useCallback((prev: GameState, move: Move) => {
     setHistory((h) => [...h, prev]);
     setMoves((m) => [...m, move]);
     setHint(null); // a hint is about the position before this move; drop it
     setJustSaved(false); // the saved snapshot is now stale until re-saved
-    setColIds((ids) => advanceColumnIds(ids, prev.board, move));
-    // One-shot reward feedback on the landing square: tuck prisoners under the
-    // cap and pop a fresh promotion. Cleared (null) on quiet, non-promoting moves.
-    setMoveFx(
-      move.isCapture || move.promotion
-        ? { square: move.to, tuckCount: move.isCapture ? move.captures.length : 0, promoted: move.promotion }
-        : null,
-    );
     setState(applyMove(prev, move));
     setSelected(null);
+    setCapture(null);
+    setStepBoard(null);
   }, []);
+
+  /** Play `move` as a single glide from origin to destination — the path for
+   *  quiet moves (captures glide one leap at a time, see below). */
+  const playMove = useCallback(
+    (prev: GameState, move: Move) => {
+      setColIds((ids) => advanceColumnIds(ids, prev.board, move));
+      // One-shot reward feedback on the landing square: tuck prisoners under the
+      // cap and pop a fresh promotion. Cleared (null) on quiet, non-promoting moves.
+      setMoveFx(
+        move.isCapture || move.promotion
+          ? { square: move.to, tuckCount: move.isCapture ? move.captures.length : 0, promoted: move.promotion }
+          : null,
+      );
+      commitMove(prev, move);
+    },
+    [commitMove],
+  );
+
+  /** Play `move` out one leap at a time: each jump glides the column a single
+   *  step and buries that jump's prisoner, with a beat between hops, so the
+   *  computer's chain reads as a sequence of leaps rather than a teleport. Quiet
+   *  or single-jump moves fall through to one glide. */
+  const animateMove = useCallback(
+    (prev: GameState, move: Move) => {
+      const steps = moveStepBoards(prev, move);
+      if (steps.length <= 1) {
+        playMove(prev, move);
+        return;
+      }
+      let i = 0;
+      const runHop = () => {
+        const last = i === move.path.length - 1;
+        const from = i === 0 ? move.from : move.path[i - 1]!;
+        const landing = move.path[i]!;
+        const captured = move.captures[i];
+        const prevBoard = i === 0 ? prev.board : steps[i - 1]!;
+        setColIds((ids) => advanceColumnIds(ids, prevBoard, hopMove(from, landing, captured)));
+        setMoveFx({
+          square: landing,
+          tuckCount: captured === undefined ? 0 : 1,
+          promoted: last && move.promotion,
+        });
+        if (last) {
+          commitMove(prev, move); // engine flips here; step-board clears to the final board
+        } else {
+          setStepBoard(steps[i]!);
+          i += 1;
+          aiHopTimer.current = setTimeout(runHop, HOP_MS);
+        }
+      };
+      runHop();
+    },
+    [playMove, commitMove],
+  );
+
+  /** Advance a human-played capture by one leap to `sq` (a legal next landing).
+   *  Glides the column one step and buries that leap's prisoner; if the leap
+   *  completes a full move it commits, otherwise it parks the longer candidates
+   *  still in play and waits for the next click — so the player jumps each enemy
+   *  themselves instead of clicking only the final square. */
+  const advanceCapture = useCallback(
+    (sq: number) => {
+      if (!activeChain) return;
+      const res = advanceCaptureChain(activeChain, sq);
+      if (!res) return; // not a legal next leap
+      const depth = activeChain.steps.length;
+      // Any move that still matches this leap shares the board up to it; for a
+      // commit that's the move itself, otherwise any surviving candidate.
+      const rep = res.kind === 'commit' ? res.move : res.chain.candidates[0]!;
+      const steps = moveStepBoards(state, rep);
+      const from = depth === 0 ? activeChain.origin : activeChain.steps[depth - 1]!;
+      const prevBoard = depth === 0 ? state.board : steps[depth - 1]!;
+      const captured = rep.captures[depth];
+
+      setColIds((ids) => advanceColumnIds(ids, prevBoard, hopMove(from, sq, captured)));
+
+      if (res.kind === 'commit') {
+        // Final leap: bury the last prisoner, pop any promotion, and commit.
+        setMoveFx({ square: sq, tuckCount: 1, promoted: res.move.promotion });
+        commitMove(state, res.move);
+      } else {
+        // More jumps are forced — show this leap and await the next click.
+        setMoveFx({ square: sq, tuckCount: 1, promoted: false });
+        setStepBoard(steps[depth]!);
+        setSelected(sq);
+        setCapture(res.chain);
+      }
+    },
+    [activeChain, state, commitMove],
+  );
 
   const isAiTurn = mode === 'ai' && !gameOver && state.toMove === aiColor;
 
@@ -568,19 +706,28 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
       aiTimer.current = setTimeout(() => {
         if (cancelled) return;
         setThinking(false);
-        if (move) playMove(snapshot, move);
+        if (move) animateMove(snapshot, move);
       }, wait);
     });
     return () => {
       cancelled = true;
       if (aiTimer.current) clearTimeout(aiTimer.current);
+      if (aiHopTimer.current) clearTimeout(aiHopTimer.current);
     };
-  }, [isAiTurn, state, difficulty, playMove]);
+  }, [isAiTurn, state, difficulty, animateMove]);
 
   const handleSquareClick = useCallback(
     (square: number) => {
       if (gameOver || isAiTurn || thinking) return;
       setHint(null); // any interaction dismisses the hint highlight
+
+      // Mid-capture: the only meaningful clicks are the next legal leap. Any other
+      // square is ignored — the chain is forced and must be played out.
+      if (capture) {
+        if (destinations.has(square)) advanceCapture(square);
+        return;
+      }
+
       const move = destinations.get(square);
       if (selected != null && move) {
         // Funnel: the human's FIRST committed move of a fresh board is the true
@@ -596,7 +743,10 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
           });
           track('match.first_move', { mode: matchMode });
         }
-        playMove(state, move);
+        // Captures are played one leap at a time (a multi-jump waits for the next
+        // click); quiet moves glide straight to their square.
+        if (move.isCapture) advanceCapture(square);
+        else playMove(state, move);
         return;
       }
       if (movableSquares.has(square)) {
@@ -609,10 +759,12 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
       gameOver,
       isAiTurn,
       thinking,
+      capture,
       destinations,
       selected,
       state,
       playMove,
+      advanceCapture,
       movableSquares,
       moves.length,
       mode,
@@ -623,10 +775,13 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
 
   const newGame = useCallback(() => {
     if (aiTimer.current) clearTimeout(aiTimer.current);
+    if (aiHopTimer.current) clearTimeout(aiHopTimer.current);
     const fresh = createInitialState();
     setState(fresh);
     setColIds(freshColumnIds(fresh.board));
     setMoveFx(null);
+    setStepBoard(null);
+    setCapture(null);
     setHistory([]);
     setMoves([]);
     setSavedId(null);
@@ -641,13 +796,18 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
     if (gameOver || isAiTurn || thinking) return;
     if (!window.confirm(`Resign this game? ${COLOR_NAME[opponent(state.toMove)]} will win.`)) return;
     if (aiTimer.current) clearTimeout(aiTimer.current);
+    if (aiHopTimer.current) clearTimeout(aiHopTimer.current);
     setSelected(null);
+    setCapture(null);
+    setStepBoard(null);
     setResignedWinner(opponent(state.toMove));
   }, [gameOver, isAiTurn, thinking, state.toMove]);
 
   const undo = useCallback(() => {
     setResignedWinner(null);
     setHint(null);
+    setCapture(null);
+    setStepBoard(null);
     setHistory((h) => {
       if (h.length === 0) return h;
       let target = h.length - 1;
@@ -706,15 +866,18 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   }, [status, state.toMove, isAiTurn, thinking, mustCapture]);
 
   const StatusIcon = status.state === 'win' ? Trophy : status.state === 'draw' ? Minus : CircleDot;
+  // Only cheer when the human actually won: in hotseat any win is a celebration;
+  // vs the computer, a win by the AI colour is a loss, so the mascot commiserates.
+  const celebrate = status.state === 'win' && (mode !== 'ai' || status.winner !== aiColor);
 
   return (
     <div className="game-layout">
       <BoardView
-        board={state.board}
+        board={stepBoard ?? state.board}
         dim={BOARD_DIM}
         rcToSquare={RC_TO_SQUARE}
-        selected={selected}
-        movable={movableSquares}
+        selected={movingSquare}
+        movable={capture ? new Set(movingSquare == null ? [] : [movingSquare]) : movableSquares}
         destinations={new Set(destinations.keys())}
         onSquareClick={handleSquareClick}
         interactive={!gameOver && !isAiTurn && !thinking}
@@ -727,6 +890,16 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
       />
 
       <div className="control-deck">
+        {gameOver && (
+          <div style={{ order: -2, display: 'flex', justifyContent: 'center' }}>
+            <DotMascot
+              tint={celebrate ? 'sun' : 'sky'}
+              mood={celebrate ? 'cheer' : 'sleepy'}
+              size={84}
+              label={celebrate ? 'You won!' : 'Game over'}
+            />
+          </div>
+        )}
         <div
           className={`status ${status.state === 'win' ? 'win' : status.state === 'draw' ? 'draw' : ''}${
             (isAiTurn || thinking) ? ' thinking' : ''

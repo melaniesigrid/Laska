@@ -1,8 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Route } from 'lucide-react';
-import { RC_TO_SQUARE, SQUARE_TO_RC, BOARD_DIM, type Move, type PlayerColor } from '../../src/index.ts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import {
+  RC_TO_SQUARE,
+  BOARD_DIM,
+  beginCaptureChain,
+  nextHopTargets,
+  advanceCaptureChain,
+  moveStepBoards,
+  matchLegalMove,
+  type Board,
+  type CaptureChain,
+  type GameState,
+  type Move,
+  type PlayerColor,
+} from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
 import { useOnline } from './useOnline.ts';
+import { DotMascot } from './mascots.tsx';
+
+/** ms per leap while animating an opponent's multi-jump. */
+const ANIM_LEAP_MS = 300;
 
 const COLOR_NAME: Record<PlayerColor, string> = { W: 'White', B: 'Black' };
 
@@ -11,19 +28,6 @@ function fmtClock(ms: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function squareName(square: number): string {
-  const rc = SQUARE_TO_RC[square];
-  if (!rc) return String(square);
-  return `${String.fromCharCode(97 + rc.col)}${rc.row + 1}`;
-}
-
-/** Human-readable full route for capture chains that end on the same square. */
-function moveRoute(move: Move): string {
-  const landings = move.path.map(squareName).join(' → ');
-  const captured = move.captures.map(squareName).join(', ');
-  return `${squareName(move.from)} → ${landings} · takes ${captured}`;
 }
 
 function AuthPanel({ online }: { online: ReturnType<typeof useOnline> }) {
@@ -88,7 +92,8 @@ function Lobby({ online }: { online: ReturnType<typeof useOnline> }) {
         </div>
       )}
       {online.phase === 'queued' && (
-        <div className="buttons">
+        <div className="buttons" style={{ flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}>
+          <DotMascot tint="sky" mood="idle" size={72} />
           <span className="searching">Searching for an opponent near your rating…</span>
           <button onClick={() => online.leaveQueue()}>Cancel</button>
         </div>
@@ -105,73 +110,156 @@ function Lobby({ online }: { online: ReturnType<typeof useOnline> }) {
 
 export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }) {
   const [selected, setSelected] = useState<number | null>(null);
-  const [moveChoices, setMoveChoices] = useState<Move[]>([]);
+  // A multi-jump the local player is performing one leap at a time.
+  const [chain, setChain] = useState<CaptureChain | null>(null);
+  // Intermediate board shown mid-chain (between leaps), and the override used to
+  // animate an opponent's multi-jump leap by leap. Both take precedence over the
+  // (already optimistic) rendered board.
+  const [previewBoard, setPreviewBoard] = useState<Board | null>(null);
+  const [animBoard, setAnimBoard] = useState<Board | null>(null);
 
   const match = online.match;
   const gs = online.gameState;
   const legal = online.legalMoves;
 
   const movable = useMemo(() => new Set(legal.map((m) => m.from)), [legal]);
+
+  // While a chain is live, only the chained column's current square is "movable";
+  // a tap there does nothing (you must pick a landing), but it keeps the column lit.
+  const movingSquare = chain ? chain.steps[chain.steps.length - 1]! : selected;
+
+  // The chain currently driving destination squares: an in-progress one, or a
+  // freshly-begun one for the selected column if that column can capture.
+  const activeChain = useMemo<CaptureChain | null>(() => {
+    if (chain) return chain;
+    if (selected != null && gs) return beginCaptureChain(legal, selected);
+    return null;
+  }, [chain, selected, gs, legal]);
+
+  // Destination squares → the representative Move reached by tapping there.
   const destinations = useMemo(() => {
-    if (selected == null) return new Map<number, Move[]>();
-    const map = new Map<number, Move[]>();
-    for (const m of legal) {
-      if (m.from !== selected) continue;
-      const options = map.get(m.to) ?? [];
-      options.push(m);
-      map.set(m.to, options);
-    }
+    if (activeChain) return nextHopTargets(activeChain);
+    if (selected == null) return new Map<number, Move>();
+    const map = new Map<number, Move>();
+    for (const m of legal) if (m.from === selected) map.set(m.to, m);
     return map;
-  }, [legal, selected]);
+  }, [activeChain, selected, legal]);
 
   const mustCapture = legal.length > 0 && legal.every((m) => m.isCapture);
   const captureTargets = useMemo(
-    () => new Set([...destinations].filter(([, moves]) => moves.some((m) => m.isCapture)).map(([sq]) => sq)),
+    () => new Set([...destinations].filter(([, m]) => m.isCapture).map(([sq]) => sq)),
     [destinations],
   );
 
-  // A server update invalidates any in-progress local selection or route choice.
+  // A server update invalidates any in-progress local selection or chain.
   useEffect(() => {
     setSelected(null);
-    setMoveChoices([]);
+    setChain(null);
+    setPreviewBoard(null);
   }, [match?.matchId, gs]);
 
-  // Never leave a stale choice active while the socket is reconnecting.
+  // Never leave a stale selection/chain active while the socket is reconnecting.
   useEffect(() => {
     if (online.status !== 'connected') {
       setSelected(null);
-      setMoveChoices([]);
+      setChain(null);
+      setPreviewBoard(null);
     }
   }, [online.status]);
+
+  // ---- opponent multi-jump animation (behavior A) ----
+  // Track the previously rendered state so we can reconstruct the move's path
+  // (the MoveDTO carries from/to/captures only) and step its boards.
+  const prevStateRef = useRef<GameState | null>(null);
+  const lastMove = online.lastMove;
+  const myColorOpt = match?.myColor;
+
+  useEffect(() => {
+    if (!lastMove || !myColorOpt) {
+      // Keep prevState in sync even when not animating, so the NEXT opponent
+      // chain reconstructs from the board as it stood before that move.
+      prevStateRef.current = gs;
+      return;
+    }
+    const prev = prevStateRef.current;
+    // Advance the "previous state" pointer to the now-current board for the next move.
+    prevStateRef.current = gs;
+
+    const isOpponent = lastMove.by !== myColorOpt;
+    if (!isOpponent || lastMove.captures.length < 2 || !prev) {
+      setAnimBoard(null);
+      return;
+    }
+    const move = matchLegalMove(prev, lastMove);
+    if (!move) {
+      setAnimBoard(null); // can't reconstruct the path → just snap.
+      return;
+    }
+    const steps = moveStepBoards(prev, move);
+    // steps[last] === the settled board; show each intermediate leap, then clear.
+    let i = 0;
+    setAnimBoard(steps[0] ?? null);
+    const id = setInterval(() => {
+      i += 1;
+      if (i >= steps.length - 1) {
+        clearInterval(id);
+        setAnimBoard(null); // settle to the real (authoritative) rendered board.
+      } else {
+        setAnimBoard(steps[i] ?? null);
+      }
+    }, ANIM_LEAP_MS);
+    return () => {
+      clearInterval(id);
+      setAnimBoard(null);
+    };
+    // gs changes on every server update, which is exactly when a new lastMove
+    // arrives — depending on lastMove alone is enough and keeps prev correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMove, myColorOpt]);
 
   if (!online.user) return <AuthPanel online={online} />;
   if (!match || online.phase === 'idle' || online.phase === 'queued') return <Lobby online={online} />;
 
+  // Resolve tapping `sq` as the next leap of the active chain.
+  const advance = (sq: number) => {
+    if (!activeChain || !gs) return;
+    const res = advanceCaptureChain(activeChain, sq);
+    if (!res) return;
+    if (res.kind === 'commit') {
+      online.submitMove(res.move);
+      setChain(null);
+      setPreviewBoard(null);
+      setSelected(null);
+      return;
+    }
+    // More forced leaps remain: show the board after this leap and await the next tap.
+    const depth = activeChain.steps.length;
+    const steps = moveStepBoards(gs, res.chain.candidates[0]!);
+    setPreviewBoard(steps[depth] ?? null);
+    setChain(res.chain);
+    setSelected(sq);
+  };
+
   const handleClick = (sq: number) => {
     if (!online.myTurn || online.status !== 'connected') return;
-    const options = destinations.get(sq);
-    if (selected != null && options?.length) {
-      if (options.length === 1) {
-        online.submitMove(options[0]!);
+    const move = destinations.get(sq);
+    if (move) {
+      if (move.isCapture) advance(sq);
+      else {
+        online.submitMove(move);
         setSelected(null);
-      } else {
-        setMoveChoices(options);
+        setChain(null);
+        setPreviewBoard(null);
       }
       return;
     }
+    // Don't let a stray tap abort a chain that's mid-jump.
+    if (chain) return;
     if (movable.has(sq)) {
       setSelected((cur) => (cur === sq ? null : sq));
-      setMoveChoices([]);
       return;
     }
     setSelected(null);
-    setMoveChoices([]);
-  };
-
-  const chooseMove = (move: Move) => {
-    online.submitMove(move);
-    setSelected(null);
-    setMoveChoices([]);
   };
 
   const clock = online.clock;
@@ -200,18 +288,18 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
   return (
     <div className="online-match">
       <BoardView
-        board={gs ? gs.board : []}
+        board={previewBoard ?? animBoard ?? (gs ? gs.board : [])}
         dim={BOARD_DIM}
         rcToSquare={RC_TO_SQUARE}
-        selected={selected}
-        movable={movable}
+        selected={movingSquare}
+        movable={chain ? new Set(movingSquare == null ? [] : [movingSquare]) : movable}
         destinations={new Set(destinations.keys())}
         onSquareClick={handleClick}
         activeColor={gs?.toMove}
         mustCapture={mustCapture}
         captureTargets={captureTargets}
         flipped={myColor === 'B'}
-        interactive={online.myTurn && !end && online.status === 'connected' && moveChoices.length === 0}
+        interactive={online.myTurn && !end && online.status === 'connected'}
       />
 
       <aside className="panel">
@@ -244,24 +332,6 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
           {statusLine}
         </div>
 
-        {moveChoices.length > 1 && !end && (
-          <section className="capture-choice" role="dialog" aria-labelledby="capture-choice-title">
-            <div className="capture-choice-title" id="capture-choice-title">
-              <Route size={16} aria-hidden="true" /> Choose the capture route
-            </div>
-            <p>Both chains land on {squareName(moveChoices[0]!.to)}. Choose the path you intend.</p>
-            <div className="capture-routes">
-              {moveChoices.map((move, index) => (
-                <button key={`${move.path.join('-')}:${move.captures.join('-')}`} onClick={() => chooseMove(move)}>
-                  <span>Route {index + 1}</span>
-                  {moveRoute(move)}
-                </button>
-              ))}
-            </div>
-            <button className="capture-cancel" onClick={() => setMoveChoices([])}>Cancel</button>
-          </section>
-        )}
-
         {online.drawOfferBy && online.drawOfferBy === oppColor && !end && (
           <div className="status">
             {match.opponent.username} offers a draw.
@@ -282,6 +352,11 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
           </div>
         ) : (
           <>
+            {end.winner === myColor && (
+              <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '0.4rem' }}>
+                <DotMascot tint="sun" mood="cheer" size={80} label="You won!" />
+              </div>
+            )}
             {end.ratingChange && (
               <div className="status">
                 Rating:{' '}

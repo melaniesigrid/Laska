@@ -60,7 +60,7 @@ web/src/            React app. Imports the engine from ../../src/index.ts.
   games.ts          Historic games replayed through the engine (RawGame list).
   pieceTheme.tsx    Piece insignia themes (Heirloom/Regiment/Lineage/Dots) + <Insignia>.
   Online.tsx, useOnline.ts, net/client.ts   Online play (consumes the server protocol).
-  styles.css        Game-board palettes: Stone (default), Dark, Light, Chocolate, Classic.
+  styles.css        Game-board palettes: Navy (default), Stone, Dark, Light, Chocolate, Twilight, Confetti.
   landing.css       Scoped under .landing-page — landing/lasker/replay/brochure styles.
 
 server/src/         Server-authoritative backend (imports engine from ../../../src).
@@ -133,7 +133,7 @@ Laska uses a **neumorphic** (soft-UI) design system. `DESIGN.md` is the source o
 
 - **Neumorphism via two shadows.** Every surface is sculpted from a light highlight (`--light`, top-left) + a dark shade (`--dark`, bottom-right) — raised, or `inset` for recessed. Never flat drop-shadows, never hard borders.
 - **Tokens, not hardcoded colors.** Add to the token set in `web/src/styles.css`; for a neumorphic theme `--ground` must equal `--pedestal`/`--plate` (the board emerges from the same-colour surface, never a contrasting border).
-- **Palettes:** Stone (default), Dark, Light, Chocolate, Classic, via `[data-theme]` on `<html>` (cycled by the theme button, persisted to `laska-theme`).
+- **Palettes:** Navy (default), Stone, Dark, Light, Chocolate, Twilight, Confetti, via `[data-theme]` on `<html>` (cycled by the theme button, persisted to `laska-theme`). Stone is the bare `:root` (no attribute).
 - **Piece insignia themes** (`web/src/pieceTheme.tsx`): rank marks are *debossed* into the coin (coin-tone fill + opposed bevel, never a white painted-on fill). Default Heirloom gives generals a star.
 - **Icons: `lucide-react` only** — no emoji, no other icon library.
 - **Fonts:** Fraunces (display) + Hanken Grotesk (body). **Spacing:** the `clamp()` scale; responsive on all sizes.

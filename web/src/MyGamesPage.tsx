@@ -23,6 +23,7 @@ import {
   type SavedGame,
 } from './savedGames.ts';
 import { buildTrainingCorpus, corpusToJsonl, corpusStats } from './training.ts';
+import { DotMascot } from './mascots.tsx';
 import './landing.css';
 
 const RESULT_LABEL: Record<SavedGame['result'], string> = {
@@ -100,6 +101,7 @@ export function MyGamesPage({
         <div className="wrap">
           {games.length === 0 ? (
             <div className="card note" style={{ textAlign: 'center', padding: 'clamp(2.5rem,6vw,4rem)' }}>
+              <DotMascot tint="mint" mood="sleepy" size={88} />
               <h3>No saved games yet</h3>
               <p style={{ maxWidth: '40ch', margin: '0.6rem auto 1.4rem' }}>
                 Finish (or pause) a game and press <b>Save game</b> — it’ll show up here, ready to rewatch and annotate.
