@@ -1,7 +1,8 @@
 /* ==========================================================================
    Laska — game board. The neumorphic board ported faithfully from lasca-soft,
-   wired to the real engine. Default palette = Stone (from laska.html); the
-   light / dark / navy / classic modes are kept from lasca-soft. See DESIGN.md.
+   wired to the real engine. Default palette = Navy (blue/red armies, gold star);
+   the stone / dark / light / chocolate / twilight / confetti modes follow. See
+   DESIGN.md.
    ========================================================================== */
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
 
@@ -92,14 +93,38 @@
   --btn-ink: #d8e5f5; --ink: #f3f6fb; --ink-soft: #a9bdd7; --win: #8dd2af;
 }
 
-/* ---- CLASSIC (clay board on a deep navy ground) ---------------------- */
-:root[data-theme='classic'] {
+/* ---- TWILIGHT (clay board on a deep navy ground; was "Classic") ------- */
+:root[data-theme='twilight'] {
   --ground: #131e40; --pedestal: #e3c3b2; --plate: #e8c9b9;
   --light: #f8e0d1; --dark: #cf9488;
   --cream: #f1e3d2; --rose: #d08c79;
   --sq-light: #ecd4c3; --sq-dark: #d3b19b; --sq-lo: #bd9a85; --sq-hi: #e2c2ad;
   --cobalt: #303dbe; --cast: 120 70 52; --ring: 48 61 190;
   --btn-ink: #9a6354; --ink: #e8ddcb; --ink-soft: #b6a690; --win: #8fc7a8;
+}
+
+/* ---- CONFETTI (original Two-Dots-INSPIRED palette — NOT authentic Playdots
+   brand values) -------------------------------------------------------------
+   A *hybrid* theme: the BOARD keeps Laska's neumorphic two-shadow sculpting
+   (so --ground == --pedestal == --plate, and --light/--dark still sculpt),
+   while the CHROME (buttons / menus / status) is flattened into friendly
+   candy controls by the `[data-theme='confetti']` overrides further down.
+   Clean cool-white ground + a small set of soft, friendly "dot" hues. The
+   faction pair is coral (warm / lighter value) vs blueberry (cool / darker
+   value): deliberately value-contrasted AND red/blue colour-blind-safe, so
+   sides never read by hue alone (rank also carries a debossed shape). */
+:root[data-theme='confetti'] {
+  --ground: #eef1f4; --pedestal: #eef1f4; --plate: #eef1f4;
+  --light: #ffffff; --dark: #d2d8e0;
+  --cream: #f4796b; --rose: #4a6fb5;
+  --sq-light: #eef1f4; --sq-dark: #e6eaf0; --sq-lo: #d2d8e0; --sq-hi: #ffffff;
+  --cobalt: #8a63d2; --cast: 70 80 110; --ring: 138 99 210;
+  --btn-ink: #3a4250; --ink: #2e3440; --ink-soft: #5b6472;
+  --danger: #e0574b; --win: #3fae84;
+  /* the friendly dot set — used by the flat chrome + the SVG mascots ONLY,
+     never the board (which only has two factions). */
+  --dot-coral: #f4796b; --dot-sun: #ffc94d; --dot-mint: #4fc59a;
+  --dot-sky: #58b4e6; --dot-grape: #8a63d2;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -119,14 +144,14 @@ button { font-family: inherit; }
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background: radial-gradient(125% 110% at 50% 36%, transparent 56%, rgb(var(--cast) / 0.12) 100%);
 }
-[data-theme='dark'] .vignette, [data-theme='navy'] .vignette, [data-theme='chocolate'] .vignette, [data-theme='classic'] .vignette {
+[data-theme='dark'] .vignette, [data-theme='navy'] .vignette, [data-theme='chocolate'] .vignette, [data-theme='twilight'] .vignette {
   background: radial-gradient(120% 100% at 50% 38%, transparent 42%, rgba(0,0,0,0.5) 100%);
 }
 .grain {
   position: fixed; inset: 0; z-index: 60; pointer-events: none;
   opacity: 0.04; mix-blend-mode: multiply; background-image: var(--noise); background-size: 200px 200px;
 }
-[data-theme='dark'] .grain, [data-theme='navy'] .grain, [data-theme='chocolate'] .grain, [data-theme='classic'] .grain { mix-blend-mode: soft-light; opacity: 0.06; }
+[data-theme='dark'] .grain, [data-theme='navy'] .grain, [data-theme='chocolate'] .grain, [data-theme='twilight'] .grain { mix-blend-mode: soft-light; opacity: 0.06; }
 
 /* ---- app shell ------------------------------------------------------- */
 .app {
@@ -158,11 +183,14 @@ button { font-family: inherit; }
   font-size: clamp(34px, 6.4vw, 60px); line-height: 0.92; letter-spacing: 0.01em; color: var(--ink);
   text-shadow: 0 1px 0 rgba(255,253,248,0.5);
 }
-[data-theme='dark'] .head .title, [data-theme='navy'] .head .title, [data-theme='chocolate'] .head .title, [data-theme='classic'] .head .title { text-shadow: 0 2px 3px rgba(0,0,0,0.5); }
+[data-theme='dark'] .head .title, [data-theme='navy'] .head .title, [data-theme='chocolate'] .head .title, [data-theme='twilight'] .head .title { text-shadow: 0 2px 3px rgba(0,0,0,0.5); }
 .head .sub { font-family: var(--font-display); font-style: italic; font-weight: 400; font-size: clamp(13px, 2vw, 17px); color: var(--ink-soft); margin-top: 10px; }
 
 /* ---- board: a clean rounded-square neumorphic panel + recessed field --- */
-.stage { position: relative; display: flex; justify-content: center; }
+/* `align-items: center` keeps the board its intrinsic square size when the
+   row stretches `.stage` to match the taller sidebar — the panel never gets
+   pulled into a rectangle, so its neumorphic edges stay symmetric. */
+.stage { position: relative; display: flex; justify-content: center; align-items: center; }
 
 .board {
   position: relative; padding: clamp(12px, 2.2vw, 20px);
@@ -282,6 +310,12 @@ button { font-family: inherit; }
   color: #f0c84b;
   filter: drop-shadow(-0.6px -0.6px 0.4px rgba(75,52,4,0.72)) drop-shadow(0.7px 0.8px 0.5px rgba(255,235,145,0.52));
 }
+/* Confetti's general wears a sunny-yellow star — its own "rank brass", reading
+   bright on both the coral and blueberry coins. */
+[data-theme='confetti'] .disc .ins-officer {
+  color: var(--dot-sun);
+  filter: drop-shadow(-0.6px -0.6px 0.4px rgba(120,90,10,0.55)) drop-shadow(0.7px 0.8px 0.5px rgba(255,240,170,0.6));
+}
 
 .count {
   position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--coin) * -0.3);
@@ -303,7 +337,7 @@ button { font-family: inherit; }
 
 @media (min-width: 960px) {
   .game-layout {
-    display: flex; align-items: flex-start; justify-content: center;
+    display: flex; align-items: stretch; justify-content: center;
     gap: clamp(20px, 2.6vw, 36px); width: 100%;
   }
   .control-deck {
@@ -495,3 +529,68 @@ input[type='radio'] { accent-color: var(--cobalt); }
   .panel { max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ==========================================================================
+   CONFETTI — flat playful chrome (the "hybrid" half). Scoped under
+   [data-theme='confetti'] so it only touches THIS theme. The board and its
+   coins are untouched here, so they keep the neumorphic sculpting; only the
+   controls flatten into candy buttons/pills. Selectors are theme-scoped, so
+   they win on specificity regardless of source order, and the global
+   reduced-motion kill-switch above still disables every animation here.
+   ========================================================================== */
+
+/* kill the moody depth FX — Confetti wants clean, bright negative space */
+[data-theme='confetti'] .vignette { background: none; }
+[data-theme='confetti'] .grain { opacity: 0.02; }
+[data-theme='confetti'] .head .title { text-shadow: none; }
+
+/* candy buttons: flat white fill + a soft bottom edge that presses on click */
+[data-theme='confetti'] .btn {
+  background: #fff; color: var(--ink);
+  box-shadow: 0 3px 0 var(--dark), 0 8px 16px rgb(var(--cast) / 0.12);
+}
+[data-theme='confetti'] .btn:hover { color: var(--cobalt); transform: translateY(-1px); }
+[data-theme='confetti'] .btn:active, [data-theme='confetti'] .btn.active {
+  box-shadow: 0 1px 0 var(--dark); transform: translateY(2px);
+}
+[data-theme='confetti'] .btn:disabled {
+  box-shadow: 0 3px 0 var(--dark); transform: none;
+}
+
+/* segmented control: flat track, the active chip gets a soft grape tint */
+[data-theme='confetti'] .segment {
+  background: #fff; box-shadow: 0 2px 10px rgb(var(--cast) / 0.10);
+}
+[data-theme='confetti'] .segment button.active {
+  background: color-mix(in srgb, var(--cobalt) 16%, #fff);
+  color: var(--ink); box-shadow: none;
+}
+
+/* flat selects + status pill */
+[data-theme='confetti'] .neu-select {
+  background: #fff; color: var(--ink); box-shadow: 0 2px 10px rgb(var(--cast) / 0.10);
+}
+[data-theme='confetti'] .status {
+  background: #fff; color: var(--btn-ink);
+  box-shadow: 0 2px 12px rgb(var(--cast) / 0.10);
+}
+
+/* ---- original dot-mascots (inline SVG, tinted from the --dot-* set) -------
+   Simple round body + big eyes, in the spirit of the style (no copied IP).
+   Used in empty / loading / celebration spots. Idle bob + blink are gated by
+   the global prefers-reduced-motion kill-switch above. */
+.dot-mascot { display: inline-block; vertical-align: middle; }
+.dot-mascot .dm-body { animation: dm-bob 3.2s ease-in-out infinite; transform-origin: center bottom; }
+.dot-mascot .dm-eye { animation: dm-blink 4.6s ease-in-out infinite; transform-origin: center; }
+.dot-mascot.cheer .dm-body { animation: dm-cheer 0.6s var(--ease-settle) 1; }
+@keyframes dm-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4%); } }
+@keyframes dm-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes dm-cheer { 0% { transform: scale(0.6) translateY(20%); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+
+/* a friendly empty/loading state that pairs a mascot with a caption */
+.mascot-state {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  text-align: center; padding: clamp(20px, 5vw, 40px);
+}
+.mascot-state .ms-title { font-family: var(--font-display); font-weight: 500; font-size: clamp(16px, 2.4vw, 20px); color: var(--ink); }
+.mascot-state .ms-sub { font-size: 13px; color: var(--ink-soft); max-width: 32ch; line-height: 1.5; }

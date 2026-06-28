@@ -62,10 +62,9 @@ export function Insignia({ theme, rank }: { theme: PieceTheme; rank: Rank }) {
       );
     case 'heirloom':
     default:
+      // Only generals are marked (an engraved star); soldiers are a plain coin.
       return officer ? (
         <Star className="insignia ins-officer" fill="currentColor" {...ICON} aria-hidden="true" />
-      ) : (
-        <Pips n={1} />
-      );
+      ) : null;
   }
 }

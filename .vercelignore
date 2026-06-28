@@ -16,3 +16,8 @@ laska*.html
 lasca*.html
 inspiration.html
 design-3d-test
+
+# …but the served web/public/ assets must reach the build (vite copies them into
+# web/dist). Re-include them so the *.pdf / *.png globs above don't strip them.
+!web/public/laska-rules-1911.pdf
+!web/public/young-emanuel-lasker.png

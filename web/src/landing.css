@@ -1,12 +1,12 @@
 /* ==========================================================================
    Laska — landing page. Ported from laska.html. Scoped under .landing-page so
    its generic classes (.btn, .board, .card, .legend…) never collide with the
-   game board's stylesheet. Stone + eucalyptus palette (the site default).
+   game board's stylesheet. Rides the active game palette (Navy is the default).
    ========================================================================== */
 .landing-page {
   /* The website rides the game's active palette. Every colour token below maps
      to a game token in styles.css, so [data-theme] on <html> reskins the whole
-     site — Stone / Dark / Navy / Light / Chocolate / Classic — exactly like the
+     site — Navy / Stone / Dark / Light / Chocolate / Twilight / Confetti — like the
      board. (These values equalled the Stone palette when hardcoded; now they
      follow it live.) */
   --bg: var(--ground);
@@ -15,7 +15,7 @@
   --l-ink: var(--ink);
   /* Body copy sits on the page ground, so soften the heading ink toward the
      ground rather than borrowing --btn-ink (which is tuned for clay BUTTONS and
-     reads muddy on the split Classic/Navy grounds). */
+     reads muddy on the split Twilight/Navy grounds). */
   --l-body: color-mix(in srgb, var(--ink) 75%, var(--ground));
   --faint: var(--ink-soft);
   --l-accent: var(--cobalt);
@@ -93,7 +93,7 @@
    itself. Columns show as a commander disc with prisoner rims peeking below. */
 /* The demo board is the game's board material, not the page ground: frame =
    --pedestal, field = --plate (see styles.css). Identical to --bg in five
-   themes, but Classic floats a clay board on a navy ground — this makes the
+   themes, but Twilight floats a clay board on a navy ground — this makes the
    demo board match the real one there instead of going navy-on-navy. */
 .landing-page .board-frame { background: var(--pedestal); border-radius: var(--r-lg); box-shadow: var(--nm-raise); padding: clamp(1rem, 2.5vw, 1.6rem); width: 100%; max-width: 430px; margin-inline: auto; }
 /* Scoped to .board-frame so it styles ONLY the landing's marketing demo board
@@ -332,6 +332,7 @@
 .landing-page .lasker-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: clamp(2.5rem, 5vw, 4.5rem); align-items: start; }
 .landing-page .portrait { background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise); aspect-ratio: 4/5; max-width: 380px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.4rem; position: sticky; top: 100px; }
 .landing-page .medallion { width: 128px; height: 128px; border-radius: 50%; background: var(--bg); box-shadow: var(--nm-inset-deep); display: grid; place-items: center; font-family: 'Fraunces', serif; font-weight: 600; font-size: 2.6rem; color: var(--l-ink); letter-spacing: 0.02em; }
+.landing-page .portrait-photo { width: 180px; height: 180px; border-radius: 50%; object-fit: cover; object-position: 50% 22%; background: var(--bg); box-shadow: var(--nm-raise); padding: 7px; }
 .landing-page .portrait .name { font-family: 'Fraunces', serif; font-size: 1.45rem; color: var(--l-ink); }
 .landing-page .portrait .years { font-size: 0.85rem; color: var(--faint); letter-spacing: 0.08em; margin-top: -1rem; }
 .landing-page .timeline { margin-top: 0.4rem; }

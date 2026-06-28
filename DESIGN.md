@@ -44,22 +44,28 @@ luxury-spa calm. Reference: `Laska/lasca-soft (1).html`.
   game = add a `RawGame` to `games.ts`; it must validate through the engine or it's
   a real bug. Linked from the landing, Lasker page, and brochure.
 
-## Color — six palettes, Stone is the default
-Stone (`:root`, the laska.html palette): ground `#e8e4db`, highlight `#fbf8f2`,
-shade `#c4beb1`, light army `#f2ede3`, dark army `#4b463c`, eucalyptus accent
-`#5f8c7e`. The others are selected via `[data-theme]` on `<html>` (cycled by the
-theme button, persisted to `laska-theme`):
+## Color — seven palettes, Navy is the default
+**navy** *(default)* — a naval-blue neumorphic surface (`--ground`, `--pedestal`,
+and `--plate` all `#182b4d`) with blue and red armies, gold move signals, and a
+gold general insignia that reads like rank brass. The other palettes are selected
+via `[data-theme]` on `<html>` (cycled by the theme button, persisted to
+`laska-theme`); Stone is the bare `:root` (no attribute):
+- **stone** (`:root`, the laska.html palette): ground `#e8e4db`, highlight
+  `#fbf8f2`, shade `#c4beb1`, light army `#f2ede3`, dark army `#4b463c`,
+  eucalyptus accent `#5f8c7e`.
 - **dark** — Stone inverted: warm-charcoal neumorphism (ground `#2b2823`), cream
   + taupe armies, eucalyptus accent. The board emerges from the same dark surface.
-- **navy** — a naval-blue neumorphic surface (`--ground`, `--pedestal`, and
-  `--plate` all `#182b4d`) with blue and red armies, gold move signals, and a
-  gold general insignia that reads like rank brass.
 - **light** — warm clay, cream/rose coins, cobalt accent.
 - **chocolate** — one realistic chocolate material: the border (`--ground`)
   matches the board so the whole apparatus is the same clay, raised only by the
   neumorphic shadows; gold accent. (Was the old "dark"; its black border was
   unrealistic, so ground was unified with the board and it was renamed.)
-- **classic** — clay board on a deep navy ground.
+- **twilight** — clay board on a deep navy ground. (Renamed from "classic", which
+  did not describe a colour.)
+- **confetti** — an original *Two-Dots-inspired* hybrid: clean cool-white ground,
+  coral + blueberry armies, a sunny-yellow general star, and flat "candy" chrome
+  (the only theme that flattens the chrome; the board stays neumorphic). Ships a
+  small `--dot-*` accent set and the SVG dot-mascots (see `mascots.tsx`).
 For a neumorphic theme `--ground` should equal `--pedestal`/`--plate` (the board
 emerges from the same-colour surface via shadow, never a contrasting border).
 All board metrics derive from `--sq` (`clamp(40px,7.4vw,64px)`) at lasca-soft's

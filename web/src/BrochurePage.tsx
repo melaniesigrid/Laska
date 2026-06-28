@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ArrowLeft, Play } from 'lucide-react';
+import { ArrowLeft, Play, FileText } from 'lucide-react';
 import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
 import { OPENINGS, FIRST_MOVES, OPENING_SOURCES } from './openings.ts';
 import './landing.css';
@@ -101,6 +101,11 @@ export function BrochurePage({
           <p className="since" style={{ marginTop: '1rem' }}>
             “The game to teach cautiousness and tactics, and a great builder up of ideas.” — E. Lasker
           </p>
+          <div className="hero-actions" style={{ marginTop: '1.6rem' }}>
+            <a className="btn" href="/laska-rules-1911.pdf" target="_blank" rel="noopener noreferrer">
+              <FileText size={15} /> Read Lasker’s original 1911 booklet (PDF)
+            </a>
+          </div>
         </div>
       </section>
 
@@ -489,7 +494,12 @@ export function BrochurePage({
           <span className="mark">
             Las<span>k</span>a
           </span>
-          <span className="fine">After “Rules of Lasca, the Great Military Game” · Dr. Emanuel Lasker, 1911</span>
+          <span className="fine">
+            After{' '}
+            <a href="/laska-rules-1911.pdf" target="_blank" rel="noopener noreferrer">
+              “Rules of Lasca, the Great Military Game”
+            </a>{' '}
+            · Dr. Emanuel Lasker, 1911</span>
         </div>
       </footer>
     </div>

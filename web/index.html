@@ -3,6 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Apply the saved palette before first paint to avoid a flash of the
+         default. Mirrors readStoredTheme() + the theme effect in App.tsx:
+         default = Navy; Stone is the bare :root (no attribute); the legacy
+         'classic' key maps to its new name 'twilight'. -->
+    <script>
+      (function () {
+        try {
+          var THEMES = ['navy', 'stone', 'dark', 'light', 'chocolate', 'twilight', 'confetti'];
+          var t = localStorage.getItem('laska-theme');
+          if (t === 'classic') t = 'twilight';
+          if (THEMES.indexOf(t) === -1) t = 'navy';
+          if (t !== 'stone') document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'navy');
+        }
+      })();
+    </script>
     <title>Laska — column-capturing draughts</title>
 
     <!-- Google Search Console ownership verification (HTML-tag method). The SPA
@@ -20,7 +38,7 @@
     />
     <link rel="canonical" href="https://playlaska.com/" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
-    <meta name="theme-color" content="#cfcabf" />
+    <meta name="theme-color" content="#182b4d" />
     <meta name="author" content="Northbound Software Studio" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
