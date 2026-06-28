@@ -20,6 +20,9 @@ import {
   applyMove,
   encodePosition,
   decodePosition,
+  moveStepBoards,
+  matchLegalMove,
+  type Board,
   type GameState,
   type Move,
   type PlayerColor,
@@ -28,6 +31,9 @@ import type { ServerMessage, MoveDTO, ClockDTO } from '../net/protocol.ts';
 import { LaskaClient, type ConnStatus, type PublicUser, ApiError } from '../net/client.ts';
 
 export type OnlinePhase = 'idle' | 'queued' | 'matched' | 'ended';
+
+/** ms between leaps while animating an opponent's multi-jump. */
+const ANIM_LEAP_MS = 300;
 
 export interface MatchInfo {
   matchId: string;
@@ -84,6 +90,28 @@ export function useOnline(apiBase: string, wsUrl: string) {
   const [leaderboard, setLeaderboard] = useState<LeaderRow[]>([]);
   const pendingRef = useRef(false);
 
+  // Leap-by-leap rendering overrides. While a multi-jump plays out, the engine
+  // state has already flipped to the final board, but we paint an intermediate
+  // `boardOverride` (with `displayLastMove` driving the per-leap glide):
+  //  - the OPPONENT's chain is animated on a timer in the `match.update` handler;
+  //  - the local HUMAN's chain preview is pushed in via `setPreview` (the screen
+  //    plays each leap itself, then submits the full Move on the final leap).
+  const [boardOverride, setBoardOverride] = useState<Board | null>(null);
+  const [overrideLastMove, setOverrideLastMove] = useState<MoveDTO | null>(null);
+  // Latest rendered state, so the message handler can reconstruct the opponent's
+  // move against the position BEFORE the authoritative update landed.
+  const renderedRef = useRef<GameState | null>(null);
+  renderedRef.current = rendered;
+  const animRunId = useRef(0);
+  const animTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearAnim = useCallback(() => {
+    animRunId.current++;
+    if (animTimer.current) clearTimeout(animTimer.current);
+    setBoardOverride(null);
+    setOverrideLastMove(null);
+  }, []);
+
   // ---- server message handling ----
   const onMessage = useCallback(
     (msg: ServerMessage) => {
@@ -100,6 +128,7 @@ export function useOnline(apiBase: string, wsUrl: string) {
           break;
         case 'match.start': {
           client.setCurrentMatch(msg.matchId);
+          clearAnim();
           setMatch({
             matchId: msg.matchId,
             myColor: msg.color,
@@ -121,17 +150,54 @@ export function useOnline(apiBase: string, wsUrl: string) {
         case 'match.update': {
           // The server is authoritative: snap rendered state to it (this both
           // confirms our optimistic move and corrects any divergence).
+          const prev = renderedRef.current;
           const gs = stateFromPosition(msg.state.position);
           setAuthoritative(gs);
           setRendered(gs);
           setClock(msg.state.clock);
           clockAtRef.current = Date.now();
           setDrawOfferBy(msg.state.drawOfferBy);
-          if (msg.lastMove) setLastMove(msg.lastMove);
           pendingRef.current = false;
+
+          // Animate the OPPONENT's multi-jump one leap at a time. My own move was
+          // already played out leap-by-leap locally, so only the opponent's needs
+          // reconstructing (the wire carries no `path`). Single jumps / quiet moves
+          // and any move we can't reconstruct fall through to an instant snap.
+          const lm = msg.lastMove;
+          const mine = match?.myColor;
+          if (lm && mine && lm.by !== mine && lm.captures.length > 1 && prev) {
+            const full = matchLegalMove(prev, { from: lm.from, to: lm.to, captures: lm.captures });
+            if (full) {
+              const steps = moveStepBoards(prev, full);
+              clearAnim();
+              const runId = ++animRunId.current;
+              let i = 0;
+              const runHop = () => {
+                if (runId !== animRunId.current) return;
+                const last = i === full.path.length - 1;
+                const from = i === 0 ? full.from : full.path[i - 1]!;
+                const landing = full.path[i]!;
+                setOverrideLastMove({ from, to: landing, captures: [], by: lm.by });
+                if (last) {
+                  // Final leap: drop the override so the authoritative board shows.
+                  setBoardOverride(null);
+                  setLastMove(lm);
+                } else {
+                  setBoardOverride(steps[i]!);
+                  i += 1;
+                  animTimer.current = setTimeout(runHop, ANIM_LEAP_MS);
+                }
+              };
+              runHop();
+              break;
+            }
+          }
+          clearAnim();
+          if (lm) setLastMove(lm);
           break;
         }
         case 'match.end': {
+          clearAnim();
           setEnd({
             result: msg.result,
             reason: msg.reason,
@@ -148,11 +214,13 @@ export function useOnline(apiBase: string, wsUrl: string) {
           break;
         }
         case 'error':
-          // A rejected move: roll the optimistic board back to authoritative.
+          // A rejected move: roll the optimistic board back to authoritative and
+          // tear down any in-flight leap preview/animation.
           if (pendingRef.current) {
             pendingRef.current = false;
             setRendered(authoritative);
           }
+          clearAnim();
           setError(msg.message);
           break;
         case 'pong':
@@ -160,7 +228,7 @@ export function useOnline(apiBase: string, wsUrl: string) {
           break;
       }
     },
-    [client, authoritative, user, match],
+    [client, authoritative, user, match, clearAnim],
   );
 
   useEffect(() => {
@@ -198,6 +266,13 @@ export function useOnline(apiBase: string, wsUrl: string) {
     const id = setInterval(() => forceTick((n) => n + 1), 250);
     return () => clearInterval(id);
   }, [clock, phase]);
+
+  // The board will resync from the server on reconnect, so a half-played leap
+  // preview or opponent animation would be a lie — tear it down when the socket
+  // drops.
+  useEffect(() => {
+    if (status !== 'connected') clearAnim();
+  }, [status, clearAnim]);
 
   const displayClock = useMemo<ClockDTO | null>(() => {
     if (!clock) return null;
@@ -254,12 +329,13 @@ export function useOnline(apiBase: string, wsUrl: string) {
   );
   const logout = useCallback(() => {
     void client.logout();
+    clearAnim();
     setUser(null);
     setPhase('idle');
     setMatch(null);
     setRendered(null);
     setEnd(null);
-  }, [client]);
+  }, [client, clearAnim]);
 
   // ---- match actions ----
   const joinQueue = useCallback(() => {
@@ -272,7 +348,9 @@ export function useOnline(apiBase: string, wsUrl: string) {
   const submitMove = useCallback(
     (move: Move) => {
       if (!match || !rendered) return;
-      // Optimistic: apply locally for instant feedback, then send.
+      // Optimistic: apply locally for instant feedback, then send. Clear any
+      // mid-chain preview — the optimistic final board now supersedes it.
+      clearAnim();
       pendingRef.current = true;
       setRendered(applyMove(rendered, move));
       setLastMove({ from: move.from, to: move.to, captures: move.captures, by: match.myColor });
@@ -282,7 +360,23 @@ export function useOnline(apiBase: string, wsUrl: string) {
           : { type: 'match.move' as const, matchId: match.matchId, from: move.from, to: move.to };
       client.send(payload);
     },
-    [client, match, rendered],
+    [client, match, rendered, clearAnim],
+  );
+
+  /** Push a mid-chain preview while the local player jumps each enemy themselves:
+   *  `board` is the intermediate position after the leap, `leap` glides one step.
+   *  The screen calls this per leap, then `submitMove(fullMove)` on the final one
+   *  (which clears the preview). A null board tears the preview down. */
+  const setPreview = useCallback(
+    (board: Board | null, leap: { from: number; to: number } | null) => {
+      animRunId.current++; // cancel any opponent animation that might be running
+      if (animTimer.current) clearTimeout(animTimer.current);
+      setBoardOverride(board);
+      setOverrideLastMove(
+        leap && match ? { from: leap.from, to: leap.to, captures: [], by: match.myColor } : null,
+      );
+    },
+    [match],
   );
 
   const resign = useCallback(() => {
@@ -305,6 +399,7 @@ export function useOnline(apiBase: string, wsUrl: string) {
   }, [client]);
 
   const newOnlineGame = useCallback(() => {
+    clearAnim();
     setPhase('idle');
     setMatch(null);
     setRendered(null);
@@ -312,10 +407,22 @@ export function useOnline(apiBase: string, wsUrl: string) {
     setEnd(null);
     setLastMove(null);
     setClock(null);
-  }, []);
+  }, [clearAnim]);
 
-  // Whose turn, and is it mine right now (based on optimistic state)?
-  const myTurn = !!(rendered && match && rendered.toMove === match.myColor && phase === 'matched' && !pendingRef.current);
+  // Whose turn, and is it mine right now (based on optimistic state). A leap
+  // preview / opponent animation in flight also blocks input (boardOverride set).
+  const myTurn = !!(
+    rendered &&
+    match &&
+    rendered.toMove === match.myColor &&
+    phase === 'matched' &&
+    !pendingRef.current
+  );
+
+  // The board to render: a mid-chain/animation override, else the optimistic
+  // board. `displayLastMove` is the per-leap glide source while an override is up.
+  const displayBoard: Board | null = boardOverride ?? rendered?.board ?? null;
+  const displayLastMove = boardOverride ? overrideLastMove : lastMove;
 
   // Legal moves for me when it's my turn.
   const legal = useMemo<Move[]>(() => {
@@ -330,8 +437,11 @@ export function useOnline(apiBase: string, wsUrl: string) {
     error,
     match,
     gameState: rendered,
+    /** The board to render — accounts for the mid-chain / opponent-animation override. */
+    board: displayBoard,
     clock: displayClock,
-    lastMove,
+    /** The most recent leap's from/to for the Board glide (per-leap while animating). */
+    lastMove: displayLastMove,
     drawOfferBy,
     end,
     myTurn,
@@ -347,6 +457,7 @@ export function useOnline(apiBase: string, wsUrl: string) {
     joinQueue,
     leaveQueue,
     submitMove,
+    setPreview,
     resign,
     offerDraw,
     acceptDraw,

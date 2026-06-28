@@ -21,6 +21,7 @@ export {
   createInitialState,
   legalMoves,
   applyMove,
+  moveStepBoards,
   gameStatus,
   controlledSquares,
   commander,
@@ -28,6 +29,15 @@ export {
   DEFAULT_NO_PROGRESS_PLY_LIMIT,
   type StatusOptions,
 } from './rules.ts';
+
+export {
+  beginCaptureChain,
+  nextHopTargets,
+  advanceCaptureChain,
+  matchLegalMove,
+  type CaptureChain,
+  type CaptureHop,
+} from './captureChain.ts';
 
 export { encodePosition, decodePosition } from './notation.ts';
 

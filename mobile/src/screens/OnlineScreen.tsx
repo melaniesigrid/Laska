@@ -6,21 +6,29 @@
  * authoritative) with both clocks, draw offers and resignation → end screen with
  * the rating delta.
  *
- * The board orients to the local player (flipped for Black). When several capture
- * chains share a landing square, a route chooser asks which path you intend and
- * the chosen full `captures` path is sent to the server (no silent first-pick).
+ * The board orients to the local player (flipped for Black). A multi-jump is
+ * played out one leap at a time — the player jumps each enemy themselves (tap
+ * each landing in sequence), which makes the route unambiguous, so there is no
+ * capture route-picker. The full Move (with its ordered captures) is submitted to
+ * the server on the final leap; the server stays authoritative.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Board } from '../components/Board.tsx';
 import { Button } from '../components/Button.tsx';
-import { CaptureChooser } from '../components/CaptureChooser.tsx';
 import { useTheme } from '../theme/ThemeProvider.tsx';
 import { inset } from '../theme/neumorphic.ts';
 import { spacing, radius, type, type Palette } from '../theme/tokens.ts';
 import { useOnlineSession, type OnlineSession } from '../online/OnlineProvider.tsx';
-import { type Move, type PlayerColor } from '../engine/index.ts';
+import {
+  beginCaptureChain,
+  nextHopTargets,
+  advanceCaptureChain,
+  moveStepBoards,
+  type CaptureChain,
+  type PlayerColor,
+} from '../engine/index.ts';
 
 function formatClock(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -38,59 +46,103 @@ export function OnlineScreen() {
   const online = useOnlineSession();
 
   const [selected, setSelected] = useState<number | null>(null);
-  const [moveChoices, setMoveChoices] = useState<Move[]>([]);
+  // A HUMAN multi-jump in flight: the origin, the leaps already taken, and the
+  // candidate Moves still consistent with them. The next tap need only pick a leap.
+  const [capture, setCapture] = useState<CaptureChain | null>(null);
 
-  // Destination square -> the move(s) that land there (>1 = a route choice).
-  const destinations = useMemo(() => {
-    const map = new Map<number, Move[]>();
-    if (selected == null) return map;
-    for (const m of online.legalMoves) {
-      if (m.from !== selected) continue;
-      const opts = map.get(m.to) ?? [];
-      opts.push(m);
-      map.set(m.to, opts);
-    }
-    return map;
-  }, [selected, online.legalMoves]);
+  // The capture chain in play: the one mid-flight, or — for a freshly selected
+  // capturing column — a fresh chain so the FIRST leap is offered. Null when the
+  // selection has only quiet moves (then the quiet landings light up instead).
+  const activeChain = useMemo<CaptureChain | null>(() => {
+    if (capture) return capture;
+    if (selected != null) return beginCaptureChain(online.legalMoves, selected);
+    return null;
+  }, [capture, selected, online.legalMoves]);
 
-  const targets = useMemo(() => [...destinations.keys()], [destinations]);
+  // The squares tappable next: the NEXT leap's landings mid-chain, otherwise the
+  // quiet landings of the selected column.
+  const targets = useMemo(() => {
+    if (activeChain) return [...nextHopTargets(activeChain).keys()];
+    if (selected == null) return [];
+    const set = new Set<number>();
+    for (const m of online.legalMoves) if (m.from === selected) set.add(m.to);
+    return [...set];
+  }, [activeChain, selected, online.legalMoves]);
+
+  // The square the moving column currently sits on (last leap, or the selection).
+  const movingSquare = capture ? capture.steps[capture.steps.length - 1]! : selected;
 
   // A server update (new authoritative board) or a turn flip invalidates any
-  // in-progress local selection or route choice.
+  // in-progress local selection or half-played chain.
   useEffect(() => {
     setSelected(null);
-    setMoveChoices([]);
+    setCapture(null);
+    online.setPreview(null, null);
+    // online identity is stable per render but setPreview is a stable callback;
+    // depend only on the authoritative signals.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online.myTurn, online.gameState]);
+
+  /** Advance a human-played capture by one leap to `sq`. Glides the column one
+   *  step via a preview board; submits the full Move once the chain finishes. */
+  const advanceCapture = useCallback(
+    (sq: number) => {
+      const chain = activeChain;
+      const gs = online.gameState;
+      if (!chain || !gs) return;
+      const res = advanceCaptureChain(chain, sq);
+      if (!res) return; // not a legal next leap
+      const depth = chain.steps.length;
+      const from = depth === 0 ? chain.origin : chain.steps[depth - 1]!;
+      if (res.kind === 'commit') {
+        // Final leap: submit the full Move (server-authoritative); the optimistic
+        // board supersedes the preview.
+        setSelected(null);
+        setCapture(null);
+        online.submitMove(res.move);
+      } else {
+        // More jumps forced — show this leap's board and await the next tap.
+        const rep = res.chain.candidates[0]!;
+        const board = moveStepBoards(gs, rep)[depth]!;
+        online.setPreview(board, { from, to: sq });
+        setSelected(sq);
+        setCapture(res.chain);
+      }
+    },
+    [activeChain, online],
+  );
 
   const onTapSquare = useCallback(
     (square: number) => {
       // Pause all move input while the socket is down — the board will resync
       // from the server on reconnect, so a local move now would be a lie.
       if (!online.myTurn || online.status !== 'connected') return;
-      const options = destinations.get(square);
-      if (selected != null && options?.length) {
-        if (options.length === 1) {
-          online.submitMove(options[0]!);
-          setSelected(null);
+
+      // Mid-capture: the only meaningful taps are the next legal leap.
+      if (capture) {
+        if (targets.includes(square)) advanceCapture(square);
+        return;
+      }
+
+      // Tapping a highlighted target: captures play one leap at a time, quiet
+      // moves submit straight away.
+      if (selected != null && targets.includes(square)) {
+        if (activeChain) {
+          advanceCapture(square);
         } else {
-          setMoveChoices(options);
+          const m = online.legalMoves.find((mv) => mv.from === selected && mv.to === square);
+          if (m) {
+            setSelected(null);
+            online.submitMove(m);
+          }
         }
         return;
       }
+
       const movable = online.legalMoves.some((m) => m.from === square);
       setSelected(movable ? (cur) => (cur === square ? null : square) : null);
-      setMoveChoices([]);
     },
-    [online, selected, destinations],
-  );
-
-  const chooseMove = useCallback(
-    (move: Move) => {
-      online.submitMove(move);
-      setSelected(null);
-      setMoveChoices([]);
-    },
-    [online],
+    [online, selected, capture, targets, activeChain, advanceCapture],
   );
 
   const boardSize = Math.min(width - spacing.lg * 2, 460);
@@ -146,8 +198,8 @@ export function OnlineScreen() {
             <Text style={[styles.statusText, { color: palette.btnInk }]}>{statusLine}</Text>
           </View>
           <Board
-            board={online.gameState.board}
-            selected={selected}
+            board={online.board ?? online.gameState.board}
+            selected={movingSquare}
             targets={targets}
             palette={palette}
             size={boardSize}
@@ -193,8 +245,6 @@ export function OnlineScreen() {
             </>
           )}
         </View>
-
-        <CaptureChooser choices={moveChoices} palette={palette} onChoose={chooseMove} onCancel={() => setMoveChoices([])} />
       </View>
     );
   }

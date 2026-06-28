@@ -318,6 +318,67 @@ export function applyMove(state: GameState, move: Move): GameState {
   };
 }
 
+/**
+ * The sequence of board snapshots a move passes through, one entry per step in
+ * `move.path` — so length 1 for a quiet move, and one per jump for a capture.
+ * Snapshot `i` is the full board immediately AFTER the i-th step: the moving
+ * column sits on `move.path[i]` and every prisoner taken up to and including
+ * that jump has been buried. Promotion is applied only on the final landing,
+ * exactly as `applyMove` does. Pure — the input state is not mutated, and the
+ * last element equals `applyMove(state, move).board`.
+ *
+ * This exists so a UI can play a multi-jump capture out hop-by-hop — animating
+ * the computer's chain one leap at a time, or letting a human click each jump —
+ * while still deferring to THIS engine for the board after every jump rather
+ * than re-deriving capture mechanics outside `src/`.
+ */
+export function moveStepBoards(state: GameState, move: Move): Board[] {
+  const color = state.toMove;
+  const working = cloneBoard(state.board);
+
+  const startCol = working[move.from];
+  if (!startCol) throw new Error(`No column on square ${move.from} to move`);
+  if (!controlledBy(startCol, color)) {
+    throw new Error(`Square ${move.from} is not controlled by ${color}`);
+  }
+  let movingCol: Column = cloneColumn(startCol);
+  working[move.from] = null;
+
+  const snapshots: Board[] = [];
+
+  if (!move.isCapture) {
+    const dest = move.path[0];
+    if (dest === undefined) throw new Error('Quiet move has empty path');
+    const board = cloneBoard(working);
+    board[dest] = movingCol;
+    maybePromote(board, dest, color);
+    snapshots.push(board);
+    return snapshots;
+  }
+
+  // The moving column is carried "in hand" (intermediate landings stay vacant in
+  // `working`); each snapshot drops a copy of it onto that step's landing square.
+  for (let i = 0; i < move.path.length; i++) {
+    const landing = move.path[i]!;
+    const mid = move.captures[i];
+    if (mid === undefined) throw new Error(`Capture step ${i}: missing captured square`);
+    const midCol = working[mid] ?? null;
+    if (!controlledBy(midCol, opponent(color))) {
+      throw new Error(`Capture step ${i}: square ${mid} is not an enemy column`);
+    }
+    const capturedTop = commander(midCol)!;
+    const midStack = midCol!;
+    working[mid] = midStack.length > 1 ? midStack.slice(0, -1) : null;
+    movingCol = [{ color: capturedTop.color, rank: capturedTop.rank }, ...movingCol];
+
+    const board = cloneBoard(working);
+    board[landing] = cloneColumn(movingCol);
+    if (i === move.path.length - 1) maybePromote(board, landing, color);
+    snapshots.push(board);
+  }
+  return snapshots;
+}
+
 /** Crown the commander on `square` if a soldier of `color` reached its back rank. */
 function maybePromote(board: Board, square: number, color: PlayerColor): void {
   const col = board[square];
