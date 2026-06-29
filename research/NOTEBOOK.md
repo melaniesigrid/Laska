@@ -238,3 +238,5 @@ After B6 cost real work: (1) long background experiments must **checkpoint to a 
 - O1. ✅ Resolved (depth-dependence; see A-new1).
 - O2. Per-opening breakdown: is the (shallow) edge concentrated in specific first moves (centre push vs the wing steps that tied at depth 8)?
 - O3. Decisiveness vs depth: depth-4 drew 51% but depth-6 only 22% here — is strong play actually *more* decisive, or is that an n/seed/length artifact? Dedicated experiment needed before any "Laska is drawish" sentence is booked.
+
+**Reproducibility (added after the run — the Stage-2 harness is now in-repo, superseding the scratchpad paths above):** committed as [`research/experiments/exp007-colour-advantage.ts`](experiments/exp007-colour-advantage.ts) (canonical `src/agents/` substrate, repo-relative imports, seeds `20000+i*7919`). Run `node research/experiments/exp007-colour-advantage.ts` (opening scan + depth-4) or `--depth 6 --n 140 --open 4`. A presentation write-up of this entry: [`research/EXP-007-first-move-advantage.md`](EXP-007-first-move-advantage.md).
