@@ -373,28 +373,6 @@ export function App() {
     setView('featured');
   };
 
-  // A private "play a friend" invite link — `#/play/<code>` (or `#/join/<code>`).
-  // On load: switch to the online tab, hand the code to useOnline (it auto-fires
-  // the join once the socket is connected + authed), and clear the hash so a
-  // refresh doesn't re-trigger. Robust against a malformed hash (no crash).
-  useEffect(() => {
-    const hash = typeof window !== 'undefined' ? window.location.hash : '';
-    const m = hash.match(/^#\/(?:play|join)\/([^/?#\s]+)/i);
-    if (!m || !m[1]) return;
-    const code = decodeURIComponent(m[1]);
-    setAppMode('online');
-    setView('game');
-    online.requestPendingJoin(code);
-    // Clear the hash so a refresh / share doesn't re-fire the join.
-    try {
-      history.replaceState(null, '', window.location.pathname + window.location.search);
-    } catch {
-      /* ignore — best-effort */
-    }
-    // online is stable across renders (useOnline holds a ref); run once on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // A `?g=` link carries a whole game in the URL — decode it and open the same
   // replay/analysis viewer. Runs once on mount; clears the param afterward so a
   // refresh or in-app navigation lands on the normal site.
