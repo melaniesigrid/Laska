@@ -6,10 +6,11 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { GameMode } from '../hooks/useGame.ts';
+import type { VariantId } from '../engine/index.ts';
 
 export type PlayStackParamList = {
   PlayMenu: undefined;
-  Game: { mode: GameMode };
+  Game: { mode: GameMode; variant?: VariantId };
 };
 
 export type TabParamList = {
