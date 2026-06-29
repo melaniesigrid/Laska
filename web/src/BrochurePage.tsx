@@ -115,7 +115,7 @@ export function BrochurePage({
             Rules of <em className="serif">Lasca.</em>
           </h1>
           <p className="lede" style={{ maxWidth: '46ch' }}>
-            The Great Military Game, invented by Dr. Emanuel Lasker. This is the complete ruleset —
+            The Great Strategy Game, invented by Dr. Emanuel Lasker. This is the complete ruleset —
             taken from his original 1911 booklet and reconciled with the engine you play here, so the
             rules stay consistent everywhere.
           </p>
