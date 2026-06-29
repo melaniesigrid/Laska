@@ -18,10 +18,23 @@ import {
   whiteEval,
   formatEval,
   QUALITY_LABEL,
+  QUALITY_BADGE,
   QUALITY_GLYPH,
+  BRILLIANT_BADGE,
+  BRILLIANT_GLYPH,
   type MoveQuality,
   type MoveReview,
 } from './analysis.ts';
+import {
+  describeMove,
+  coachFromHere,
+  gameVerdict,
+  isBrilliant,
+  COMMENTATORS,
+  DEFAULT_COMMENTATOR,
+  type CommentatorId,
+} from './commentary.ts';
+import type { PlayerColor } from '../../src/index.ts';
 
 /** Plies each position is searched at. Modest so a full game analyses in a couple
  *  of seconds, with quiescence on (in analyzePosition) for honest scores. */
@@ -29,6 +42,31 @@ export const ANALYSIS_DEPTH = 4;
 
 /** Qualities worth counting in the per-side summary (best/good/forced are fine). */
 const SUMMARY_QUALITIES: MoveQuality[] = ['inaccuracy', 'mistake', 'blunder'];
+
+const COMMENTATOR_KEY = 'laska-commentator';
+
+/** The player's chosen commentary voice, persisted across visits. Shared by both
+ *  replay surfaces so the choice follows you from your games to the historic ones. */
+export function useCommentator(): [CommentatorId, (id: CommentatorId) => void] {
+  const [id, setId] = useState<CommentatorId>(() => {
+    try {
+      const saved = localStorage.getItem(COMMENTATOR_KEY) as CommentatorId | null;
+      if (saved && COMMENTATORS.some((c) => c.id === saved)) return saved;
+    } catch {
+      /* localStorage unavailable — fall through to the default */
+    }
+    return DEFAULT_COMMENTATOR;
+  });
+  const choose = (next: CommentatorId) => {
+    setId(next);
+    try {
+      localStorage.setItem(COMMENTATOR_KEY, next);
+    } catch {
+      /* best-effort persistence */
+    }
+  };
+  return [id, choose];
+}
 
 /** One analysed position: its White-positive eval and every legal move scored. */
 export interface PositionEval {
@@ -144,16 +182,21 @@ export function EvalBar({ white }: { white: number }) {
   );
 }
 
-/** Both sides' inaccuracy / mistake / blunder counts. */
+/** Both sides' inaccuracy / mistake / blunder counts, headed by the verdict. */
 export function AnalysisSummary({
   summary,
+  persona,
 }: {
   summary: Record<'W' | 'B', Record<MoveQuality, number>>;
+  persona?: CommentatorId;
 }) {
   return (
     <div className="analysis-summary">
-      <SummarySide label="White" tally={summary.W} />
-      <SummarySide label="Black" tally={summary.B} />
+      <p className="analysis-verdict">{gameVerdict(summary, persona)}</p>
+      <div className="analysis-tallies">
+        <SummarySide label="White" tally={summary.W} />
+        <SummarySide label="Black" tally={summary.B} />
+      </div>
     </div>
   );
 }
@@ -177,23 +220,107 @@ function SummarySide({ label, tally }: { label: string; tally: Record<MoveQualit
   );
 }
 
-/** Pill badge for the stepped move's quality (everything but `forced`). */
-export function ReviewBadge({ review }: { review: MoveReview | null }) {
+/** Pill badge for the stepped move's quality (everything but `forced`). Playful
+ *  name on the face, neutral verdict as the aria-label so screen readers still
+ *  hear the real classification. `brilliant` promotes a best move to "Brilliant!". */
+export function ReviewBadge({ review, brilliant = false }: { review: MoveReview | null; brilliant?: boolean }) {
   if (!review || review.quality === 'forced') return null;
+  if (brilliant) {
+    return (
+      <span className="quality-badge q-brilliant" aria-label="Brilliant move">
+        {BRILLIANT_GLYPH} {BRILLIANT_BADGE}
+      </span>
+    );
+  }
   return (
-    <span className={`quality-badge q-${review.quality}`}>
-      {QUALITY_GLYPH[review.quality]} {QUALITY_LABEL[review.quality]}
+    <span className={`quality-badge q-${review.quality}`} aria-label={QUALITY_LABEL[review.quality]}>
+      {QUALITY_GLYPH[review.quality]} {QUALITY_BADGE[review.quality]}
     </span>
   );
 }
 
-/** "Engine preferred X — gave up N columns", shown when the move wasn't best. */
-export function BestLine({ review, sanOf }: { review: MoveReview | null; sanOf: (m: Move) => string }) {
-  if (!review?.best) return null;
+/**
+ * The critic's take on the move that produced the current position — a human
+ * line ("Ouch, that hands Black a real foothold…") plus, when the move wasn't
+ * best, the engine's preferred reply and how much it cost. Replaces the old
+ * terse `BestLine`. Renders nothing for the opening position (no move yet).
+ */
+export function MoveCommentary({
+  review,
+  side,
+  ply,
+  whiteEvalBefore,
+  whiteEvalAfter,
+  move,
+  sanOf,
+  persona,
+}: {
+  review: MoveReview | null;
+  side: PlayerColor;
+  ply: number;
+  whiteEvalBefore: number;
+  whiteEvalAfter: number;
+  move: Move | null;
+  sanOf: (m: Move) => string;
+  persona?: CommentatorId;
+}) {
+  if (!review || !move) return null;
+  const bestSan = review.best ? sanOf(review.best) : null;
+  const ctx = { side, ply, whiteEvalBefore, whiteEvalAfter, move, bestSan };
+  const line = describeMove(review, ctx, persona);
+  const tone = isBrilliant(review, ctx) ? 'brilliant' : review.quality;
   return (
-    <p className="best-line">
-      Engine preferred <b>{sanOf(review.best)}</b> — gave up {(review.loss / 100).toFixed(1)} columns.
+    <p className={`move-commentary q-${tone}`}>
+      {line}
+      {review.best && (
+        <span className="commentary-cost"> ({(review.loss / 100).toFixed(1)} columns given up.)</span>
+      )}
     </p>
+  );
+}
+
+/** The coach's nudge for the live position: the move they'd reach for here. */
+export function FromHereHint({
+  best,
+  ply,
+  sanOf,
+  persona,
+}: {
+  best: Move | null;
+  ply: number;
+  sanOf: (m: Move) => string;
+  persona?: CommentatorId;
+}) {
+  if (!best) return null;
+  return <p className="best-from-here">{coachFromHere(sanOf(best), { ply, move: best }, persona)}</p>;
+}
+
+/** A compact segmented control to switch the commentary voice. */
+export function CommentatorPicker({
+  value,
+  onChange,
+}: {
+  value: CommentatorId;
+  onChange: (id: CommentatorId) => void;
+}) {
+  return (
+    <div className="commentator-picker" role="group" aria-label="Commentator voice">
+      <span className="commentator-label">Commentator</span>
+      <div className="commentator-chips">
+        {COMMENTATORS.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            className={`commentator-chip${c.id === value ? ' active' : ''}`}
+            onClick={() => onChange(c.id)}
+            title={c.blurb}
+            aria-pressed={c.id === value}
+          >
+            {c.name}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

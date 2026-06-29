@@ -426,6 +426,7 @@
   --q-inaccuracy: #c79a3a;
   --q-mistake: #c8772f;
   --q-blunder: #b5483b;
+  --q-brilliant: #1a9aa6;
 }
 .landing-page .analysis-block { display: flex; flex-direction: column; gap: 0.9rem; }
 .landing-page .analyse-btn { align-self: flex-start; }
@@ -470,6 +471,7 @@
   color: var(--l-body); padding-left: 0.7rem;
   border-left: 2px solid color-mix(in srgb, var(--l-light) 60%, transparent);
 }
+.landing-page .move-commentary.q-brilliant { border-left-color: var(--q-brilliant); }
 .landing-page .move-commentary.q-best { border-left-color: var(--q-good); }
 .landing-page .move-commentary.q-good { border-left-color: var(--q-good); }
 .landing-page .move-commentary.q-inaccuracy { border-left-color: var(--q-inaccuracy); }
@@ -489,6 +491,7 @@
   padding: 0.15rem 0.5rem; border-radius: var(--r-pill); vertical-align: 0.08em;
   background: var(--bg); box-shadow: var(--nm-raise-sm);
 }
+.landing-page .quality-badge.q-brilliant { color: var(--q-brilliant); letter-spacing: 0.1em; }
 .landing-page .quality-badge.q-best { color: var(--q-good); }
 .landing-page .quality-badge.q-good { color: var(--q-good); }
 .landing-page .quality-badge.q-inaccuracy { color: var(--q-inaccuracy); }
@@ -496,6 +499,30 @@
 .landing-page .quality-badge.q-blunder { color: var(--q-blunder); }
 /* Compact mark in the move list (sub-par moves only). */
 .landing-page .q-mark { margin-left: 0.3rem; font-size: 0.78rem; font-weight: 800; }
+
+/* Pick your commentator: a small neumorphic segmented control. */
+.landing-page .commentator-picker {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  flex-wrap: wrap; margin-top: 0.2rem;
+}
+.landing-page .commentator-label {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--faint);
+}
+.landing-page .commentator-chips {
+  display: inline-flex; gap: 0.3rem; padding: 0.25rem;
+  background: var(--bg); border-radius: var(--r-pill); box-shadow: var(--nm-inset);
+}
+.landing-page .commentator-chip {
+  border: 0; cursor: pointer; font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 0.78rem; font-weight: 600; color: var(--l-body);
+  padding: 0.3rem 0.7rem; border-radius: var(--r-pill); background: transparent;
+  transition: color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.landing-page .commentator-chip:hover { color: var(--l-ink); }
+.landing-page .commentator-chip.active {
+  color: var(--accent-dk); background: var(--bg); box-shadow: var(--nm-raise-sm);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .landing-page .reveal { opacity: 1 !important; transform: none !important; }

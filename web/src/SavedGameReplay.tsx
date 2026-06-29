@@ -24,12 +24,16 @@ import { BoardView } from './Board.tsx';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
 import {
   useGameAnalysis,
+  useCommentator,
   EvalBar,
   AnalysisSummary,
   ReviewBadge,
-  BestLine,
+  MoveCommentary,
+  FromHereHint,
+  CommentatorPicker,
   QualityMark,
 } from './gameAnalysis.tsx';
+import { isBrilliant } from './commentary.ts';
 import {
   getSavedGame,
   rebuildGame,
@@ -74,6 +78,7 @@ export function SavedGameReplay({
   const variant = useMemo(() => (game ? savedGameVariant(game) : LASKA), [game]);
   const [ply, setPly] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [persona, setPersona] = useCommentator();
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => window.scrollTo(0, 0), []);
@@ -200,6 +205,20 @@ export function SavedGameReplay({
   // that position — both null until the game has been analysed.
   const currentReview = ply > 0 ? review.reviews[ply - 1] ?? null : null;
   const currentWhiteEval = review.analysis ? review.analysis[ply]?.whiteEval ?? null : null;
+  // Evals bracketing the current move (before → after), for the critic's drama.
+  const evalBefore = review.analysis?.[ply - 1]?.whiteEval ?? 0;
+  const evalAfter = currentWhiteEval ?? 0;
+  const currentBrilliant =
+    currentReview && current
+      ? isBrilliant(currentReview, {
+          side: current.side,
+          ply,
+          whiteEvalBefore: evalBefore,
+          whiteEvalAfter: evalAfter,
+          move: current.move,
+          bestSan: null,
+        })
+      : false;
   // The engine's preferred move at the current position, shown as a hint.
   const bestNext = review.analysis?.[ply]?.scored[0]?.move ?? null;
 
@@ -275,12 +294,11 @@ export function SavedGameReplay({
               ) : (
                 <>
                   <EvalBar white={currentWhiteEval ?? 0} />
-                  <AnalysisSummary summary={review.summary!} />
-                  {bestNext && ply < lastPly && (
-                    <p className="best-from-here">
-                      Engine likes <b>{moveToSan(bestNext)}</b> here.
-                    </p>
+                  <AnalysisSummary summary={review.summary!} persona={persona} />
+                  {ply < lastPly && (
+                    <FromHereHint best={bestNext} ply={ply} sanOf={moveToSan} persona={persona} />
                   )}
+                  <CommentatorPicker value={persona} onChange={setPersona} />
                 </>
               )}
             </div>
@@ -290,9 +308,18 @@ export function SavedGameReplay({
                 {ply === 0
                   ? 'Opening position'
                   : `${current!.moveNo}. ${current!.side === 'W' ? 'White' : 'Black'} — ${current!.san}`}
-                <ReviewBadge review={currentReview} />
+                <ReviewBadge review={currentReview} brilliant={currentBrilliant} />
               </span>
-              <BestLine review={currentReview} sanOf={moveToSan} />
+              <MoveCommentary
+                review={currentReview}
+                side={current?.side ?? 'W'}
+                ply={ply}
+                whiteEvalBefore={evalBefore}
+                whiteEvalAfter={evalAfter}
+                move={current?.move ?? null}
+                sanOf={moveToSan}
+                persona={persona}
+              />
               {ply === 0 ? (
                 <p>Step through your game, or press play. Add a note to any move below.</p>
               ) : (
