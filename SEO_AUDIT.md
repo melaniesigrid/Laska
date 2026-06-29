@@ -52,12 +52,13 @@ robots/sitemap, and Core Web Vitals.
 - [ ] 🟡 Surface opening-book data (Hague opening, Wing gambit) as crawlable long-tail pages.
 
 ## Phase 5 — Structured data (JSON-LD)
-- [x] 🟠 `VideoGame` + `Organization` (Northbound) + `WebSite` schema in index.html.
+- [x] 🟠 `VideoGame` + `Organization` (Northbound) + `WebSite` schema in index.html. Publisher `Organization` now resolves to its own canonical home (`northboundsoftwarestudio.com`) via `url` + `sameAs` — establishes the studio as a distinct entity and seeds a cross-app authority hub.
 - [ ] 🟠 `FAQPage` schema on rules page.
 - [ ] 🟡 `BreadcrumbList` on history/openings sections.
 - [ ] 🟡 Validate every page in Google Rich Results Test.
 
 ## Phase 6 — Internal linking
+- [x] 🟠 Crawlable, followed (`rel="noopener"`, no `nofollow`) footer link "Built by Northbound Software Studio" → `northboundsoftwarestudio.com`. Cross-app authority hub: each Northbound app links the studio so its domain accrues authority and the publisher relationship is confirmed off-schema.
 - [ ] 🟠 Home links the 3 pillars (Play, Learn, History) with descriptive anchors.
 - [ ] 🟠 Cornerstone rules page linked from every page (nav/footer).
 - [ ] 🟠 Cross-link openings ↔ historic games ↔ tutorial.
