@@ -26,6 +26,8 @@ import {
   nextHopTargets,
   advanceCaptureChain,
   moveStepBoards,
+  VARIANTS,
+  LASKA,
   type CaptureChain,
   type PlayerColor,
 } from '../engine/index.ts';
@@ -206,6 +208,7 @@ export function OnlineScreen() {
             onTapSquare={onTapSquare}
             flip={flip}
             lastMove={online.lastMove}
+            variant={(online.match && VARIANTS[online.match.variant]) || LASKA}
           />
           {drawFromOpp && online.phase === 'matched' && (
             <Text style={[styles.note, { color: palette.text }]}>Opponent offers a draw</Text>
@@ -272,11 +275,19 @@ export function OnlineScreen() {
           <Button label="Cancel" variant="ghost" onPress={online.leaveQueue} />
         </>
       ) : (
-        <Button
-          label="Find ranked match"
-          onPress={online.joinQueue}
-          disabled={online.status !== 'connected'}
-        />
+        <>
+          <Button
+            label="Find Laska match"
+            onPress={() => online.joinQueue('laska')}
+            disabled={online.status !== 'connected'}
+          />
+          <Button
+            label="Find Bashni match"
+            variant="ghost"
+            onPress={() => online.joinQueue('bashni')}
+            disabled={online.status !== 'connected'}
+          />
+        </>
       )}
 
       {online.user && (
