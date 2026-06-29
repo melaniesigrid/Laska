@@ -12,15 +12,17 @@ import { StatusPill } from '../components/StatusPill.tsx';
 import { useGame, type GameMode } from '../hooks/useGame.ts';
 import { useTheme } from '../theme/ThemeProvider.tsx';
 import { spacing } from '../theme/tokens.ts';
+import { VARIANTS, LASKA } from '../engine/index.ts';
 import type { PlayStackScreenProps } from '../navigation/types.ts';
 
 export function GameScreen({ route }: PlayStackScreenProps<'Game'>) {
   const mode: GameMode = route.params.mode;
+  const variant = (route.params.variant && VARIANTS[route.params.variant]) || LASKA;
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  const game = useGame(mode);
+  const game = useGame(mode, variant);
 
   // Board sizes to width with breathing room; safe-area aware.
   const boardSize = Math.min(width - spacing.lg * 2, 460);
@@ -43,6 +45,7 @@ export function GameScreen({ route }: PlayStackScreenProps<'Game'>) {
           size={boardSize}
           onTapSquare={game.tap}
           lastMove={game.lastMove}
+          variant={variant}
         />
       </View>
 

@@ -30,11 +30,10 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import {
-  SQUARE_TO_RC,
-  RC_TO_SQUARE,
-  BOARD_DIM,
+  LASKA,
   commander,
   type Board as BoardModel,
+  type Variant,
 } from '../engine/index.ts';
 import { raised, inset } from '../theme/neumorphic.ts';
 import { rgba, radius as tokenRadius, type Palette } from '../theme/tokens.ts';
@@ -51,6 +50,8 @@ interface BoardProps {
   flip?: boolean;
   /** Highlight the most recent move's from/to squares. */
   lastMove?: { from: number; to: number } | null;
+  /** The variant whose geometry sizes the board (7×7 Laska by default, 8×8 Bashni). */
+  variant?: Variant;
 }
 
 // Animatable SVG group — lets the moved column glide to its landing square.
@@ -75,7 +76,13 @@ export function Board({
   onTapSquare,
   flip = false,
   lastMove = null,
+  variant = LASKA,
 }: BoardProps) {
+  // Geometry comes from the variant: 7×7/25 (Laska) or 8×8/32 (Bashni). Aliased to
+  // the original constant names so the drawing code below is unchanged.
+  const BOARD_DIM = variant.boardDim;
+  const RC_TO_SQUARE = variant.rcToSquare;
+  const SQUARE_TO_RC = variant.squareToRc;
   // Sculpting paddings: the panel lifts the whole board, the tray sinks the field.
   const panelPad = Math.round(size * 0.05);
   const trayPad = Math.round(size * 0.035);
