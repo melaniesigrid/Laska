@@ -341,15 +341,15 @@ export function Landing({
         </div>
         <div className="wrap hero-grid">
           <div className="reveal">
-            <p className="eyebrow">The Great Military Game · 1911</p>
+            <p className="eyebrow">The Great Strategy Game · 1911</p>
             <h1>
               Capture builds.
               <br />
               <span className="light">Nothing is</span> <em className="serif">erased.</em>
             </h1>
             <p className="lede">
-              Laska is draughts reimagined by a world chess champion — where every piece you take is
-              carried beneath your own, and the board grows into towers.
+              Laska is the great strategy game reimagined by a world chess champion — where every
+              piece you take is carried beneath your own, and the board grows into towers.
             </p>
             <div className="hero-actions">
               <button className="btn btn-lg" onClick={onPlay}>
@@ -667,7 +667,7 @@ export function Landing({
             Las<span>k</span>a
           </span>
           <span className="fine">
-            The Great Military Game · after Emanuel Lasker, 1911 ·{' '}
+            The Great Strategy Game · after Emanuel Lasker, 1911 ·{' '}
             <a href="https://github.com/melaniesigrid" target="_blank" rel="noopener noreferrer">
               © Melanie Baratto
             </a>
