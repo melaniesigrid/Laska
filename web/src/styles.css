@@ -353,31 +353,49 @@ button { font-family: inherit; }
  * recessed `.control-deck` rail right, top-aligned. */
 .game-layout { display: contents; }
 .control-deck { display: contents; }
+.deck-scroll { display: contents; }
 .game-layout > .board { order: 0; }
-.control-deck > .status { order: -1; }
+.deck-scroll > .status { order: -1; }
 
 @media (min-width: 960px) {
   .game-layout {
     display: flex; align-items: stretch; justify-content: center;
     gap: clamp(20px, 2.6vw, 36px); width: 100%;
   }
+  /* The rail is now just a recessed, height-stretching frame. Its content is
+     lifted into an absolutely-positioned `.deck-scroll` layer (below) so the
+     controls' own height never drives the row — the rail simply matches the
+     board's height, and any overflow scrolls inside it. */
   .control-deck {
-    display: flex; flex-direction: column; align-items: stretch;
-    gap: 14px; flex: 0 0 auto; width: clamp(290px, 24vw, 320px);
-    padding: 18px 18px 20px; border-radius: 20px;
+    display: block; position: relative;
+    flex: 0 0 auto; width: clamp(290px, 24vw, 320px);
+    border-radius: 20px;
     background: var(--pedestal);
     box-shadow: inset 5px 5px 11px var(--dark), inset -5px -5px 11px var(--light);
   }
-  .control-deck > .status { order: 0; width: 100%; }
+  .control-deck > .deck-scroll {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: stretch;
+    gap: 14px; padding: 18px 18px 20px;
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  /* A quiet, on-surface scrollbar that fits the neumorphic rail. */
+  .control-deck > .deck-scroll { scrollbar-width: thin; scrollbar-color: var(--ink-soft) transparent; }
+  .control-deck > .deck-scroll::-webkit-scrollbar { width: 8px; }
+  .control-deck > .deck-scroll::-webkit-scrollbar-thumb {
+    background: rgb(var(--cast) / 0.28); border-radius: 999px; border: 2px solid transparent; background-clip: content-box;
+  }
+  .control-deck > .deck-scroll::-webkit-scrollbar-thumb:hover { background: rgb(var(--cast) / 0.42); background-clip: content-box; }
+  .deck-scroll > .status { order: 0; width: 100%; }
   /* inside the rail the controls stack and stretch rather than centre-wrap */
-  .control-deck > .controls { width: 100%; justify-content: flex-start; }
-  .control-deck > .controls .btn { flex: 1 1 auto; justify-content: center; }
-  .control-deck > .controls .segment { flex: 1 1 100%; }
-  .control-deck > .controls .segment button { flex: 1 1 0; justify-content: center; }
-  .control-deck > .controls .field-label { flex: 1 1 100%; align-items: stretch; }
-  .control-deck > .controls .field-label .neu-select { width: 100%; }
-  .control-deck > .ai-note { max-width: 100%; text-align: left; }
-  .control-deck > .legend { justify-content: flex-start; gap: 14px 18px; }
+  .deck-scroll > .controls { width: 100%; justify-content: flex-start; }
+  .deck-scroll > .controls .btn { flex: 1 1 auto; justify-content: center; }
+  .deck-scroll > .controls .segment { flex: 1 1 100%; }
+  .deck-scroll > .controls .segment button { flex: 1 1 0; justify-content: center; }
+  .deck-scroll > .controls .field-label { flex: 1 1 100%; align-items: stretch; }
+  .deck-scroll > .controls .field-label .neu-select { width: 100%; }
+  .deck-scroll > .ai-note { max-width: 100%; text-align: left; }
+  .deck-scroll > .legend { justify-content: flex-start; gap: 14px 18px; }
 }
 
 /* ---- status, controls, legend (neumorphic, on-surface) --------------- */
@@ -809,6 +827,22 @@ input[type='radio'] { accent-color: var(--cobalt); }
   100% { opacity: 0; transform: translate(-50%, -30px) scale(0.96); }
 }
 
+/* ---- game-over mascot (board-anchored) ---------------------------------
+   The end-of-game mascot used to live at the top of the control deck; it now
+   pops over the finished board so the celebration/commiseration plays where the
+   eye already is, and the (scrollable) deck keeps its height for the controls.
+   Rendered inside the relative `.stage` via BoardView's overlay slot. */
+.board-mascot {
+  position: absolute; left: 50%; bottom: clamp(10px, 2.4vw, 20px); z-index: 6;
+  transform: translateX(-50%); pointer-events: none;
+  filter: drop-shadow(0 10px 18px rgb(var(--cast) / 0.34));
+  animation: board-mascot-in 0.5s var(--ease-settle) both;
+}
+@keyframes board-mascot-in {
+  from { opacity: 0; transform: translate(-50%, 16px) scale(0.78); }
+  to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
 /* ---- palette-icon spin when the colour theme cycles --------------------- */
 .theme-spin { animation: theme-spin 0.55s cubic-bezier(0.4, 0, 0.2, 1); }
 @keyframes theme-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -821,6 +855,7 @@ input[type='radio'] { accent-color: var(--cobalt); }
 @media (prefers-reduced-motion: reduce) {
   .confetti-field, .promo-ring { display: none !important; }
   .combo-pop { animation: none; opacity: 1; transform: translateX(-50%); }
+  .board-mascot { animation: none; }
   .theme-spin, .save-pop { animation: none; }
 }
 

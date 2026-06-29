@@ -1166,22 +1166,23 @@ function LocalGame({
                 {comboLabel(combo.n)} <span className="combo-n">×{combo.n}</span>
               </div>
             )}
+            {gameOver && (
+              <div className="board-mascot">
+                <DotMascot
+                  tint={celebrate ? 'sun' : 'sky'}
+                  mood={celebrate ? 'cheer' : 'sleepy'}
+                  size={84}
+                  label={celebrate ? 'You won!' : 'Game over'}
+                />
+              </div>
+            )}
             {pieceSweep > 0 && <div className="theme-sweep" key={pieceSweep} aria-hidden="true" />}
           </>
         }
       />
 
       <div className="control-deck">
-        {gameOver && (
-          <div style={{ order: -2, display: 'flex', justifyContent: 'center' }}>
-            <DotMascot
-              tint={celebrate ? 'sun' : 'sky'}
-              mood={celebrate ? 'cheer' : 'sleepy'}
-              size={84}
-              label={celebrate ? 'You won!' : 'Game over'}
-            />
-          </div>
-        )}
+        <div className="deck-scroll">
         <div
           className={`status ${status.state === 'win' ? 'win' : status.state === 'draw' ? 'draw' : ''}${
             (isAiTurn || thinking) ? ' thinking' : ''
@@ -1310,6 +1311,7 @@ function LocalGame({
         )}
 
         <Legend />
+        </div>
       </div>
     </div>
   );

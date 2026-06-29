@@ -399,6 +399,13 @@ a compliant contest layer later does not require reworking the game/rating code.
 
 ## Notes / known limitations to revisit
 
+- **Local-game control deck now scrolls instead of stretching the row.** On
+  desktop (≥960px) the controls live in an out-of-flow `.deck-scroll` layer so
+  the rail matches the board's height and overflows internally; the game-over
+  mascot moved from the deck onto the board (`.board-mascot`, BoardView overlay).
+  Follow-ups if desired: tuck the win mascot into a board corner rather than
+  bottom-center, and re-check the deck height on very tall control sets (Bashni +
+  hint banner + AI note all open at once).
 - **In-memory storage is not durable** and not multi-node — first production task
   is the Postgres/Redis swap (item 2).
 - **Dev token secrets are random per boot** — set `LASKA_ACCESS_SECRET` /
