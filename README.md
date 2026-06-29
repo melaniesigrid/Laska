@@ -2,40 +2,68 @@
 
 # Laska
 
-### The Great Military Game
+### The stacking draughts — invented by a world chess champion in 1911
 
-*Draughts, reimagined by a world chess champion — where every piece you capture is carried beneath your own, and the board grows into towers.*
+*It looks like checkers. Then the first piece you capture climbs **underneath** yours instead of leaving — and the whole board starts growing into towers.*
+
+&nbsp;
+
+<img src="docs/screenshots/hero-board.png" alt="The Laska board — a soft, sculpted clay board with cream and charcoal coins lined up to start" width="760">
 
 &nbsp;
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9_strict-3178c6?logo=typescript&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-%E2%89%A522-339933?logo=node.js&logoColor=white)
 ![Engine](https://img.shields.io/badge/rules_engine-zero_dependencies-success)
-![Tests](https://img.shields.io/badge/tests-120%2B_passing-success)
+![Tests](https://img.shields.io/badge/tests-130%2B_passing-success)
 ![Build](https://img.shields.io/badge/build_step-none_(raw_TS)-blue)
+![Play](https://img.shields.io/badge/play-playlaska.com-5f8c7e)
 
 </div>
 
 ---
 
-> *"The game to teach cautiousness and tactics, and a great builder up of ideas."*
-> — Dr. Emanuel Lasker, 1911
+## 🧒 Explain it like I'm five
 
-In 1911, at the height of a twenty-seven-year reign as World Chess Champion, Emanuel Lasker invented a game. It looks, at first, like ordinary checkers: men on the dark squares, moving and jumping along the diagonals. Then the first capture happens — and instead of leaving the board, the captured piece slides *underneath* its captor. The two move together now, a column led by whoever sits on top. Capture by capture, the board climbs into stacks, prisoners change hands, and a quiet game of draughts becomes a war of towers.
+You know **checkers**? Little round pieces on a board. You jump over your friend's
+piece, and it gets taken off the board. Gone forever.
 
-Lasca all but vanished for a century. **This is it, rebuilt** — a faithful rules engine, an AI that understands columns rather than counting pieces, and a calm, tactile board you can actually play.
+**Laska is checkers with one magic change:**
 
-## The one rule that changes everything
+> When you jump a piece, it doesn't leave. It **slides under yours** and becomes
+> your prisoner. Now the two pieces move together as a little tower — and whoever is
+> sitting *on top* is the boss.
 
-In checkers, a captured piece is gone. In Laska, **nothing is erased.**
+So the board never empties out. It **grows upward**. Jump enough pieces and you're
+pushing around tall towers of trapped prisoners. And here's the twist that makes
+grown-ups love it: if someone captures the *top* of your tower, the boss changes —
+and all those prisoners underneath suddenly switch sides and work for the enemy.
 
-- **Capture builds.** Jump an enemy and he becomes a prisoner at the base of your column.
-- **The top piece commands.** A stack moves, jumps, and belongs to whoever leads it.
-- **Freedom flips the board.** Take an enemy column and you capture only its leader — the prisoners below are freed under a new commander.
+Nobody ever really dies. They just change who they're working for. That's the
+whole game: **don't count pieces — count towers.**
 
-Eleven men a side. No piece ever leaves. You win by burying or cornering your opponent, not by clearing the board.
+<div align="center">
+<img src="docs/screenshots/stacking-capture.png" alt="A captured piece stacked under a Laska coin, with a small badge showing the column is now 2 tall" width="680">
+<br>
+<sub><i>A real capture in the app — the little <b>2</b> badge means this coin is now a 2-tall tower. The prisoner is trapped underneath.</i></sub>
+</div>
 
-## Play it
+### The three rules that are different from checkers
+
+| Checkers | Laska |
+|---|---|
+| Captured pieces leave the board | Captured pieces slide **under** you as prisoners |
+| You count how many pieces you have | You watch who **commands** each tower (the top piece) |
+| Take an enemy and it's gone | Take an enemy tower and you only grab its **leader** — the prisoners below go free under a new boss |
+
+Eleven pieces a side. **Nothing is ever erased.** You win by burying or cornering
+your opponent — not by clearing the board.
+
+---
+
+## ▶️ Play it in 30 seconds
+
+You don't need an account, a key, or anything to configure.
 
 ```bash
 cd web
@@ -43,36 +71,111 @@ npm install
 npm run dev          # → http://localhost:5173
 ```
 
-That's the whole thing — no account, no keys, nothing to configure. Requires Node 22 or newer.
+That's the whole thing. Requires **Node 22 or newer**. Or just go to
+**[playlaska.com](https://playlaska.com)** and start playing.
 
-## What's inside
+---
 
-- **Play anyone.** Hot-seat two-player on one device, or face an AI with six honest difficulty levels — from a beginner that blunders to an expert that looks eight moves deep.
-- **Learn in minutes.** A complete, illustrated rulebook drawn from Lasker's original 1911 booklet, with a numbered board, his strategy notes, and the terminology (privates, columns, officers, bombs).
-- **Replay history.** Step move-by-move through real recorded games — including **two of Lasker's own teaching games from 1911**, replayed on the live engine.
-- **Make it yours.** Five hand-built color palettes (Stone, Dark, Light, Chocolate, Classic) and four piece styles, where generals wear a debossed star, medal, or crown.
-- **Play online.** A server-authoritative backend with accounts, Elo matchmaking, real-time matches with clocks, and reconnection — every move validated on the server.
-- **A design with a point of view.** A neumorphic, soft-clay aesthetic — sculpted from light and shadow, never flat, never loud.
+## ✨ What you can do
 
-## The man who made it
+### 🤖 Play a computer that actually understands towers
 
-Emanuel Lasker — born on Christmas Eve, 1868, the son of a Jewish cantor — held the world chess title longer than anyone before or since: twenty-seven years. He was also a doctor of mathematics (the Lasker–Noether theorem still sits under modern algebra), a published philosopher, and a friend of Albert Einstein. Forced from Nazi Germany in 1933 for being Jewish, he lived out an exile through Moscow and finally New York, where he died in 1941. Among bridge, Go, and chess, Laska was the one game he invented himself.
+Most checkers bots just count pieces. That's useless in Laska, where a captured
+piece is a *life you can win back later*. Our opponent thinks in towers instead —
+and you can pick from **six honest difficulty levels**, from a beginner that
+genuinely blunders to an expert that looks eight moves ahead. (The full game
+screen — board plus the difficulty and opponent panel — is the hero shot at the
+top of this page.)
 
+### 🎨 Make it beautiful — themes & pieces
+
+Five hand-built color palettes and several piece styles. Generals can wear a
+debossed **star**, **crown**, or **shield**, pressed *into* the coin like a wax
+seal. The whole board is **neumorphic** — soft clay, sculpted only with light and
+shadow, never flat and never loud.
+
+<div align="center">
+<img src="docs/screenshots/themes-dark-lineage.png" alt="The board in a warm dark theme with crowned and shielded pieces" width="760">
+</div>
+
+### 🎓 Learn the strategy, hands-on
+
+Four short lessons played **on the real board** — why a tall tower is safer on the
+edge, how to guard a weak column, and the famous "one-handed attack." Every move
+you try is checked by the live rules engine, so you can never be taught a move the
+game would reject.
+
+<div align="center">
+<img src="docs/screenshots/lessons.png" alt="The lessons screen — four strategy lesson cards from gentle to advanced" width="760">
+</div>
+
+### 📜 Replay real games from history
+
+Step move-by-move through real recorded matches — including **two of Lasker's own
+teaching games from 1911** — replayed on the same live engine you play against.
+They're not pictures; the engine actually re-plays every move.
+
+<div align="center">
+<img src="docs/screenshots/historic-replay.png" alt="A historic game replay: Tatarinow vs Roschtschin, Moscow 1996, with the move list" width="760">
+</div>
+
+### 🌐 Play other people online
+
+Sign in (or jump in as a guest), get matched by skill, and play a real-time game
+with clocks, chat, rematches, and reconnection if your wifi blips. **Every single
+move is re-checked on the server** — nobody can cheat the rules.
+
+<div align="center">
+<img src="docs/screenshots/online.png" alt="The online play screen — play as guest or sign in" width="760">
+</div>
+
+### 📱 Plays great on your phone
+
+The whole board and controls reflow to a single tidy column on mobile. There's
+also a native iOS + Android build in the works.
+
+<div align="center">
+<img src="docs/screenshots/mobile.png" alt="Laska running on a phone-sized screen, board and controls stacked vertically" width="300">
+</div>
+
+---
+
+## 👴 Who invented this game (the real story)
+
+Laska was made by **Emanuel Lasker** — and he was not a casual hobbyist.
+
+He was the **World Chess Champion for 27 years**, longer than anyone before or
+since. He was *also* a doctor of mathematics (a theorem with his name still sits
+under modern algebra), a published philosopher, and a friend of Albert Einstein.
+Born on Christmas Eve in 1868 to a Jewish cantor's family, he was forced out of
+Nazi Germany in 1933 and lived his last years in exile, dying in New York in 1941.
+
+He loved chess, Go, and bridge — but **Laska was the one game he invented himself.**
+He called it *"the game to teach cautiousness and tactics, and a great builder up
+of ideas."* It nearly vanished for a century. This app brings it back, faithfully.
 There's a fuller telling of his life inside the app.
 
 ---
 
-# Engineering
+# 🛠️ How we built it
 
-> The half of this README for the reader who wants to know how it's built. Laska is
-> a ~12,000-line, strict-TypeScript monorepo built around a single principle: **the
-> rules of the game are written exactly once.**
+> The rest of this README is for the curious — the "how does it actually work"
+> half. Laska is a ~12,000-line, strict-TypeScript project built around **one
+> stubborn idea: the rules of the game are written exactly once.**
 
-## The core invariant: one engine, no drift
+### The simple version
 
-`src/` is a pure rules engine — `legalMoves`, `applyMove`, `gameStatus`, board geometry, and the AI — with **zero runtime dependencies**. It is the single source of truth for how Laska is played.
+Imagine three things that all need to agree on what a *legal move* is: the game on
+your screen, the computer opponent, and the online server that referees matches
+between strangers. If you wrote the rules three times, they'd eventually disagree —
+and a bug where the server thinks a move is illegal but your screen thinks it's
+fine is a nightmare.
 
-The web client and the online server do **not** re-implement, port, or copy that logic. They `import` it directly as TypeScript:
+So we wrote the rules **once**, in one little engine, and everything else *borrows*
+it. The screen, the bot, and the server all run the *exact same* rule code. They
+literally cannot disagree, because it's the same function.
+
+### The one-engine architecture
 
 ```
                     ┌─────────────────────────────┐
@@ -91,38 +194,60 @@ The web client and the online server do **not** re-implement, port, or copy that
    └────────────────────┘   protocol.ts     └──────────────────────────┘
 ```
 
-The payoff: the rules **cannot** drift between where you play and where they're enforced. A client never gets to disagree with the server about whether a capture is legal, because they are running the identical function. Only the message types cross the boundary (`server/src/net/protocol.ts`), and the client imports those too — so a protocol change is a compile error, not a runtime surprise.
+`src/` has **zero runtime dependencies** and is the single source of truth. The web
+client and the server don't re-implement it — they `import` it directly. The only
+thing crossing the boundary is the message format (`server/src/net/protocol.ts`),
+which the client also imports — so a protocol change is a *compile error*, not a
+runtime surprise.
 
-To prove the engine is faithful rather than merely plausible, it **replays Lasker's own 1911 games move-for-move** — they are validated through the live engine at import time, so an engine change that breaks a historical game fails the build.
+The proof it's faithful: the engine **replays Lasker's own 1911 games
+move-for-move** at build time. Break a rule and a 113-year-old game stops
+replaying — and the build fails.
 
-## The AI
+### The opponent AI
 
-A column is not a pile of material — every captured piece is a permanent, recapturable life — so a piece-counting evaluator plays Laska badly. The engine searches with that in mind:
+A piece-counting bot plays Laska badly, because every buried prisoner is a life you
+can recapture. So the AI is built to think in towers:
 
-- **Negamax with alpha-beta pruning** over the forced-capture-heavy move tree, with a **quiescence search** that extends through capture sequences so the evaluator is never called mid-exchange (no horizon-effect blunders).
-- A **column-aware evaluation** scoring control, officer rank, buried prisoners, promotion threats, mobility, and two positional refinements drawn from documented Laska strategy ([`STRATEGY.md`](STRATEGY.md)): edge-safety for tall columns and an anti-over-concentration term that discourages fragile over-stuffed towers. Every term is **antisymmetric**, a property the negamax sign-flip depends on and which is enforced by a mirror-position test.
-- **Six difficulty tiers** (beginner → expert) that scale search depth and a tunable blunder rate, so a beginner feels beatable without the code faking it.
+- **Negamax search with alpha-beta pruning** over the capture-heavy move tree, plus
+  a **quiescence search** that plays out exchanges to the end before judging a
+  position — so it never makes a "looked good for one move" blunder.
+- A **column-aware evaluation** that scores tower control, commander rank, buried
+  prisoners, promotion threats, and mobility — drawn from documented Laska strategy
+  ([`STRATEGY.md`](STRATEGY.md)), including edge-safety for tall towers.
+- **Six difficulty tiers** that scale how deep it searches and how often it
+  blunders, so a beginner is genuinely beatable without the code faking it.
 
-The evaluator's correctness is pinned two ways: a **frozen, hand-written reference negamax** lives in the test suite so the optimised production search can never silently diverge from textbook results, and an **agent arena** (`src/agents/`) pits the search against random, greedy, and Monte-Carlo-tree-search opponents in round-robin matches to measure real playing strength rather than asserting it.
+Its strength is *measured*, not asserted: a frozen reference search in the test
+suite catches any drift, and an **agent arena** (`src/agents/`) pits it against
+random, greedy, and Monte-Carlo opponents in round-robin matches. (Deep dives:
+[`AI.md`](AI.md), [`AI_RESEARCH.md`](AI_RESEARCH.md).)
 
-## Testing & rigor
+### How we know it works
 
 | Suite | What it covers |
 |---|---|
-| **Engine (50+)** | rules, captures, promotion, notation round-trips, and AI search — including a self-play harness that plays full games asserting *only legal moves, no exceptions, and conservation of all 22 pieces* |
-| **Server (50+)** | match lifecycle, matchmaking, Elo, auth, and a **storage contract test run against every backend** (in-memory, SQLite, Postgres) plus a cluster-fabric parity test (in-memory and Redis), including a multi-node routing test |
-| **Playwright e2e** | the real online flow end-to-end against a running server |
+| **Engine (55+)** | rules, captures, promotion, notation round-trips, AI search — plus a self-play harness that plays full games asserting *only legal moves, no exceptions, and all 22 pieces conserved* |
+| **Server (76+)** | match lifecycle, matchmaking, Elo, auth — and a **storage contract test run against every backend** (in-memory, SQLite, Postgres) plus a cluster-fabric parity test (in-memory and Redis) |
+| **Playwright e2e** | the real online flow, end-to-end against a running server |
 
-Strict TypeScript throughout (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), CI on GitHub Actions, and a deliberate **no-build-step** stance: the engine and server run raw `.ts` via Node 22's native type-stripping, so there is no compile artifact to drift from the source.
+Strict TypeScript everywhere (`noUncheckedIndexedAccess`,
+`exactOptionalPropertyTypes`), CI on GitHub Actions, and a deliberate
+**no-build-step** stance: the engine and server run raw `.ts` via Node 22's native
+type-stripping, so there's no compiled artifact that can drift from the source.
 
-## Architecture highlights worth a look
+### Built by a team of AI agents
 
-- **Pluggable persistence behind one interface.** `server/src/storage/` defines a `Repository` contract with memory / SQLite / Postgres implementations chosen by env var — and a single contract test that runs against all three, so they can't silently diverge.
-- **Horizontal scale as a swappable layer.** `server/src/cluster/` abstracts presence, the matchmaking queue, and cross-node routing behind an interface with in-memory (single-node) and Redis (multi-node) backends, parity-tested the same way.
-- **Server-authoritative by construction.** Clients send *intentions*; the server re-derives every move through the shared engine and is the only writer of game state, clocks, and ratings.
-- **Ships as one container.** A `Dockerfile` and Vercel config are included; the static web app and the stateful server deploy independently.
+Laska was built with a roster of **specialised AI engineering agents** — an engine
+engineer, a game-AI engineer, a frontend engineer, a backend engineer, and more —
+each scoped to one domain and each gated by the same verification loop a human team
+would use: typecheck, run the tests, and replay Lasker's 1911 games. The honest,
+milestone-by-milestone record (including what's deliberately *not* done yet) lives
+in [`BUILD_LOG.md`](BUILD_LOG.md).
 
-## Layout
+---
+
+## 📂 Project layout
 
 ```
 src/        Rules engine + AI — the heart of it (pure, zero-deps, the source of truth)
@@ -130,23 +255,32 @@ test/       Engine + AI tests (incl. self-play invariants & a frozen reference s
 web/        React + Vite app you play
 server/     Online backend: WebSocket, matchmaking, Elo, pluggable storage + cluster
 e2e/        Playwright end-to-end tests
+mobile/     Native iOS + Android build (Expo / React Native, shared engine)
+docs/       Screenshots and the README blueprint
 STRATEGY.md Canonical strategy reference the AI heuristic traces back to
 DESIGN.md   The neumorphic design system
 CLAUDE.md   Engineering guide: exact commands, project map, conventions, DoD
 ```
 
-## The rules, honestly
+## 🤝 For developers
 
-The ruleset is reconciled with Dr. Lasker's original *Rules of Lasca, the Great Military Game* (1911) and confirmed by replaying his own published games through the engine. The full, canonical write-up lives inside the app (and in [`DESIGN.md`](DESIGN.md) / the engine's source comments). One genuinely interpretive point — whether you must take the longest capture — is documented there: Lasker advised "the longest run or best advantage," which we read as guidance, so the choice is yours.
+Working on the code? Start with [`CLAUDE.md`](CLAUDE.md) — the engineering guide
+with exact commands per package, the project map, conventions, and the
+verification loop. The engine, web app, and server are three separate npm packages
+(`npm install` in each); from the repo root, `npm test` runs the full engine suite.
 
-## For developers
-
-Working on the code? Start with [`CLAUDE.md`](CLAUDE.md) — it's the engineering guide: exact commands per package, the project map, conventions, and the verification loop, written to get you productive without spelunking. The engine, web app, and server are three separate npm packages (`npm install` in each); from the repo root, `npm test` runs the full engine suite.
+> **The rules, honestly.** Our ruleset is reconciled with Lasker's original *Rules
+> of Lasca, the Great Military Game* (1911) and confirmed by replaying his own
+> published games. One genuinely interpretive point — whether you *must* take the
+> longest capture — is documented in the app: Lasker advised "the longest run or
+> best advantage," which we read as guidance, so the choice is yours.
 
 ---
 
 <div align="center">
 
-*A century-old game, built for now. Your move.*
+*A century-old game, built for now.* **Your move.**
+
+[**▶ Play at playlaska.com**](https://playlaska.com)  ·  [Rules](DESIGN.md)  ·  [How it was built](BUILD_LOG.md)  ·  [The AI](AI.md)
 
 </div>
