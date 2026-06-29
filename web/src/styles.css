@@ -516,6 +516,100 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .connection-banner span { color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
 @keyframes reconnect-spin { to { transform: rotate(360deg); } }
 
+/* ---- in-match social: chat feed, emote bar, rematch ----------------------
+   All sculpted from the shared --light/--dark shadows so the panel reads as
+   one neumorphic surface with the clocks/status above it. */
+.chat-panel { display: flex; flex-direction: column; gap: 12px; }
+
+/* recessed scroll tray for the message feed */
+.chat-feed {
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: 240px; overflow-y: auto; padding: 14px;
+  border-radius: 16px; background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+}
+.chat-empty { color: var(--ink-soft); font-size: 12px; font-style: italic; text-align: center; margin: auto 0; }
+
+.chat-line { display: flex; flex-direction: column; gap: 3px; max-width: 85%; }
+.chat-line.mine { align-self: flex-end; align-items: flex-end; }
+.chat-line.theirs { align-self: flex-start; align-items: flex-start; }
+
+/* raised bubble; mine carries a faint cobalt wash so the two sides read apart */
+.chat-bubble {
+  font-size: 13px; line-height: 1.4; color: var(--btn-ink);
+  padding: 9px 13px; border-radius: 14px; background: var(--pedestal);
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  word-break: break-word; white-space: pre-wrap;
+}
+.chat-line.mine .chat-bubble {
+  color: var(--ink); background: color-mix(in srgb, var(--cobalt) 14%, var(--pedestal));
+}
+.chat-meta { font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+
+/* emote rendered inline in the feed as a labeled chip */
+.chat-emote-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 600; color: var(--cobalt);
+  padding: 7px 12px; border-radius: 12px; background: var(--pedestal);
+  box-shadow: 3px 3px 7px var(--dark), -3px -3px 7px var(--light);
+}
+.chat-emote-chip svg { flex: 0 0 auto; }
+
+/* quick-bar of canned emotes */
+.emote-bar { display: flex; flex-wrap: wrap; gap: 7px; }
+.emote-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-body); font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--btn-ink); background: var(--pedestal); border: 0; border-radius: 11px;
+  padding: 7px 11px; cursor: pointer;
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease, color 0.14s ease;
+}
+.emote-btn svg { flex: 0 0 auto; color: var(--cobalt); }
+.emote-btn:hover { color: var(--cobalt); }
+.emote-btn:active { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); transform: translateY(1px); }
+.emote-btn:disabled { opacity: 0.45; cursor: default; box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light); transform: none; }
+
+/* composer: recessed input + raised send button */
+.chat-composer { display: flex; align-items: center; gap: 9px; position: relative; }
+.chat-input {
+  flex: 1 1 auto; min-width: 0; font-family: var(--font-body); font-size: 13px;
+  color: var(--btn-ink); background: var(--plate); border: 0; border-radius: 12px; padding: 10px 13px;
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+}
+.chat-input:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+.chat-send {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--cobalt); background: var(--pedestal); border: 0; border-radius: 12px;
+  width: 40px; height: 40px; cursor: pointer;
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease;
+}
+.chat-send:active { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); transform: translateY(1px); }
+.chat-send:disabled { opacity: 0.45; cursor: default; box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light); transform: none; }
+.chat-counter {
+  position: absolute; right: 52px; bottom: -16px;
+  font-size: 10px; font-variant-numeric: tabular-nums; color: var(--ink-soft);
+}
+
+/* unread badge on the Online toggle / wherever the count is shown */
+.chat-unread {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  font-size: 10px; font-weight: 700; color: #fff; background: var(--cobalt);
+  box-shadow: 2px 2px 4px var(--dark);
+}
+
+/* rematch buttons: align the lucide icon, highlight the "opponent ready" CTA */
+.buttons button.rematch-ready,
+.buttons button:has(svg) { display: inline-flex; align-items: center; gap: 8px; }
+.buttons button.rematch-ready {
+  color: var(--cobalt);
+  box-shadow: 6px 6px 12px var(--dark), -6px -6px 12px var(--light), inset 0 0 0 1.5px color-mix(in srgb, var(--cobalt) 60%, transparent);
+}
+.buttons button.rematch-ready svg { color: var(--cobalt); }
+.rematch-wait { text-align: center; }
+
 .capture-choice {
   display: flex; flex-direction: column; gap: 10px; padding: 14px;
   border-radius: 16px; background: var(--pedestal);
@@ -537,8 +631,19 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .searching { font-size: 12px; color: var(--ink-soft); font-style: italic; }
 .foot { font-size: 11px; color: var(--ink-soft); letter-spacing: 0.06em; opacity: 0.7; text-align: center; }
 
+/* Below the desktop two-column breakpoint the six topbar controls (play-mode,
+   theme, pieces, coords, sound, my-games) no longer fit one row, so let them
+   wrap instead of overflowing — before this they ran off both edges of a phone
+   (x=-163 to x=553 in a 390px window, both ends clipped). Desktop (>=960px)
+   keeps the original single nowrap row. */
+@media (max-width: 959px) {
+  .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
+}
 @media (max-width: 560px) {
   .topbar { flex-direction: column; gap: 10px; }
+  /* full-width, centred, so the wrapped action buttons read as a tidy cluster
+     under the back arrow instead of hugging one edge */
+  .topbar-actions { width: 100%; justify-content: center; gap: 8px; }
   .panel { max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
@@ -679,4 +784,89 @@ input[type='radio'] { accent-color: var(--cobalt); }
   .confetti-field, .promo-ring { display: none !important; }
   .combo-pop { animation: none; opacity: 1; transform: translateX(-50%); }
   .theme-spin, .save-pop { animation: none; }
+}
+
+/* ---- hover-lift on your movable columns --------------------------------
+   On a pointer device, hovering a column you can move gives it the same lift +
+   accent ring as selection, so the board feels tactile before you commit. The
+   `.column` transition already eases it; selected columns keep their own lift. */
+@media (hover: hover) {
+  .sq.dark.movable:hover:not(:disabled) .column:not(.selected) { transform: translateY(-3px); }
+  .sq.dark.movable:hover:not(:disabled) .column:not(.selected) .disc.top {
+    box-shadow: 0 1px 1px rgb(var(--cast) / 0.30), 0 6px 9px rgb(var(--cast) / 0.26),
+                inset 0 1.5px 0 rgba(255,255,255,0.42), 0 0 0 2px rgb(var(--ring) / 0.5);
+  }
+}
+
+/* ---- hint square breathes (draws the eye to the suggested move) ---------
+   Layers an animation onto the static .highlight ring (the resting / reduced-
+   motion state stays the rule above). Same language as the forced-capture breathe. */
+.sq.dark.highlight { animation: hint-pulse 1.6s ease-in-out infinite; }
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi), inset 0 0 0 2px rgb(var(--ring) / 0.5); }
+  50%      { box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi), inset 0 0 0 3px rgb(var(--ring) / 0.92); }
+}
+
+/* ---- online clock urgency (your time is running out) -------------------- */
+.clock.low .clock-time { color: var(--danger); animation: clock-low 1s ease-in-out infinite; }
+@keyframes clock-low { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* ---- rating gain pop (online result) ----------------------------------- */
+.rating-delta { font-weight: 700; }
+.rating-delta.up { color: var(--win); display: inline-block; animation: rating-pop 0.5s var(--ease-settle) 0.2s both; }
+.rating-delta.down { color: var(--ink-soft); }
+@keyframes rating-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
+
+/* ---- new-game deal-in (staggered piece entrance) -----------------------
+   On a fresh board (BoardView `dealing`), each occupied column drops + scales
+   in, delayed by its render-order index (`--deal-i`) for a dealt-out feel.
+   `backwards` holds the from-state during the delay; reduced-motion just shows
+   the pieces (global animation kill-switch). */
+.field.dealing .column {
+  animation: deal-in 0.5s var(--ease-settle) backwards;
+  animation-delay: calc(var(--deal-i, 0) * 24ms);
+}
+@keyframes deal-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.6); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- piece-insignia light sweep (on rank-mark theme change) -------------
+   A soft band of accent light wipes across the board when the insignia theme
+   cycles, so the change registers as a flourish. Lives in the relative .stage. */
+.theme-sweep { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; border-radius: inherit; }
+.theme-sweep::before {
+  content: ''; position: absolute; top: -25%; bottom: -25%; width: 45%; left: -60%;
+  background: linear-gradient(100deg, transparent, rgb(var(--ring) / 0.4), transparent);
+  transform: skewX(-12deg); animation: theme-sweep 0.7s ease-out forwards;
+}
+@keyframes theme-sweep { from { left: -60%; } to { left: 130%; } }
+
+/* ---- invalid-click shake ("you can't move that") ----------------------- */
+.sq.dark.shake { animation: sq-shake 0.38s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+@keyframes sq-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-3px); }
+  30% { transform: translateX(3px); }
+  45% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  75% { transform: translateX(-1px); }
+}
+
+/* ---- undo "rewind" icon spin (counter-clockwise tick) ------------------- */
+.undo-spin { animation: undo-spin 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes undo-spin { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+
+/* ---- win trophy bounce (status pill) ----------------------------------- */
+.status.win .ico { animation: trophy-pop 0.6s var(--ease-settle); }
+@keyframes trophy-pop {
+  0% { transform: scale(0.2) rotate(-12deg); opacity: 0; }
+  55% { transform: scale(1.25) rotate(6deg); }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field.dealing .column { animation: none; }
+  .theme-sweep { display: none !important; }
+  .sq.dark.shake, .undo-spin, .status.win .ico { animation: none; }
 }

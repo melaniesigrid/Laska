@@ -20,23 +20,57 @@ import { AuthService } from '../auth/service.ts';
 import { MatchManager } from '../game/manager.ts';
 import { Match, type MatchEndInfo } from '../game/match.ts';
 import type { Cluster, MatchAction, NodeEnvelope, QueueMember } from '../cluster/types.ts';
+import { RateLimiter } from './rateLimiter.ts';
 import {
   parseClientMessage,
+  isEmoteId,
+  CHAT_MAX_LEN,
   type ClientMessage,
   type ServerMessage,
   type MatchStateDTO,
   type MoveDTO,
 } from './protocol.ts';
+import type { PlayerColor, VariantId } from '../../../src/index.ts';
+import type { TimeControl } from '../game/match.ts';
 
 interface Conn {
   ws: WebSocket;
   userId: string | null;
 }
 
+/**
+ * A rematch window kept alive on the owning node after a match finishes, so
+ * rematch actions still route to us (the cluster registration is held open for
+ * `REMATCH_WINDOW_MS`). Captures everything we need to spin up the next match,
+ * since the finished `Match` object is removed from the manager at finalize.
+ */
+interface RematchWindow {
+  matchId: string;
+  whiteId: string;
+  blackId: string;
+  variant: VariantId;
+  timeControl: TimeControl;
+  /** Colors that have offered a rematch so far. */
+  offered: Set<PlayerColor>;
+  /** Wall-clock deadline after which the window expires. */
+  deadline: number;
+}
+
+/** How long after a match ends a rematch can still be offered/accepted. */
+const REMATCH_WINDOW_MS = 60_000;
+/** Per-(user, match) chat/emote burst allowance. */
+const CHAT_BURST = 5;
+/** Sustained chat/emote rate: ~1 message per second over the window. */
+const CHAT_WINDOW_MS = 5_000;
+
 export class GameServer {
   private conns = new Set<Conn>();
   private userSockets = new Map<string, Set<WebSocket>>();
   private tickTimer: ReturnType<typeof setInterval> | null = null;
+  /** Throttles chat + emote, keyed by `${matchId}:${userId}`. Burst then sustained. */
+  private chatLimiter = new RateLimiter({ max: CHAT_BURST, windowMs: CHAT_WINDOW_MS });
+  /** Open rematch windows on THIS node, keyed by the finished match id. */
+  private rematchWindows = new Map<string, RematchWindow>();
 
   constructor(
     private repo: Repository,
@@ -92,6 +126,23 @@ export class GameServer {
         } catch {
           /* cluster closing or transient fabric error — nothing to clean up */
         }
+        // Best-effort: if this user was party to an open rematch window, close it
+        // and let the still-present opponent know the offer is off.
+        await this.abandonRematchWindows(conn.userId);
+      }
+    }
+  }
+
+  /** Tear down any rematch windows this (now-gone) user was part of. */
+  private async abandonRematchWindows(userId: string): Promise<void> {
+    for (const win of [...this.rematchWindows.values()]) {
+      if (win.whiteId !== userId && win.blackId !== userId) continue;
+      const opponentId = win.whiteId === userId ? win.blackId : win.whiteId;
+      this.closeRematchWindow(win);
+      try {
+        await this.sendToUser(opponentId, { type: 'rematch.declined', matchId: win.matchId });
+      } catch {
+        /* fabric closing — nothing to clean up */
       }
     }
   }
@@ -143,8 +194,19 @@ export class GameServer {
         return this.dispatchAction({ type: 'offerDraw', matchId: msg.matchId, userId });
       case 'match.acceptDraw':
         return this.dispatchAction({ type: 'acceptDraw', matchId: msg.matchId, userId });
+      case 'match.declineDraw':
+        return this.dispatchAction({ type: 'declineDraw', matchId: msg.matchId, userId });
       case 'match.sync':
         return this.dispatchAction({ type: 'sync', matchId: msg.matchId, userId });
+      // ---- social ----
+      case 'match.chat':
+        return this.dispatchAction({ type: 'chat', matchId: msg.matchId, userId, text: msg.text });
+      case 'match.emote':
+        return this.dispatchAction({ type: 'emote', matchId: msg.matchId, userId, emote: msg.emote });
+      case 'match.rematchOffer':
+        return this.dispatchAction({ type: 'rematchOffer', matchId: msg.matchId, userId });
+      case 'match.rematchDecline':
+        return this.dispatchAction({ type: 'rematchDecline', matchId: msg.matchId, userId });
       default:
         return this.send(conn.ws, { type: 'error', code: 'unknown-type', message: 'Unknown message type' });
     }
@@ -238,6 +300,20 @@ export class GameServer {
 
   /** Route a match action to its owning node (or process locally if we own it). */
   private async dispatchAction(action: MatchAction): Promise<void> {
+    // Rematch actions target a FINISHED match: it is unregistered from the
+    // cluster, but the owning node still holds a transient rematch window in
+    // memory. If that window is here, process it locally. (Single-node — what
+    // production runs — always lands here. Cross-node degrades gracefully: the
+    // window lives on the node that finished the match; if a rematch action
+    // arrives elsewhere we cannot route it and reply with a friendly error.)
+    if (action.type === 'rematchOffer' || action.type === 'rematchDecline') {
+      if (this.rematchWindows.has(action.matchId)) return this.applyActionLocally(action);
+      if (action.type === 'rematchOffer') {
+        return this.sendToUser(action.userId, { type: 'error', code: 'no-rematch', message: 'Rematch window has closed' });
+      }
+      return; // a decline with no window is a no-op
+    }
+
     const owner = await this.cluster.matchOwner(action.matchId);
     if (!owner) {
       return this.sendToUser(action.userId, { type: 'error', code: 'no-match', message: 'Match not found' });
@@ -248,6 +324,11 @@ export class GameServer {
 
   /** Authoritative processing — only ever runs on the node that owns the match. */
   private async applyActionLocally(action: MatchAction): Promise<void> {
+    // Rematch actions operate on the post-game window, not the live Match, so
+    // they are handled before the active-match lookup.
+    if (action.type === 'rematchOffer') return this.handleRematchOffer(action.matchId, action.userId);
+    if (action.type === 'rematchDecline') return this.handleRematchDecline(action.matchId, action.userId);
+
     const match = this.manager.getMatch(action.matchId);
     if (!match) {
       return this.sendToUser(action.userId, { type: 'error', code: 'no-match', message: 'Match not found' });
@@ -274,8 +355,18 @@ export class GameServer {
         case 'acceptDraw':
           await this.finishAndBroadcast(match.id, match.acceptDraw(action.userId));
           break;
+        case 'declineDraw':
+          match.declineDraw(action.userId);
+          await this.broadcastUpdate(match, null);
+          break;
         case 'sync':
           await this.sendToUser(action.userId, { type: 'match.update', state: this.stateDTO(match), lastMove: null });
+          break;
+        case 'chat':
+          await this.handleChat(match, action.userId, action.text);
+          break;
+        case 'emote':
+          await this.handleEmote(match, action.userId, action.emote);
           break;
       }
     } catch (e) {
@@ -285,6 +376,108 @@ export class GameServer {
         message: (e as Error).message,
       });
     }
+  }
+
+  // ---- social: chat + emote --------------------------------------------
+
+  /** Returns false (and silently drops) when the sender is over their rate. */
+  private withinChatRate(matchId: string, userId: string): boolean {
+    return this.chatLimiter.check(`${matchId}:${userId}`).allowed;
+  }
+
+  /**
+   * Normalize a client chat line: trim, drop ASCII control chars, collapse
+   * whitespace runs, and cap length. Returns null if nothing remains. We do NOT
+   * HTML-escape — the client renders chat as text, not markup.
+   */
+  private sanitizeChat(text: unknown): string | null {
+    if (typeof text !== 'string') return null;
+    const cleaned = text
+      // Replace ASCII control chars (0x00-0x1F and 0x7F, incl. tabs/newlines)
+      // with spaces, then collapse whitespace runs.
+      .replace(/[\x00-\x1F\x7F]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, CHAT_MAX_LEN);
+    return cleaned.length > 0 ? cleaned : null;
+  }
+
+  private async handleChat(match: Match, userId: string, rawText: string): Promise<void> {
+    const color = match.colorOf(userId);
+    if (!color) {
+      return this.sendToUser(userId, { type: 'error', code: 'not-a-player', message: 'You are not a player in this match' });
+    }
+    const text = this.sanitizeChat(rawText);
+    if (!text) return; // empty after normalization — silently drop
+    if (!this.withinChatRate(match.id, userId)) return; // over-rate — silently drop
+    const fromName = (await this.repo.getUserById(userId))?.username ?? 'Player';
+    const dto = { type: 'chat' as const, matchId: match.id, from: userId, fromColor: color, fromName, ts: Date.now(), text };
+    await this.sendToUser(match.whiteId, dto);
+    await this.sendToUser(match.blackId, dto);
+  }
+
+  private async handleEmote(match: Match, userId: string, emote: unknown): Promise<void> {
+    const color = match.colorOf(userId);
+    if (!color) {
+      return this.sendToUser(userId, { type: 'error', code: 'not-a-player', message: 'You are not a player in this match' });
+    }
+    if (!isEmoteId(emote)) {
+      return this.sendToUser(userId, { type: 'error', code: 'bad-emote', message: 'Unknown emote' });
+    }
+    if (!this.withinChatRate(match.id, userId)) return; // shares the chat limiter
+    const fromName = (await this.repo.getUserById(userId))?.username ?? 'Player';
+    const dto = { type: 'emote' as const, matchId: match.id, from: userId, fromColor: color, fromName, ts: Date.now(), emote };
+    await this.sendToUser(match.whiteId, dto);
+    await this.sendToUser(match.blackId, dto);
+  }
+
+  // ---- rematch lifecycle -----------------------------------------------
+
+  /** Tear down a rematch window (the match was already unregistered at finish). */
+  private closeRematchWindow(win: RematchWindow): void {
+    this.rematchWindows.delete(win.matchId);
+  }
+
+  private async handleRematchOffer(matchId: string, userId: string): Promise<void> {
+    const win = this.rematchWindows.get(matchId);
+    if (!win) {
+      return this.sendToUser(userId, { type: 'error', code: 'no-rematch', message: 'Rematch window has closed' });
+    }
+    const color: PlayerColor | null =
+      userId === win.whiteId ? 'W' : userId === win.blackId ? 'B' : null;
+    if (!color) {
+      return this.sendToUser(userId, { type: 'error', code: 'not-a-player', message: 'You are not a player in this match' });
+    }
+    win.offered.add(color);
+    const opponentId = color === 'W' ? win.blackId : win.whiteId;
+
+    if (win.offered.has('W') && win.offered.has('B')) {
+      // Both sides in — start a fresh match with colors swapped, same settings.
+      const newMatch = this.manager.createMatch(win.blackId, win.whiteId, {
+        ranked: true,
+        timeControl: win.timeControl,
+        variant: win.variant,
+      });
+      await this.cluster.registerMatch(newMatch.id, newMatch.whiteId, newMatch.blackId);
+      this.closeRematchWindow(win);
+      await this.announceStart(newMatch);
+      return;
+    }
+
+    // Only one side so far — notify the opponent of the standing offer.
+    await this.sendToUser(opponentId, { type: 'rematch.offered', matchId, by: color });
+  }
+
+  private async handleRematchDecline(matchId: string, userId: string): Promise<void> {
+    const win = this.rematchWindows.get(matchId);
+    if (!win) return; // window already gone — nothing to decline
+    const isPlayer = userId === win.whiteId || userId === win.blackId;
+    if (!isPlayer) {
+      return this.sendToUser(userId, { type: 'error', code: 'not-a-player', message: 'You are not a player in this match' });
+    }
+    const opponentId = userId === win.whiteId ? win.blackId : win.whiteId;
+    this.closeRematchWindow(win);
+    await this.sendToUser(opponentId, { type: 'rematch.declined', matchId });
   }
 
   private stateDTO(match: Match): MatchStateDTO {
@@ -307,8 +500,11 @@ export class GameServer {
 
   private async finishAndBroadcast(matchId: string, end: MatchEndInfo): Promise<void> {
     const match = this.manager.getMatch(matchId);
+    // Capture rematch settings BEFORE finalize removes the Match.
     const whiteId = match?.whiteId;
     const blackId = match?.blackId;
+    const variant = match?.variantId;
+    const timeControl = match?.timeControl;
     const summary = await this.manager.finalize(matchId, end);
     const msg: ServerMessage = {
       type: 'match.end',
@@ -320,7 +516,26 @@ export class GameServer {
     };
     if (whiteId) await this.sendToUser(whiteId, msg);
     if (blackId) await this.sendToUser(blackId, msg);
+
+    // Release the match cluster-wide so the user->match index frees up (the
+    // players can re-queue immediately) and ownership stops resolving here.
     if (whiteId && blackId) await this.cluster.unregisterMatch(matchId, whiteId, blackId);
+
+    // Open a rematch window on THIS node (the owner that just finished the
+    // match). Rematch actions are routed to this node locally — see
+    // dispatchAction — so we don't need to keep the cluster registration alive.
+    // The window is torn down on accept/decline/leave or by expiry in tick().
+    if (whiteId && blackId && variant && timeControl) {
+      this.rematchWindows.set(matchId, {
+        matchId,
+        whiteId,
+        blackId,
+        variant,
+        timeControl,
+        offered: new Set(),
+        deadline: Date.now() + REMATCH_WINDOW_MS,
+      });
+    }
   }
 
   /** Periodic: form pairings whose windows have grown, and enforce clocks on the
@@ -331,6 +546,16 @@ export class GameServer {
     for (const match of this.manager.activeMatches()) {
       const end = match.checkTimeout(now);
       if (end) await this.finishAndBroadcast(match.id, end);
+    }
+    // Expire stale rematch windows: notify any still-waiting offerer's opponent
+    // that the offer lapsed.
+    for (const win of [...this.rematchWindows.values()]) {
+      if (now < win.deadline) continue;
+      this.closeRematchWindow(win);
+      for (const color of win.offered) {
+        const opponentId = color === 'W' ? win.blackId : win.whiteId;
+        await this.sendToUser(opponentId, { type: 'rematch.declined', matchId: win.matchId });
+      }
     }
   }
 }

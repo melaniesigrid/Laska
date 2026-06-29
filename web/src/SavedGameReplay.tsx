@@ -128,8 +128,16 @@ export function SavedGameReplay({
   }, [playing, ply, lastPly]);
 
   useEffect(() => {
-    const el = listRef.current?.querySelector('.move-cell.active');
-    el?.scrollIntoView({ block: 'nearest' });
+    // Scroll the active move into view inside the move-list only. Plain
+    // scrollIntoView scrolls every scrollable ancestor (including the window),
+    // which would yank the whole page — and the board — out of view on each move.
+    const list = listRef.current;
+    const el = list?.querySelector<HTMLElement>('.move-cell.active');
+    if (!list || !el) return;
+    const elRect = el.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    if (elRect.top < listRect.top) list.scrollTop -= listRect.top - elRect.top;
+    else if (elRect.bottom > listRect.bottom) list.scrollTop += elRect.bottom - listRect.bottom;
   }, [ply]);
 
   const go = (p: number) => {

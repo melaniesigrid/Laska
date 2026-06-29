@@ -16,7 +16,7 @@
  * Redis implementation (redis.ts) makes it actually multi-node/multi-process.
  */
 import type { VariantId } from '../../../src/index.ts';
-import type { ServerMessage } from '../net/protocol.ts';
+import type { EmoteId, ServerMessage } from '../net/protocol.ts';
 import type { TimeControl } from '../game/match.ts';
 
 export interface QueueMember {
@@ -36,7 +36,13 @@ export type MatchAction =
   | { type: 'resign'; matchId: string; userId: string }
   | { type: 'offerDraw'; matchId: string; userId: string }
   | { type: 'acceptDraw'; matchId: string; userId: string }
-  | { type: 'sync'; matchId: string; userId: string };
+  | { type: 'declineDraw'; matchId: string; userId: string }
+  | { type: 'sync'; matchId: string; userId: string }
+  // ---- social ----
+  | { type: 'chat'; matchId: string; userId: string; text: string }
+  | { type: 'emote'; matchId: string; userId: string; emote: EmoteId }
+  | { type: 'rematchOffer'; matchId: string; userId: string }
+  | { type: 'rematchDecline'; matchId: string; userId: string };
 
 /** What flows on a node's inbound channel. */
 export type NodeEnvelope =

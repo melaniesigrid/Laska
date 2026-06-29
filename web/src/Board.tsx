@@ -1,5 +1,6 @@
 import type { Board, Column, PlayerColor } from '../../src/index.ts';
 import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { LayoutGroup, motion } from 'motion/react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
 import { useCoords } from './coordsPref.ts';
@@ -47,6 +48,12 @@ interface BoardViewProps {
   /** Optional transient overlay rendered inside the (relative) `.stage` — used
    *  for board-anchored flourishes like the multi-capture combo badge. */
   overlay?: ReactNode;
+  /** When provided, a change to this value (and the first mount) plays a one-shot
+   *  staggered "deal-in" entrance for the pieces. Omit on static surfaces
+   *  (replay/online) where a deal would be wrong. */
+  dealKey?: number;
+  /** Square to shake briefly (an invalid click) — a quick "no" wiggle. */
+  shakeSquare?: number | null;
 }
 
 const COLOR_WORD: Record<PlayerColor, string> = { W: 'White', B: 'Black' };
@@ -207,11 +214,22 @@ export function BoardView(props: BoardViewProps) {
   const {
     board, dim, rcToSquare, selected, movable, destinations,
     onSquareClick, interactive, mustCapture = false, captureTargets = EMPTY,
-    highlight = EMPTY, flipped = false, colIds, moveFx, overlay,
+    highlight = EMPTY, flipped = false, colIds, moveFx, overlay, dealKey, shakeSquare,
   } = props;
   // No explicit prop → follow the global toggle; an explicit boolean wins.
   const coordsPref = useCoords();
   const showCoordinates = props.showCoordinates ?? coordsPref;
+
+  // One-shot staggered entrance: deal on first mount and on each dealKey change
+  // (new game / variant / mode switch). Surfaces that omit dealKey never deal.
+  const [dealing, setDealing] = useState(dealKey !== undefined);
+  useEffect(() => {
+    if (dealKey === undefined) return;
+    setDealing(true);
+    const t = setTimeout(() => setDealing(false), 950);
+    return () => clearTimeout(t);
+  }, [dealKey]);
+  let dealIdx = 0;
 
   const cells = [];
   // Default: White's home (board row 0) sits nearest the viewer. For Black,
@@ -232,6 +250,7 @@ export function BoardView(props: BoardViewProps) {
       if (destinations.has(sq)) classes.push('drop-target');
       if (captureTargets.has(sq)) classes.push('capture');
       if (interactive && movable.has(sq)) classes.push(mustCapture ? 'movable forced' : 'movable');
+      if (shakeSquare === sq) classes.push('shake');
 
       cells.push(
         <button
@@ -239,6 +258,9 @@ export function BoardView(props: BoardViewProps) {
           type="button"
           className={classes.join(' ')}
           data-square={sq}
+          // Stagger index for the deal-in entrance, assigned in render order to
+          // occupied squares only (the `.column` descendant reads it).
+          style={column ? ({ '--deal-i': dealIdx++ } as CSSProperties) : undefined}
           onClick={() => onSquareClick(sq)}
           disabled={!interactive}
           aria-label={
@@ -276,7 +298,7 @@ export function BoardView(props: BoardViewProps) {
       <div className="board">
         <LayoutGroup>
           <div
-            className={`field${showCoordinates ? ' with-coords' : ''}`}
+            className={`field${showCoordinates ? ' with-coords' : ''}${dealing ? ' dealing' : ''}`}
             role="grid"
             aria-label={`Board, ${dim} by ${dim}, ${flipped ? 'Black' : 'White'} perspective`}
             data-perspective={flipped ? 'black' : 'white'}
