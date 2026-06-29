@@ -3,6 +3,7 @@ import {
   createInitialState,
   legalMoves,
   applyMove,
+  moveStepBoards,
   gameStatus,
   chooseMove,
   RC_TO_SQUARE,
@@ -105,12 +106,36 @@ function DemoBoard({ onAnalyze }: { onAnalyze: DemoSnapshot }) {
         return;
       }
       const move = chooseMove(prev, { depth: 2, blunderRate: 0.18 });
-      if (move) {
-        movesRef.current.push(move);
+      if (!move) {
+        timer = setTimeout(step, 1250);
+        return;
+      }
+      movesRef.current.push(move);
+      const boards = moveStepBoards(prev, move);
+      if (boards.length <= 1) {
+        // Quiet move or single jump: one glide from origin to destination.
         lastMoveRef.current = { fromIdx: SQ_TO_IDX[move.from]!, toIdx: SQ_TO_IDX[move.to]! };
         setState(applyMove(prev, move));
+        timer = setTimeout(step, 1250);
+        return;
       }
-      timer = setTimeout(step, 1250);
+      // Multi-jump: slide one leap at a time so the chain reads as a sequence of
+      // hops, not a teleport — each frame buries that leap's prisoner.
+      let leapIdx = 0;
+      const leap = () => {
+        if (cancelled) return;
+        const from = leapIdx === 0 ? move.from : move.path[leapIdx - 1]!;
+        lastMoveRef.current = { fromIdx: SQ_TO_IDX[from]!, toIdx: SQ_TO_IDX[move.path[leapIdx]!]! };
+        if (leapIdx === boards.length - 1) {
+          setState(applyMove(prev, move)); // settle to the real end state
+          timer = setTimeout(step, 1250);
+        } else {
+          setState({ ...prev, board: boards[leapIdx]! }); // intermediate frame (board only)
+          leapIdx += 1;
+          timer = setTimeout(leap, 620);
+        }
+      };
+      leap();
     };
     timer = setTimeout(step, 900);
     return () => {
@@ -280,7 +305,7 @@ export function Landing({
               aria-label={`Color theme: ${themeLabel}. Click to change.`}
               title="Change color theme"
             >
-              <Palette size={16} /> {themeLabel}
+              <Palette key={themeLabel} className="theme-spin" size={16} /> {themeLabel}
             </button>
             <button className="btn" onClick={onPlay}>
               <span className="dot" />
