@@ -10,11 +10,13 @@ import { Pool, type PoolConfig } from 'pg';
 import type {
   LeaderboardEntry,
   MatchRecord,
+  PlatformStats,
   Repository,
   SerializedMove,
   User,
 } from './types.ts';
 import { rankFor } from '../rating/rank.ts';
+import { utcDay, windows, signupDayWindow, fillSignupDays } from './stats.ts';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -309,5 +311,102 @@ export class PostgresRepository implements Repository {
         ratedGames: r.rated_games,
       }),
     }));
+  }
+
+  async platformStats(now: number): Promise<PlatformStats> {
+    const { d1, d7, d30 } = windows(now);
+
+    // COUNT/SUM come back as strings from pg; Number() them on the way out.
+    const userAgg = await this.pool.query<{
+      total: string;
+      registered: string;
+      guests: string;
+      verified: string;
+      new24h: string;
+      new7d: string;
+      new30d: string;
+    }>(
+      `SELECT
+         COUNT(*)                                                  AS total,
+         COUNT(*) FILTER (WHERE is_guest = false)                  AS registered,
+         COUNT(*) FILTER (WHERE is_guest = true)                   AS guests,
+         COUNT(*) FILTER (WHERE email_verified = true)             AS verified,
+         COUNT(*) FILTER (WHERE created_at >= $1)                  AS new24h,
+         COUNT(*) FILTER (WHERE created_at >= $2)                  AS new7d,
+         COUNT(*) FILTER (WHERE created_at >= $3)                  AS new30d
+       FROM users`,
+      [d1, d7, d30],
+    );
+    const ua = userAgg.rows[0]!;
+
+    const matchAgg = await this.pool.query<{
+      total: string;
+      ranked: string;
+      last24h: string;
+      last7d: string;
+    }>(
+      `SELECT
+         COUNT(*)                                   AS total,
+         COUNT(*) FILTER (WHERE ranked = true)      AS ranked,
+         COUNT(*) FILTER (WHERE ended_at >= $1)     AS last24h,
+         COUNT(*) FILTER (WHERE ended_at >= $2)     AS last7d
+       FROM matches`,
+      [d1, d7],
+    );
+    const ma = matchAgg.rows[0]!;
+
+    // Activity signal: distinct users (either color) who FINISHED a match
+    // (ended_at) within each window. ended_at covers all completed play —
+    // ranked and casual, both players — a truer "active" signal than
+    // last_rated_at, which only reflects ranked games.
+    const active = await this.pool.query<{ d1: string; d7: string; d30: string }>(
+      `SELECT
+         COUNT(DISTINCT uid) FILTER (WHERE ended_at >= $1) AS d1,
+         COUNT(DISTINCT uid) FILTER (WHERE ended_at >= $2) AS d7,
+         COUNT(DISTINCT uid) FILTER (WHERE ended_at >= $3) AS d30
+       FROM (
+         SELECT white_id AS uid, ended_at FROM matches
+         UNION ALL
+         SELECT black_id AS uid, ended_at FROM matches
+       ) m`,
+      [d1, d7, d30],
+    );
+    const act = active.rows[0]!;
+
+    // signupsByDay: range-query the 30-day window, then bucket in JS so we can
+    // gap-fill missing days with 0.
+    const { days, sinceMs } = signupDayWindow(now);
+    const signups = await this.pool.query<{ created_at: string }>(
+      'SELECT created_at FROM users WHERE created_at >= $1',
+      [sinceMs],
+    );
+    const dayCounts = new Map<string, number>();
+    for (const r of signups.rows) {
+      const day = utcDay(Number(r.created_at));
+      dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
+    }
+
+    return {
+      generatedAt: now,
+      users: {
+        total: Number(ua.total),
+        registered: Number(ua.registered),
+        guests: Number(ua.guests),
+        verified: Number(ua.verified),
+      },
+      active: { d1: Number(act.d1), d7: Number(act.d7), d30: Number(act.d30) },
+      newUsers: {
+        last24h: Number(ua.new24h),
+        last7d: Number(ua.new7d),
+        last30d: Number(ua.new30d),
+      },
+      signupsByDay: fillSignupDays(days, dayCounts),
+      matches: {
+        total: Number(ma.total),
+        ranked: Number(ma.ranked),
+        last24h: Number(ma.last24h),
+        last7d: Number(ma.last7d),
+      },
+    };
   }
 }

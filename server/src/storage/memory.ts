@@ -7,10 +7,12 @@
 import type {
   LeaderboardEntry,
   MatchRecord,
+  PlatformStats,
   Repository,
   User,
 } from './types.ts';
 import { rankFor } from '../rating/rank.ts';
+import { utcDay, windows, signupDayWindow, fillSignupDays } from './stats.ts';
 import { DEFAULT_RD, DEFAULT_VOLATILITY } from '../rating/glicko2.ts';
 
 /** Backfill Glicko-2 / inactivity fields on a user that predates them. */
@@ -130,5 +132,79 @@ export class InMemoryRepository implements Repository {
           ratedGames: u.ratedGames,
         }),
       }));
+  }
+
+  async platformStats(now: number): Promise<PlatformStats> {
+    const { d1, d7, d30 } = windows(now);
+
+    let total = 0;
+    let registered = 0;
+    let guests = 0;
+    let verified = 0;
+    let new24h = 0;
+    let new7d = 0;
+    let new30d = 0;
+    // signupsByDay buckets (UTC calendar day -> count), filtered to the window.
+    const { days, sinceMs } = signupDayWindow(now);
+    const dayCounts = new Map<string, number>();
+
+    for (const u of this.users.values()) {
+      total++;
+      if (u.isGuest) guests++;
+      else registered++;
+      if (u.emailVerified) verified++;
+      if (u.createdAt >= d1) new24h++;
+      if (u.createdAt >= d7) new7d++;
+      if (u.createdAt >= d30) new30d++;
+      if (u.createdAt >= sinceMs) {
+        const day = utcDay(u.createdAt);
+        dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
+      }
+    }
+
+    // Activity signal: distinct users (either color) who FINISHED a match
+    // (endedAt) within each window. endedAt covers all completed play — ranked
+    // and casual, both players — so it's a truer "active" signal than
+    // User.lastRatedAt, which only reflects ranked games.
+    const active1 = new Set<string>();
+    const active7 = new Set<string>();
+    const active30 = new Set<string>();
+    let totalMatches = 0;
+    let rankedMatches = 0;
+    let matches24h = 0;
+    let matches7d = 0;
+
+    for (const m of this.matches.values()) {
+      totalMatches++;
+      if (m.ranked) rankedMatches++;
+      if (m.endedAt >= d1) matches24h++;
+      if (m.endedAt >= d7) matches7d++;
+      if (m.endedAt >= d30) {
+        active30.add(m.whiteId);
+        active30.add(m.blackId);
+        if (m.endedAt >= d7) {
+          active7.add(m.whiteId);
+          active7.add(m.blackId);
+        }
+        if (m.endedAt >= d1) {
+          active1.add(m.whiteId);
+          active1.add(m.blackId);
+        }
+      }
+    }
+
+    return {
+      generatedAt: now,
+      users: { total, registered, guests, verified },
+      active: { d1: active1.size, d7: active7.size, d30: active30.size },
+      newUsers: { last24h: new24h, last7d: new7d, last30d: new30d },
+      signupsByDay: fillSignupDays(days, dayCounts),
+      matches: {
+        total: totalMatches,
+        ranked: rankedMatches,
+        last24h: matches24h,
+        last7d: matches7d,
+      },
+    };
   }
 }

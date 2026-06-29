@@ -74,6 +74,7 @@ import {
 import { LessonsPage } from './LessonsPage.tsx';
 import { OpeningsPage } from './OpeningsPage.tsx';
 import { LeaderboardPage } from './LeaderboardPage.tsx';
+import { AdminStatsPage } from './AdminStatsPage.tsx';
 import {
   PieceThemeContext,
   PIECE_THEMES,
@@ -236,7 +237,10 @@ export function App() {
     | 'watch'
     | 'featured'
     | 'leaderboard'
-  >('landing');
+    | 'admin'
+    // The admin dashboard is reachable only by the URL hash (#/admin) — never
+    // linked from user-facing nav. Read once on mount so a direct link lands there.
+  >(() => (typeof window !== 'undefined' && window.location.hash === '#/admin' ? 'admin' : 'landing'));
   const [replayGameId, setReplayGameId] = useState<string | undefined>(undefined);
   const [watchId, setWatchId] = useState<string | undefined>(undefined);
   // The single-game replay viewer (engine self-play demo, or a shared link). The
@@ -302,6 +306,17 @@ export function App() {
   // resolveFirstSeen is per-session idempotent so the firstEver flag stays stable.
   useEffect(() => {
     trackAppOpen();
+  }, []);
+
+  // Internal admin dashboard: routed purely off the URL hash (#/admin) so it's
+  // reachable by direct link without ever appearing in the user-facing nav.
+  // Leaving the page (Back) clears the hash, which returns us to the landing.
+  useEffect(() => {
+    const sync = () => {
+      if (window.location.hash === '#/admin') setView('admin');
+    };
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
   }, []);
 
   useEffect(() => {
@@ -483,6 +498,19 @@ export function App() {
           setView('game');
         }}
         {...(online.user ? { currentUserId: online.user.id } : {})}
+      />
+    );
+  }
+  if (view === 'admin') {
+    return (
+      <AdminStatsPage
+        onBack={() => {
+          // Clear the hash so a refresh / share doesn't reopen the admin page.
+          if (window.location.hash === '#/admin') {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+          setView('landing');
+        }}
       />
     );
   }

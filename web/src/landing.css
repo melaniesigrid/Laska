@@ -850,3 +850,126 @@
 .landing-page .opening-sources li { font-size: 0.84rem; color: var(--muted); line-height: 1.5; }
 .landing-page .opening-sources a { color: var(--accent-dk); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent-dk) 35%, transparent); }
 .landing-page .opening-sources a:hover { border-bottom-color: var(--accent-dk); }
+
+/* ==========================================================================
+   Admin analytics dashboard (AdminStatsPage.tsx). Internal-only, reached by
+   #/admin. Scoped under .admin-page so it rides the live palette and the same
+   neumorphic vocabulary (raised plaques, inset wells) as the rest of the site.
+   ========================================================================== */
+.admin-page .topbar .wrap { justify-content: space-between; }
+
+.admin-page .admin-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+  text-align: center; padding: clamp(2.5rem, 7vw, 4.5rem) 1.5rem;
+  background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset); color: var(--l-body);
+}
+.admin-page .admin-empty p { margin: 0; }
+
+/* --- token entry card --- */
+.admin-page .admin-token-card {
+  max-width: 420px; margin-inline: auto; display: flex; flex-direction: column; align-items: center;
+  gap: 0.8rem; text-align: center; padding: clamp(2rem, 5vw, 3rem) clamp(1.6rem, 4vw, 2.6rem);
+  background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise);
+}
+.admin-page .admin-token-icon {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--bg); box-shadow: var(--nm-inset-deep); color: var(--accent-dk); margin-bottom: 0.2rem;
+}
+.admin-page .admin-token-title { font-size: 1.4rem; }
+.admin-page .admin-token-sub { font-size: 0.92rem; color: var(--muted); max-width: 34ch; line-height: 1.55; }
+.admin-page .admin-field { width: 100%; display: flex; flex-direction: column; gap: 0.4rem; text-align: left; margin-top: 0.4rem; }
+.admin-page .admin-field-label { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+.admin-page .admin-input {
+  width: 100%; box-sizing: border-box; font-family: 'Hanken Grotesk', sans-serif; font-size: 0.95rem;
+  color: var(--l-ink); background: var(--bg); border: none; border-radius: var(--r-sm);
+  padding: 0.85rem 1rem; box-shadow: var(--nm-inset); outline: none;
+}
+.admin-page .admin-input::placeholder { color: var(--faint); }
+.admin-page .admin-input:focus-visible { box-shadow: var(--nm-inset), 0 0 0 2px color-mix(in srgb, var(--accent-dk) 45%, transparent); }
+.admin-page .admin-token-card .btn { margin-top: 0.4rem; }
+.admin-page .admin-token-card .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* --- snapshot / refresh row --- */
+.admin-page .admin-snapshot {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  margin-bottom: clamp(1rem, 2.5vw, 1.6rem); font-size: 0.86rem; color: var(--muted);
+}
+.admin-page .admin-refresh { font-size: 0.82rem; padding: 0.55rem 1rem; }
+
+/* --- dashboard grid of cards --- */
+.admin-page .admin-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: clamp(1rem, 2.5vw, 1.5rem);
+}
+.admin-page .admin-card {
+  background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-raise);
+  padding: clamp(1.3rem, 3vw, 1.9rem); display: flex; flex-direction: column; gap: 1rem;
+}
+.admin-page .admin-card-wide { grid-column: 1 / -1; }
+.admin-page .admin-card-head {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
+}
+.admin-page .admin-card-head svg { color: var(--accent-dk); }
+
+/* headline number (users total) */
+.admin-page .admin-headline { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.admin-page .admin-big {
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: clamp(2.4rem, 6vw, 3.4rem);
+  line-height: 1; color: var(--l-ink); font-variant-numeric: tabular-nums;
+}
+.admin-page .admin-big-label { font-size: 0.9rem; color: var(--muted); }
+
+/* registered vs guest split bar */
+.admin-page .admin-split {
+  display: flex; gap: 4px; height: 14px; border-radius: var(--r-pill);
+  padding: 4px; background: var(--bg); box-shadow: var(--nm-inset);
+}
+.admin-page .admin-split-bar { border-radius: var(--r-pill); min-width: 4px; transition: flex-basis 0.4s ease; }
+.admin-page .admin-split-registered { background: var(--accent-dk); }
+.admin-page .admin-split-guest { background: color-mix(in srgb, var(--l-ink) 28%, var(--bg)); }
+
+.admin-page .admin-mini-row { display: flex; flex-wrap: wrap; gap: clamp(1rem, 3vw, 2rem); }
+.admin-page .admin-mini { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0.3rem 0.5rem; }
+.admin-page .admin-mini-dot { width: 9px; height: 9px; border-radius: 50%; grid-row: span 2; }
+.admin-page .admin-mini-ico { grid-row: span 2; color: var(--accent-dk); }
+.admin-page .dot-registered { background: var(--accent-dk); }
+.admin-page .dot-guest { background: color-mix(in srgb, var(--l-ink) 28%, var(--bg)); }
+.admin-page .admin-mini-val { font-weight: 700; font-size: 1.15rem; color: var(--l-ink); font-variant-numeric: tabular-nums; }
+.admin-page .admin-mini-label { font-size: 0.78rem; color: var(--faint); grid-column: 2; }
+
+/* trio / quad of stats (active, new users, matches) */
+.admin-page .admin-trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; }
+.admin-page .admin-quad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem; }
+.admin-page .admin-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem; text-align: center;
+  padding: 0.9rem 0.5rem; background: var(--bg); border-radius: var(--r-sm); box-shadow: var(--nm-inset);
+}
+.admin-page .admin-stat-val {
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: clamp(1.3rem, 3.5vw, 1.7rem);
+  line-height: 1; color: var(--l-ink); font-variant-numeric: tabular-nums;
+}
+.admin-page .admin-stat-label { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+
+/* signups bar chart */
+.admin-page .admin-chart { display: flex; flex-direction: column; gap: 0.7rem; }
+.admin-page .admin-bars {
+  display: flex; align-items: flex-end; gap: clamp(2px, 0.6vw, 4px); height: 120px;
+  padding: 0.8rem; background: var(--bg); border-radius: var(--r-sm); box-shadow: var(--nm-inset);
+}
+.admin-page .admin-bar {
+  flex: 1 1 0; min-width: 3px; border-radius: 3px 3px 1px 1px;
+  background: color-mix(in srgb, var(--accent-dk) 55%, var(--bg)); transition: background 0.18s ease;
+}
+.admin-page .admin-bar:hover { background: var(--accent-dk); }
+.admin-page .admin-bar-peak { background: var(--accent-dk); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-dk) 30%, transparent); }
+.admin-page .admin-chart-axis {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.76rem; color: var(--faint); font-variant-numeric: tabular-nums;
+}
+.admin-page .admin-chart-peak { color: var(--accent-dk); font-weight: 600; }
+.admin-page .admin-chart-empty { color: var(--muted); font-size: 0.9rem; padding: 1rem 0; }
+
+@media (max-width: 620px) {
+  .admin-page .admin-grid { grid-template-columns: 1fr; }
+  .admin-page .admin-quad { grid-template-columns: repeat(2, 1fr); }
+}

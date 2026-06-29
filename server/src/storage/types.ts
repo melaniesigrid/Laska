@@ -70,6 +70,32 @@ export interface LeaderboardEntry {
   rank: Rank;
 }
 
+export interface PlatformStats {
+  /** Epoch ms the snapshot was computed (the `now` passed to platformStats). */
+  generatedAt: number;
+  users: {
+    total: number;
+    /** Non-guest accounts (real signups). */
+    registered: number;
+    /** Anonymous guest accounts. */
+    guests: number;
+    /** Accounts with a verified email. */
+    verified: number;
+  };
+  /** Distinct users active within each rolling window (see activity-signal note below). */
+  active: { d1: number; d7: number; d30: number };
+  /** New accounts created within each rolling window (from createdAt). */
+  newUsers: { last24h: number; last7d: number; last30d: number };
+  /** Last 30 calendar days (UTC), oldest→newest, every day present even if count 0. day = 'YYYY-MM-DD'. From createdAt. */
+  signupsByDay: { day: string; count: number }[];
+  matches: {
+    total: number;
+    ranked: number;
+    last24h: number;
+    last7d: number;
+  };
+}
+
 export interface Repository {
   createUser(user: User): Promise<void>;
   getUserById(id: string): Promise<User | null>;
@@ -82,6 +108,9 @@ export interface Repository {
   getUserMatches(userId: string, limit: number): Promise<MatchRecord[]>;
 
   topByRating(limit: number): Promise<LeaderboardEntry[]>;
+
+  /** Aggregate platform metrics for the admin dashboard. `now` is epoch ms (injected so it's testable/deterministic). */
+  platformStats(now: number): Promise<PlatformStats>;
 
   /** Release any underlying resources (DB connections). Optional. */
   close?(): Promise<void>;
