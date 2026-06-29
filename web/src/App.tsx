@@ -481,34 +481,37 @@ export function App() {
               <Globe size={15} /> Online
             </button>
           </div>
-          <button className="btn" onClick={cycleTheme} aria-label={`Color theme: ${THEME_LABEL[theme]}. Click to change.`}>
-            <Palette key={theme} className="theme-spin" size={16} /> {THEME_LABEL[theme]}
+          <button className="btn" onClick={cycleTheme} title={`Color theme: ${THEME_LABEL[theme]}`} aria-label={`Color theme: ${THEME_LABEL[theme]}. Click to change.`}>
+            <Palette key={theme} className="theme-spin" size={16} /> <span className="btn-label">{THEME_LABEL[theme]}</span>
           </button>
           <button
             className="btn"
             onClick={cyclePieceTheme}
+            title={`Piece style: ${PIECE_THEME_LABEL[pieceTheme]}`}
             aria-label={`Piece style: ${PIECE_THEME_LABEL[pieceTheme]}. Click to change.`}
           >
-            <Star size={16} /> {PIECE_THEME_LABEL[pieceTheme]}
+            <Star size={16} /> <span className="btn-label">{PIECE_THEME_LABEL[pieceTheme]}</span>
           </button>
           <button
             className="btn"
             onClick={toggleCoords}
             aria-pressed={showCoords}
+            title={`Board coordinates ${showCoords ? 'on' : 'off'}`}
             aria-label={`Board coordinates ${showCoords ? 'shown' : 'hidden'}. Click to ${showCoords ? 'hide' : 'show'}.`}
           >
-            <Grid3x3 size={16} /> Coords {showCoords ? 'on' : 'off'}
+            <Grid3x3 size={16} /> <span className="btn-label">Coords {showCoords ? 'on' : 'off'}</span>
           </button>
           <button
             className="btn"
             onClick={toggleSound}
             aria-pressed={soundOn}
+            title={`Sound ${soundOn ? 'on' : 'off'}`}
             aria-label={`Sound ${soundOn ? 'on' : 'off'}. Click to ${soundOn ? 'mute' : 'unmute'}.`}
           >
-            {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />} Sound {soundOn ? 'on' : 'off'}
+            {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />} <span className="btn-label">Sound {soundOn ? 'on' : 'off'}</span>
           </button>
-          <button className="btn" onClick={() => setView('mygames')} aria-label="Your saved games">
-            <Library size={16} /> My games
+          <button className="btn" onClick={() => setView('mygames')} title="Your saved games" aria-label="Your saved games">
+            <Library size={16} /> <span className="btn-label">My games</span>
           </button>
         </div>
       </header>
