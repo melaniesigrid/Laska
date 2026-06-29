@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS matches (
   id                   TEXT PRIMARY KEY,
   white_id             TEXT NOT NULL,
   black_id             TEXT NOT NULL,
+  variant              TEXT NOT NULL DEFAULT 'laska',
   moves                JSONB NOT NULL,
   result               TEXT NOT NULL,
   end_reason           TEXT NOT NULL,
@@ -66,6 +67,7 @@ interface MatchRow {
   id: string;
   white_id: string;
   black_id: string;
+  variant: string;
   moves: SerializedMove[]; // JSONB parsed by pg
   result: string;
   end_reason: string;
@@ -97,6 +99,7 @@ function rowToMatch(r: MatchRow): MatchRecord {
     id: r.id,
     whiteId: r.white_id,
     blackId: r.black_id,
+    variant: (r.variant as MatchRecord['variant']) ?? 'laska',
     moves: r.moves,
     result: r.result as MatchRecord['result'],
     endReason: r.end_reason,
@@ -217,15 +220,16 @@ export class PostgresRepository implements Repository {
   async saveMatch(record: MatchRecord): Promise<void> {
     await this.pool.query(
       `INSERT INTO matches
-        (id, white_id, black_id, moves, result, end_reason, ranked,
+        (id, white_id, black_id, variant, moves, result, end_reason, ranked,
          white_rating_before, black_rating_before, white_rating_after, black_rating_after,
          started_at, ended_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO NOTHING`,
       [
         record.id,
         record.whiteId,
         record.blackId,
+        record.variant,
         JSON.stringify(record.moves),
         record.result,
         record.endReason,

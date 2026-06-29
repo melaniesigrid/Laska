@@ -5,13 +5,21 @@
  * the same step/analyse viewer as the historic and featured games — no account,
  * no server, the whole game rides in the URL.
  *
- * Encoding: one character per square (0..24 → 'a'..'y'), two characters per ply
- * (from, to). Captures are NOT stored — the engine re-derives the capture chain
- * from from+to at decode time (the longest legal capture with that origin and
- * destination), exactly as `rebuildGame` tolerates for saved games. A 30-ply
- * game is ~60 characters.
+ * Encoding: two characters per ply (from, to). Captures are NOT stored — the
+ * engine re-derives the capture chain from from+to at decode time (the longest
+ * legal capture with that origin and destination), exactly as `rebuildGame`
+ * tolerates for saved games. A 30-ply game is ~60 characters.
+ *
+ * Two on-the-wire formats, distinguished by the first character:
+ *  - LEGACY (Laska only): untagged, one char per square 0..24 → 'a'..'y'. Kept
+ *    for backward compatibility with links already in the wild; still used for
+ *    every Laska game so those links stay short and unchanged.
+ *  - TAGGED (any variant): a leading variant tag ('B' = Bashni, 'L' = Laska)
+ *    then two URL-safe alphabet chars per ply, covering the larger board. A
+ *    legacy code can never begin with an uppercase letter, so the two are
+ *    unambiguous.
  */
-import { gameStatus } from '../../src/index.ts';
+import { gameStatus, VARIANTS, type VariantId } from '../../src/index.ts';
 import { rebuildGame, type SavedGame, type SavedMove, type SavedResult } from './savedGames.ts';
 import { buildLiveGame, type HistoricGame } from './games.ts';
 
@@ -22,8 +30,14 @@ export interface MovePair {
 }
 
 const PARAM = 'g';
-const FIRST = 'a'.charCodeAt(0); // square 0 → 'a'
-const LAST_SQUARE = 24; // 25 playing squares, 0..24
+const FIRST = 'a'.charCodeAt(0); // square 0 → 'a' (legacy Laska encoding)
+const LAST_SQUARE = 24; // 25 playing squares, 0..24 (legacy Laska board)
+
+// URL-safe, order-preserving alphabet for the tagged format — 64 chars, so it
+// covers any reasonable board (Bashni needs 32). Index === square number.
+const ALPH = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_';
+const VARIANT_TAG: Record<VariantId, string> = { laska: 'L', bashni: 'B' };
+const TAG_TO_VARIANT: Record<string, VariantId> = { L: 'laska', B: 'bashni' };
 
 const RESULT_TEXT: Record<SavedResult, string> = {
   W: 'White wins',
@@ -40,14 +54,40 @@ function charSq(ch: string): number {
   return ch.charCodeAt(0) - FIRST;
 }
 
-/** Encode a move list to the URL-safe ply string ('' for an empty game). */
-export function encodeMoves(moves: MovePair[]): string {
-  return moves.map((m) => sqChar(m.from) + sqChar(m.to)).join('');
+/**
+ * Encode a move list to the URL-safe share code. Laska uses the short legacy
+ * format (so old links keep working); any other variant uses the tagged format.
+ */
+export function encodeMoves(moves: MovePair[], variant: VariantId = 'laska'): string {
+  if (variant === 'laska') {
+    return moves.map((m) => sqChar(m.from) + sqChar(m.to)).join('');
+  }
+  const body = moves.map((m) => ALPH[m.from]! + ALPH[m.to]!).join('');
+  return VARIANT_TAG[variant] + body;
 }
 
-/** Decode a ply string back to from/to pairs, or null if it's malformed. */
-export function decodeMoves(code: string): MovePair[] | null {
-  if (!code || code.length % 2 !== 0) return null;
+/** Decode a share code back to its variant + from/to pairs, or null if malformed. */
+export function decodeMoves(code: string): { variant: VariantId; moves: MovePair[] } | null {
+  if (!code) return null;
+
+  // Tagged format: a leading variant tag, then 2 alphabet chars per ply.
+  const tag = TAG_TO_VARIANT[code[0]!];
+  if (tag) {
+    const body = code.slice(1);
+    if (body.length % 2 !== 0) return null;
+    const numSquares = VARIANTS[tag].numSquares;
+    const moves: MovePair[] = [];
+    for (let i = 0; i < body.length; i += 2) {
+      const from = ALPH.indexOf(body[i]!);
+      const to = ALPH.indexOf(body[i + 1]!);
+      if (from < 0 || to < 0 || from >= numSquares || to >= numSquares) return null;
+      moves.push({ from, to });
+    }
+    return moves.length ? { variant: tag, moves } : null;
+  }
+
+  // Legacy untagged format: Laska only, one char per square 0..24.
+  if (code.length % 2 !== 0) return null;
   const moves: MovePair[] = [];
   for (let i = 0; i < code.length; i += 2) {
     const from = charSq(code[i]!);
@@ -60,13 +100,13 @@ export function decodeMoves(code: string): MovePair[] | null {
     }
     moves.push({ from, to });
   }
-  return moves.length ? moves : null;
+  return moves.length ? { variant: 'laska', moves } : null;
 }
 
-/** A full share URL for the current page, carrying `moves` in `?g=`. */
-export function shareUrlFor(moves: MovePair[]): string {
+/** A full share URL for the current page, carrying `moves` (and variant) in `?g=`. */
+export function shareUrlFor(moves: MovePair[], variant: VariantId = 'laska'): string {
   const url = new URL(window.location.href);
-  url.search = `?${PARAM}=${encodeMoves(moves)}`;
+  url.search = `?${PARAM}=${encodeMoves(moves, variant)}`;
   url.hash = '';
   return url.toString();
 }
@@ -97,8 +137,9 @@ export function clearShareParam(): void {
  * legally (a tampered or stale link), so callers can fall back gracefully.
  */
 export function gameFromCode(code: string): HistoricGame | null {
-  const pairs = decodeMoves(code);
-  if (!pairs) return null;
+  const decoded = decodeMoves(code);
+  if (!decoded) return null;
+  const { variant, moves: pairs } = decoded;
   // Reuse the saved-game replay logic to resolve from/to → full engine moves
   // (it re-derives the capture chain and throws on the first illegal ply).
   const stub: SavedGame = {
@@ -109,6 +150,7 @@ export function gameFromCode(code: string): HistoricGame | null {
     black: 'Dark army',
     mode: 'ai',
     result: 'unfinished',
+    variant,
     moves: pairs.map((p, i): SavedMove => ({ from: p.from, to: p.to, captures: [], by: i % 2 === 0 ? 'W' : 'B' })),
     createdAt: 0,
     updatedAt: 0,
@@ -134,5 +176,6 @@ export function gameFromCode(code: string): HistoricGame | null {
     sourceNote: 'Shared with you — replayed on the live engine.',
     intro:
       'Someone shared this game with you. Step through it move by move, or let the engine review each move and grade the play.',
+    variant: VARIANTS[variant],
   });
 }

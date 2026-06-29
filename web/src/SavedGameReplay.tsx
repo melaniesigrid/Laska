@@ -19,7 +19,7 @@ import {
   CircleDot,
   Sparkles,
 } from 'lucide-react';
-import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
+import { LASKA, type VariantId } from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
 import {
@@ -33,6 +33,7 @@ import {
 import {
   getSavedGame,
   rebuildGame,
+  savedGameVariant,
   moveToSan,
   upsertSavedGame,
   type SavedGame,
@@ -70,6 +71,7 @@ export function SavedGameReplay({
   pieceTheme: PieceTheme;
 }) {
   const [game, setGame] = useState<SavedGame | undefined>(() => getSavedGame(id));
+  const variant = useMemo(() => (game ? savedGameVariant(game) : LASKA), [game]);
   const [ply, setPly] = useState(0);
   const [playing, setPlaying] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -199,6 +201,7 @@ export function SavedGameReplay({
         onBack={onBack}
         onMyGames={onMyGames}
         shareMoves={game.moves.map((m) => ({ from: m.from, to: m.to }))}
+        variant={variant.id}
       />
 
       <section className="hero" style={{ paddingTop: 'clamp(2rem,5vw,4rem)', paddingBottom: 'clamp(1.5rem,4vw,2.5rem)' }}>
@@ -235,8 +238,8 @@ export function SavedGameReplay({
             <div className="replay-board">
               <BoardView
                 board={state.board}
-                dim={BOARD_DIM}
-                rcToSquare={RC_TO_SQUARE}
+                dim={variant.boardDim}
+                rcToSquare={variant.rcToSquare}
                 selected={null}
                 movable={EMPTY}
                 destinations={landing}
@@ -367,10 +370,12 @@ function ReplayHeader({
   onBack,
   onMyGames,
   shareMoves = [],
+  variant = 'laska',
 }: {
   onBack: () => void;
   onMyGames: () => void;
   shareMoves?: { from: number; to: number }[];
+  variant?: VariantId;
 }) {
   return (
     <header className="topbar">
@@ -379,7 +384,7 @@ function ReplayHeader({
           <ArrowLeft size={16} /> Back
         </button>
         <div className="topbar-actions">
-          {shareMoves.length > 0 && <ShareButton moves={shareMoves} />}
+          {shareMoves.length > 0 && <ShareButton moves={shareMoves} variant={variant} />}
           <button className="btn" onClick={onMyGames}>
             <Library size={16} /> My games
           </button>

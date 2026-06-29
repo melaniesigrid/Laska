@@ -6,6 +6,7 @@ import {
   Cpu,
   Users,
   Gamepad2,
+  Layers,
   Globe,
   Palette,
   ArrowLeft,
@@ -17,6 +18,7 @@ import {
   Check,
   Library,
   Lightbulb,
+  Grid3x3,
 } from 'lucide-react';
 import {
   createInitialState,
@@ -29,10 +31,12 @@ import {
   gameStatus,
   opponent,
   type CaptureChain,
-  RC_TO_SQUARE,
-  BOARD_DIM,
   DIFFICULTY_DEPTH,
   DIFFICULTY_ORDER,
+  LASKA,
+  BASHNI,
+  type Variant,
+  type VariantId,
   type Board,
   type GameState,
   type GameOutcome,
@@ -50,6 +54,7 @@ import { ReplayPage } from './ReplayPage.tsx';
 import { buildLiveGame, type HistoricGame } from './games.ts';
 import { readShareCode, clearShareParam, gameFromCode } from './share.ts';
 import { BrochurePage } from './BrochurePage.tsx';
+import { BashniRulesPage } from './BashniRulesPage.tsx';
 import { AIPage } from './AIPage.tsx';
 import { BuildStoryPage } from './BuildStoryPage.tsx';
 import { MyGamesPage } from './MyGamesPage.tsx';
@@ -72,10 +77,20 @@ import {
   usePieceTheme,
   type PieceTheme,
 } from './pieceTheme.tsx';
+import { useCoords, toggleCoords } from './coordsPref.ts';
 import { track, trackAppOpen, type MatchMode } from './analytics/index.ts';
-import { DotMascot } from './mascots.tsx';
+import { DotMascot, WinConfetti } from './mascots.tsx';
 
 type Mode = 'hotseat' | 'ai';
+
+/** Multi-capture badge wording by prisoner count; falls back to "N× combo!". */
+const COMBO_WORD: Record<number, string> = {
+  2: 'Double take!',
+  3: 'Triple take!',
+  4: 'Quadruple!',
+  5: 'Quintuple!!',
+};
+const comboLabel = (n: number) => COMBO_WORD[n] ?? `${n}× combo!`;
 
 const COLOR_NAME: Record<PlayerColor, string> = { W: 'White', B: 'Black' };
 
@@ -194,6 +209,7 @@ export function App() {
     | 'lasker'
     | 'replay'
     | 'brochure'
+    | 'bashni-rules'
     | 'ai'
     | 'build'
     | 'lessons'
@@ -211,6 +227,10 @@ export function App() {
   const [appMode, setAppMode] = useState<'local' | 'online'>('local');
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
+  const showCoords = useCoords();
+  // The local-game variant lives here so the page title can reflect it; LocalGame
+  // owns the actual game state and resets when the choice changes.
+  const [variant, setVariant] = useState<Variant>(() => loadVariant());
   const online = useOnline();
 
   // Funnel: fire the app-open event(s) exactly once per page load (acquisition /
@@ -365,6 +385,16 @@ export function App() {
         onBack={() => setView('landing')}
         onPlay={() => setView('game')}
         onReplay={(id) => goReplay(id)}
+        onBashniRules={() => setView('bashni-rules')}
+      />
+    );
+  }
+  if (view === 'bashni-rules') {
+    return (
+      <BashniRulesPage
+        onBack={() => setView('landing')}
+        onPlay={() => setView('game')}
+        onReplay={(id) => goReplay(id)}
       />
     );
   }
@@ -414,7 +444,7 @@ export function App() {
             </button>
           </div>
           <button className="btn" onClick={cycleTheme} aria-label={`Color theme: ${THEME_LABEL[theme]}. Click to change.`}>
-            <Palette size={16} /> {THEME_LABEL[theme]}
+            <Palette key={theme} className="theme-spin" size={16} /> {THEME_LABEL[theme]}
           </button>
           <button
             className="btn"
@@ -423,6 +453,14 @@ export function App() {
           >
             <Star size={16} /> {PIECE_THEME_LABEL[pieceTheme]}
           </button>
+          <button
+            className="btn"
+            onClick={toggleCoords}
+            aria-pressed={showCoords}
+            aria-label={`Board coordinates ${showCoords ? 'shown' : 'hidden'}. Click to ${showCoords ? 'hide' : 'show'}.`}
+          >
+            <Grid3x3 size={16} /> Coords {showCoords ? 'on' : 'off'}
+          </button>
           <button className="btn" onClick={() => setView('mygames')} aria-label="Your saved games">
             <Library size={16} /> My games
           </button>
@@ -430,13 +468,22 @@ export function App() {
       </header>
 
       <div className="head">
-        <div className="eyebrow">Emanuel Lasker · 1911</div>
-        <div className="title">Laska</div>
-        <div className="sub">The stacking draughts</div>
+        <div className="eyebrow">
+          {variant.id === 'bashni' ? 'Russian towers draughts' : 'Emanuel Lasker · 1911'}
+        </div>
+        <div className="title">{variant.name}</div>
+        <div className="sub">
+          {variant.id === 'bashni' ? 'The towers game Laska grew from' : 'The stacking draughts'}
+        </div>
       </div>
 
       {appMode === 'local' ? (
-        <LocalGame onLearnAI={() => setView('ai')} onOpenMyGames={() => setView('mygames')} />
+        <LocalGame
+          variant={variant}
+          onVariantChange={setVariant}
+          onLearnAI={() => setView('ai')}
+          onOpenMyGames={() => setView('mygames')}
+        />
       ) : (
         <OnlinePanel online={online} />
       )}
@@ -451,8 +498,40 @@ export function App() {
   );
 }
 
-function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpenMyGames: () => void }) {
-  const [state, setState] = useState<GameState>(() => createInitialState());
+const VARIANT_KEY = 'laska-variant';
+const VARIANTS_BY_ID: Record<VariantId, Variant> = { laska: LASKA, bashni: BASHNI };
+
+/** The variant chosen last session, defaulting to Laska. */
+function loadVariant(): Variant {
+  try {
+    const id = localStorage.getItem(VARIANT_KEY) as VariantId | null;
+    if (id && VARIANTS_BY_ID[id]) return VARIANTS_BY_ID[id];
+  } catch {
+    /* localStorage unavailable — fall through to default */
+  }
+  return LASKA;
+}
+
+function saveVariant(v: Variant): void {
+  try {
+    localStorage.setItem(VARIANT_KEY, v.id);
+  } catch {
+    /* localStorage unavailable — preference simply isn't persisted */
+  }
+}
+
+function LocalGame({
+  variant,
+  onVariantChange,
+  onLearnAI,
+  onOpenMyGames,
+}: {
+  variant: Variant;
+  onVariantChange: (v: Variant) => void;
+  onLearnAI: () => void;
+  onOpenMyGames: () => void;
+}) {
+  const [state, setState] = useState<GameState>(() => createInitialState(variant));
   const [mode, setMode] = useState<Mode>('ai');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [aiColor, setAiColor] = useState<PlayerColor>('B');
@@ -469,6 +548,10 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
   const [thinking, setThinking] = useState(false);
   const [colIds, setColIds] = useState<(string | null)[]>(() => freshColumnIds(state.board));
   const [moveFx, setMoveFx] = useState<MoveFx | null>(null);
+  // A multi-capture flourish: the number of prisoners taken in one move (2+), with
+  // a monotonic id so each fresh combo remounts the badge and replays its pop.
+  const [combo, setCombo] = useState<{ n: number; id: number } | null>(null);
+  const comboSeq = useRef(0);
   const [resignedWinner, setResignedWinner] = useState<PlayerColor | null>(null);
   // A multi-jump in progress, shown one leap at a time. `stepBoard` overrides the
   // committed `state.board` while a chain plays out (the engine state only flips
@@ -571,7 +654,17 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
     setSelected(null);
     setCapture(null);
     setStepBoard(null);
+    // Reward a multi-jump: 2+ prisoners in a single move pop a combo badge.
+    if (move.captures.length >= 2) setCombo({ n: move.captures.length, id: ++comboSeq.current });
   }, []);
+
+  // The combo badge is a one-shot flourish — clear it after its animation so it
+  // doesn't linger; a fresh combo (new id) restarts this timer.
+  useEffect(() => {
+    if (!combo) return;
+    const t = setTimeout(() => setCombo(null), 1700);
+    return () => clearTimeout(t);
+  }, [combo]);
 
   /** Play `move` as a single glide from origin to destination — the path for
    *  quiet moves (captures glide one leap at a time, see below). */
@@ -773,10 +866,12 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
     ],
   );
 
-  const newGame = useCallback(() => {
+  // Reset to a fresh game of variant `v` (used by New Game and by switching the
+  // game mode, which necessarily starts a new board).
+  const startFresh = useCallback((v: Variant) => {
     if (aiTimer.current) clearTimeout(aiTimer.current);
     if (aiHopTimer.current) clearTimeout(aiHopTimer.current);
-    const fresh = createInitialState();
+    const fresh = createInitialState(v);
     setState(fresh);
     setColIds(freshColumnIds(fresh.board));
     setMoveFx(null);
@@ -791,6 +886,20 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
     setResignedWinner(null);
     setHint(null);
   }, []);
+
+  const newGame = useCallback(() => startFresh(variant), [startFresh, variant]);
+
+  // Switching the game (Laska <-> Bashni) changes the board, so it always begins
+  // a new game and persists the choice for next session.
+  const selectVariant = useCallback(
+    (v: Variant) => {
+      if (v.id === variant.id) return;
+      onVariantChange(v);
+      saveVariant(v);
+      startFresh(v);
+    },
+    [variant.id, onVariantChange, startFresh],
+  );
 
   const resign = useCallback(() => {
     if (gameOver || isAiTurn || thinking) return;
@@ -847,6 +956,7 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
       moves,
       mode,
       result,
+      variant: variant.id,
       ...(resultReason ? { resultReason } : {}),
       ...(mode === 'ai' ? { difficulty, aiColor } : {}),
     };
@@ -872,10 +982,11 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
 
   return (
     <div className="game-layout">
+      {celebrate && <WinConfetti />}
       <BoardView
         board={stepBoard ?? state.board}
-        dim={BOARD_DIM}
-        rcToSquare={RC_TO_SQUARE}
+        dim={variant.boardDim}
+        rcToSquare={variant.rcToSquare}
         selected={movingSquare}
         movable={capture ? new Set(movingSquare == null ? [] : [movingSquare]) : movableSquares}
         destinations={new Set(destinations.keys())}
@@ -887,6 +998,14 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
         colIds={colIds}
         moveFx={moveFx}
         highlight={hintSquares}
+        overlay={
+          combo ? (
+            <div className="combo-pop" key={combo.id} role="status" aria-live="polite">
+              <Layers className="combo-ico" size={18} aria-hidden="true" />
+              {comboLabel(combo.n)} <span className="combo-n">×{combo.n}</span>
+            </div>
+          ) : null
+        }
       />
 
       <div className="control-deck">
@@ -925,6 +1044,25 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
         )}
 
         <div className="controls">
+          <div className="segment" role="group" aria-label="Game">
+            <button
+              className={variant.id === 'laska' ? 'active' : ''}
+              onClick={() => selectVariant(LASKA)}
+              title="Laska — Emanuel Lasker's 1911 game on a 7×7 board"
+            >
+              <Gamepad2 size={15} /> Laska
+            </button>
+            <button
+              className={variant.id === 'bashni' ? 'active' : ''}
+              onClick={() => selectVariant(BASHNI)}
+              title="Bashni — the Russian towers game Laska descends from: 8×8, flying kings"
+            >
+              <Layers size={15} /> Bashni
+            </button>
+          </div>
+        </div>
+
+        <div className="controls">
           <button className="btn" onClick={newGame}>
             <RotateCcw size={16} /> New game
           </button>
@@ -953,7 +1091,7 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
 
         <div className="controls">
           <button className="btn" onClick={saveGame} disabled={moves.length === 0}>
-            {justSaved ? <Check size={16} /> : <Save size={16} />}{' '}
+            {justSaved ? <Check key="saved" className="save-pop" size={16} /> : <Save size={16} />}{' '}
             {justSaved ? 'Saved' : savedId ? 'Update save' : 'Save game'}
           </button>
           {justSaved && (

@@ -7,19 +7,22 @@
 import { useState } from 'react';
 import { Share2, Check } from 'lucide-react';
 import { shareUrlFor, type MovePair } from './share.ts';
+import type { VariantId } from '../../src/index.ts';
 
 export function ShareButton({
   moves,
+  variant = 'laska',
   className = 'btn',
 }: {
   moves: MovePair[];
+  variant?: VariantId;
   className?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
   const share = async () => {
     if (moves.length === 0) return;
-    const url = shareUrlFor(moves);
+    const url = shareUrlFor(moves, variant);
     // Native share sheet (mobile / supported browsers) — best when present.
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {

@@ -25,38 +25,52 @@ import {
   createInitialState,
   legalMoves,
   applyMove,
-  RC_TO_SQUARE,
+  LASKA,
+  BASHNI,
   type GameState,
   type Move,
+  type Variant,
+  type VariantId,
 } from '../../src/index.ts';
 
-/** Algebraic square (e.g. "c3") → engine square index 0..24. */
-function sq(alg: string): number {
+/**
+ * Algebraic square (e.g. "c3") → engine square index, on `v`'s geometry.
+ *
+ * Both variants use the same convention — file a–h → cols 0–7, rank 1–8 →
+ * rows 0–7, White at the bottom moving up — but the board WIDTH differs (Laska
+ * is 7 wide, Bashni 8), so the (row, col) → index lookup must consult the
+ * variant's own `rcToSquare` table. Hardcoding `row * 7` (as the original
+ * Laska-only version did) would silently mis-index every Bashni square.
+ */
+function sq(v: Variant, alg: string): number {
   const col = alg.charCodeAt(0) - 97; // 'a' -> 0
   const row = Number(alg[1]) - 1; // '1' -> 0
-  const idx = RC_TO_SQUARE[row * 7 + col];
-  if (idx == null || idx === -1) throw new Error(`bad square "${alg}"`);
+  const idx = v.rcToSquare[row * v.boardDim + col];
+  if (idx == null || idx === -1) throw new Error(`bad square "${alg}" on ${v.name}`);
   return idx;
 }
 
-/** A move token → {from, landings}. lasca.org algebraic only: `x` separates
- *  landing squares, `-` separates traversed squares. A trailing "*" is ignored. */
-function parseToken(raw: string): { from: number; landings: number[] } {
+/** A move token → {from, landings} on `v`. lasca.org algebraic only: `x`
+ *  separates landing squares, `-` separates traversed squares. A trailing "*"
+ *  is ignored. */
+function parseToken(v: Variant, raw: string): { from: number; landings: number[] } {
   const tok = raw.replace(/\*/g, '').trim();
   if (tok.includes('x')) {
-    const sqs = tok.split('x').map(sq);
+    const sqs = tok.split('x').map((a) => sq(v, a));
     return { from: sqs[0]!, landings: sqs.slice(1) };
   }
-  const sqs = tok.split('-').map(sq);
+  const sqs = tok.split('-').map((a) => sq(v, a));
   if (sqs.length === 2) return { from: sqs[0]!, landings: [sqs[1]!] };
   const landings: number[] = [];
   for (let i = 2; i < sqs.length; i += 2) landings.push(sqs[i]!);
   return { from: sqs[0]!, landings };
 }
 
-/** Resolve a notation token to the matching legal Move in `state`. */
-function resolveMove(state: GameState, tok: string): Move {
-  const { from, landings } = parseToken(tok);
+/** Resolve a notation token to the matching legal Move in `state`. The state's
+ *  variant (read off `state`) drives both the geometry and the legal-move set,
+ *  so the same resolver validates a Laska or a Bashni line. */
+function resolveMove(state: GameState, v: Variant, tok: string): Move {
+  const { from, landings } = parseToken(v, tok);
   const to = landings[landings.length - 1]!;
   const moves = legalMoves(state);
   const exact = moves.find(
@@ -89,6 +103,9 @@ export interface OpeningVariation {
 export interface Opening {
   id: string;
   name: string;
+  /** Which variant this line is theory for. Drives the board geometry and the
+   *  legal-move set every ply is validated against. */
+  variant: VariantId;
   /** First move(s) this opening springs from, e.g. "1. c3-b4". */
   firstMove: string;
   description: string;
@@ -108,7 +125,10 @@ interface RawVariation {
    *  text, set `move` to null, and surface the discrepancy. Defaults to false. */
   unresolved?: boolean;
 }
-interface RawOpening extends Omit<Opening, 'mainLine' | 'variations' | 'states'> {
+interface RawOpening extends Omit<Opening, 'mainLine' | 'variations' | 'states' | 'variant'> {
+  /** Which variant this line is theory for. Optional; defaults to Laska so the
+   *  three Lasker openings keep their original (variant-less) declarations. */
+  variant?: VariantId;
   /** Main-line move scores in lasca.org algebraic, alternating White/Black. */
   moves: string[];
   variations: RawVariation[];
@@ -118,13 +138,21 @@ interface RawOpening extends Omit<Opening, 'mainLine' | 'variations' | 'states'>
   branchAfter?: number;
 }
 
-/** Replay a raw opening through the engine into renderable states + plies. */
+/** The engine `Variant` for an opening's `variant` id (Laska when unset). */
+function variantFor(id: VariantId | undefined): Variant {
+  return id === 'bashni' ? BASHNI : LASKA;
+}
+
+/** Replay a raw opening through the engine into renderable states + plies. The
+ *  opening's variant drives BOTH the start position and every legal-move check,
+ *  so a bad ply throws at import time exactly as a bad Laska ply always has. */
 function build(raw: RawOpening): Opening {
-  let state = createInitialState();
+  const v = variantFor(raw.variant);
+  let state = createInitialState(v);
   const states: GameState[] = [state];
   const mainLine: OpeningPly[] = raw.moves.map((san, i) => {
     const side: 'W' | 'B' = i % 2 === 0 ? 'W' : 'B';
-    const move = resolveMove(state, san);
+    const move = resolveMove(state, v, san);
     state = applyMove(state, move);
     states.push(state);
     return { san, side, moveNo: Math.floor(i / 2) + 1, move };
@@ -134,13 +162,13 @@ function build(raw: RawOpening): Opening {
   // carry move = null.
   const branchIdx = raw.branchAfter ?? states.length - 1;
   const branchState = states[branchIdx]!;
-  const variations: OpeningVariation[] = raw.variations.map((v) => {
+  const variations: OpeningVariation[] = raw.variations.map((vr) => {
     const side: 'W' | 'B' = branchState.toMove;
-    if (v.unresolved) return { san: v.san, side, move: null, note: v.note };
-    return { san: v.san, side, move: resolveMove(branchState, v.san), note: v.note };
+    if (vr.unresolved) return { san: vr.san, side, move: null, note: vr.note };
+    return { san: vr.san, side, move: resolveMove(branchState, v, vr.san), note: vr.note };
   });
-  const { moves: _omit, variations: _omitV, branchAfter: _omitB, ...meta } = raw;
-  return { ...meta, mainLine, variations, states };
+  const { moves: _omit, variations: _omitV, branchAfter: _omitB, variant: _omitVar, ...meta } = raw;
+  return { ...meta, variant: raw.variant ?? 'laska', mainLine, variations, states };
 }
 
 /**
@@ -221,6 +249,136 @@ export const OPENINGS: Opening[] = [build(HAGUE), build(BERLIN), build(WING_GAMB
 
 /** The three distinct first moves from the symmetrical start position. */
 export const FIRST_MOVES = ['a3-b4', 'c3-b4', 'c3-d4'] as const;
+
+// ===========================================================================
+// Bashni openings — principled lines, NOT a named historical canon.
+// ===========================================================================
+//
+// Bashni (Russian "towers" draughts) is the ancestor Laska descends from, on an
+// 8x8 board with 12 men a side. Its rules diverge from Laska — men capture in
+// ALL four directions, kings fly, and a man that promotes mid-capture keeps
+// capturing — so the Lasker-named Laska openings above do NOT transfer. Each
+// line below is replayed from `createInitialState(BASHNI)` through the SAME
+// engine resolver, on Bashni's 8-wide geometry; an illegal ply throws at import.
+//
+// Authentic *named* Bashni opening theory is sparse and not reliably sourced, so
+// — unlike the three Lasker openings — these are honestly labelled PRINCIPLED
+// lines (centre development, a forced central fork, a wing advance), not famous
+// names we'd be fabricating. They illustrate sound first principles a student
+// can replay over the real board, with the same engine-validation contract.
+//
+// Coordinate convention is identical to Laska's, just one file/rank wider:
+// files a–h → cols 0–7, ranks 1–8 → rows 0–7, White at the bottom moving up.
+
+/**
+ * Central Exchange — 1. c3-d4 f6-e5 2. d4xf6 g7xe5 3. g3-f4 e5xg3 4. h2xf4.
+ * White contests the centre with c3-d4; Black challenges with f6-e5, forcing a
+ * symmetric exchange (mandatory captures both ways) that opens lines while
+ * keeping material level. A clean, balanced way to learn Bashni's two-way
+ * capturing.
+ */
+const BASHNI_CENTRAL_EXCHANGE: RawOpening = {
+  id: 'bashni-central-exchange',
+  name: 'Central Exchange',
+  variant: 'bashni',
+  firstMove: '1. c3-d4',
+  description:
+    'White stakes the centre with c3-d4; Black answers f6-e5 and a forced symmetric exchange follows (d4xf6 g7xe5, then g3-f4 e5xg3 h2xf4). Material stays level while the centre opens — a model of Bashni’s mandatory, two-way captures.',
+  sourceNote:
+    'Principled line (not a named historical opening) — validated move-for-move from the Bashni start position through the live engine.',
+  moves: ['c3-d4', 'f6-e5', 'd4xf6', 'g7xe5', 'g3-f4', 'e5xg3', 'h2xf4'],
+  // Black's recapture choice (g7xe5 vs e7xg5) branches after White's 2. d4xf6.
+  branchAfter: 3,
+  variations: [
+    {
+      san: 'e7xg5',
+      note: 'Instead of g7xe5, Black recaptures toward the kingside with e7xg5 — equally sound. Validates cleanly through the engine.',
+    },
+  ],
+};
+
+/**
+ * Central Fork — 1. c3-d4 d6-c5 2. e3-f4 c5xe3xg5. After c3-d4 d6-c5, the
+ * thrust e3-f4 offers a man Black cannot decline: c5xe3xg5 is a forced double
+ * jump (capture is mandatory in Bashni). A sharp lesson in chain captures and
+ * the danger of an unsupported flank push.
+ */
+const BASHNI_CENTRAL_FORK: RawOpening = {
+  id: 'bashni-central-fork',
+  name: 'Central Fork',
+  variant: 'bashni',
+  firstMove: '1. c3-d4',
+  description:
+    'A tactical motif: after c3-d4 d6-c5, White’s e3-f4 walks into a forced double capture, c5xe3xg5 — captures are mandatory in Bashni, so Black must take the whole chain. A pointed warning about unsupported pushes and a clean example of a multi-jump.',
+  sourceNote:
+    'Principled line illustrating Bashni’s forced chain captures (not a named historical opening) — validated through the live engine.',
+  moves: ['c3-d4', 'd6-c5', 'e3-f4', 'c5xe3xg5'],
+  variations: [],
+};
+
+/**
+ * Quiet Symmetric — 1. c3-d4 d6-c5 2. g3-f4 e7-d6. A calm, capture-free
+ * development: both sides build a broad pawn front across the centre and
+ * kingside before contact. Good for studying Bashni structure before the
+ * tactics begin.
+ */
+const BASHNI_QUIET_SYMMETRIC: RawOpening = {
+  id: 'bashni-quiet-symmetric',
+  name: 'Quiet Symmetric',
+  variant: 'bashni',
+  firstMove: '1. c3-d4',
+  description:
+    'A capture-free build-up: c3-d4 d6-c5, g3-f4 e7-d6. Both armies develop a broad front across the centre and kingside before any contact — the positional counterweight to the Central Fork, ideal for learning Bashni structure.',
+  sourceNote:
+    'Principled developing line (not a named historical opening) — validated through the live engine.',
+  moves: ['c3-d4', 'd6-c5', 'g3-f4', 'e7-d6'],
+  // Black's 2nd move (e7-d6 vs the kingside h6-g5) branches after White's 2. g3-f4.
+  branchAfter: 3,
+  variations: [
+    {
+      san: 'h6-g5',
+      note: 'Instead of e7-d6, Black expands on the far wing with h6-g5 — but this exposes the man to f4xh6 next, so it is the more committal try. Validates cleanly through the engine.',
+    },
+  ],
+};
+
+/**
+ * Wing Advance — 1. a3-b4 b6-a5 2. e3-d4 f6-e5 3. d4xf6 g7xe5. White opens on
+ * the queenside wing with a3-b4; after Black mirrors with b6-a5, White pivots
+ * to the centre (e3-d4) and a central exchange resolves. Shows how a flank move
+ * and a central break combine.
+ */
+const BASHNI_WING_ADVANCE: RawOpening = {
+  id: 'bashni-wing-advance',
+  name: 'Wing Advance',
+  variant: 'bashni',
+  firstMove: '1. a3-b4',
+  description:
+    'A flank-then-centre plan: a3-b4 b6-a5 stakes the queenside, then White pivots with e3-d4 and a central exchange follows (f6-e5 d4xf6 g7xe5). Demonstrates pairing a wing advance with a central break.',
+  sourceNote:
+    'Principled line (not a named historical opening) — validated move-for-move through the live engine.',
+  moves: ['a3-b4', 'b6-a5', 'e3-d4', 'f6-e5', 'd4xf6', 'g7xe5'],
+  variations: [],
+};
+
+/** The curated Bashni opening repertoire — principled lines, engine-validated. */
+export const BASHNI_OPENINGS: Opening[] = [
+  build(BASHNI_CENTRAL_EXCHANGE),
+  build(BASHNI_CENTRAL_FORK),
+  build(BASHNI_QUIET_SYMMETRIC),
+  build(BASHNI_WING_ADVANCE),
+];
+
+/** Every opening across both variants, in one list for variant-filtered views. */
+export const ALL_OPENINGS: Opening[] = [...OPENINGS, ...BASHNI_OPENINGS];
+
+/** Board geometry an opening renders on — pass to a `BoardView` so a Bashni line
+ *  paints on the 8x8 board and a Laska line on the 7x7. Sourced from the engine
+ *  variant, never re-derived here. */
+export function openingGeometry(o: Opening): { boardDim: number; rcToSquare: number[]; numSquares: number } {
+  const v = variantFor(o.variant);
+  return { boardDim: v.boardDim, rcToSquare: v.rcToSquare, numSquares: v.numSquares };
+}
 
 /** The three sources backing this dataset — surfaced in the brochure credits. */
 export const OPENING_SOURCES: { label: string; href?: string }[] = [

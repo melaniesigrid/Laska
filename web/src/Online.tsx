@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import {
-  RC_TO_SQUARE,
-  BOARD_DIM,
+  VARIANTS,
+  LASKA,
   beginCaptureChain,
   nextHopTargets,
   advanceCaptureChain,
@@ -16,7 +16,7 @@ import {
 } from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
 import { useOnline } from './useOnline.ts';
-import { DotMascot } from './mascots.tsx';
+import { DotMascot, WinConfetti } from './mascots.tsx';
 
 /** ms per leap while animating an opponent's multi-jump. */
 const ANIM_LEAP_MS = 300;
@@ -86,8 +86,11 @@ function Lobby({ online }: { online: ReturnType<typeof useOnline> }) {
       </div>
       {online.phase === 'idle' && (
         <div className="buttons">
-          <button onClick={() => online.joinQueue()} disabled={online.status !== 'connected'}>
-            Play online (ranked)
+          <button onClick={() => online.joinQueue('laska')} disabled={online.status !== 'connected'}>
+            Play Laska (ranked)
+          </button>
+          <button onClick={() => online.joinQueue('bashni')} disabled={online.status !== 'connected'}>
+            Play Bashni (ranked)
           </button>
         </div>
       )}
@@ -265,6 +268,7 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
   const clock = online.clock;
   const myColor = match.myColor;
   const oppColor: PlayerColor = myColor === 'W' ? 'B' : 'W';
+  const variant = VARIANTS[match.variant] ?? LASKA;
   const end = online.end;
 
   const myClockMs = clock ? (myColor === 'W' ? clock.whiteMs : clock.blackMs) : 0;
@@ -289,8 +293,8 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
     <div className="online-match">
       <BoardView
         board={previewBoard ?? animBoard ?? (gs ? gs.board : [])}
-        dim={BOARD_DIM}
-        rcToSquare={RC_TO_SQUARE}
+        dim={variant.boardDim}
+        rcToSquare={variant.rcToSquare}
         selected={movingSquare}
         movable={chain ? new Set(movingSquare == null ? [] : [movingSquare]) : movable}
         destinations={new Set(destinations.keys())}
@@ -353,9 +357,12 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
         ) : (
           <>
             {end.winner === myColor && (
-              <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '0.4rem' }}>
-                <DotMascot tint="sun" mood="cheer" size={80} label="You won!" />
-              </div>
+              <>
+                <WinConfetti />
+                <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '0.4rem' }}>
+                  <DotMascot tint="sun" mood="cheer" size={80} label="You won!" />
+                </div>
+              </>
             )}
             {end.ratingChange && (
               <div className="status">

@@ -4,7 +4,7 @@
  * match history) + Redis (presence/matchmaking) without touching game logic.
  * See TODO.md for the production storage migration.
  */
-import type { PlayerColor } from '../../../src/index.ts';
+import type { PlayerColor, VariantId } from '../../../src/index.ts';
 
 export interface User {
   id: string;
@@ -29,6 +29,8 @@ export interface MatchRecord {
   id: string;
   whiteId: string;
   blackId: string;
+  /** Rule variant the match was played under (Laska by default). */
+  variant: VariantId;
   /** Compact move list for replay (each move's from/to/captures path). */
   moves: SerializedMove[];
   result: MatchResult;

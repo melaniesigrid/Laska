@@ -15,6 +15,7 @@
  * single-node runs and for deterministically testing the multi-node logic. The
  * Redis implementation (redis.ts) makes it actually multi-node/multi-process.
  */
+import type { VariantId } from '../../../src/index.ts';
 import type { ServerMessage } from '../net/protocol.ts';
 import type { TimeControl } from '../game/match.ts';
 
@@ -25,6 +26,8 @@ export interface QueueMember {
   nodeId: string;
   joinedAt: number;
   timeControl?: TimeControl;
+  /** Rule variant queued for; absent means Laska. Only same-variant members pair. */
+  variant?: VariantId;
 }
 
 /** A match action forwarded to the owning node for authoritative processing. */

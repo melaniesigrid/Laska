@@ -9,7 +9,7 @@ import {
   Pause,
   Sparkles,
 } from 'lucide-react';
-import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
+import { LASKA } from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
 import { HISTORIC_GAMES, type HistoricGame } from './games.ts';
 import { moveToSan } from './savedGames.ts';
@@ -93,6 +93,7 @@ export function ReplayPage({
   }, [playing, ply, lastPly]);
 
   const state = game.states[ply]!;
+  const variant = game.variant ?? LASKA;
   const current = ply > 0 ? game.plies[ply - 1] : undefined;
 
   // Engine review of every position, on demand and off-thread (shared with the
@@ -138,7 +139,7 @@ export function ReplayPage({
             <ArrowLeft size={16} /> Back
           </button>
           <div className="topbar-actions">
-            <ShareButton moves={shareMoves} />
+            <ShareButton moves={shareMoves} variant={variant.id} />
             <button className="btn" onClick={onPlay}>
               <span className="dot" />
               Play the game
@@ -179,8 +180,8 @@ export function ReplayPage({
             <div className="replay-board">
               <BoardView
                 board={state.board}
-                dim={BOARD_DIM}
-                rcToSquare={RC_TO_SQUARE}
+                dim={variant.boardDim}
+                rcToSquare={variant.rcToSquare}
                 selected={null}
                 movable={EMPTY}
                 destinations={landing}

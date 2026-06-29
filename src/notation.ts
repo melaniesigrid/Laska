@@ -21,7 +21,7 @@
  */
 
 import type { Board, Column, GameState, Piece, PlayerColor, Rank } from './types.ts';
-import { NUM_SQUARES } from './board.ts';
+import { DEFAULT_VARIANT, type Variant } from './variant.ts';
 
 function pieceToCode(p: Piece): string {
   return (p.color === 'W' ? 'W' : 'B') + (p.rank === 'soldier' ? 's' : 'o');
@@ -53,10 +53,14 @@ function stringToStack(s: string): Column {
   return out;
 }
 
-/** Encode just the board + side to move (canonical; used as repetition key). */
+/**
+ * Encode just the board + side to move (canonical; used as repetition key). The
+ * loop bound comes from the board's own length, so it works for any variant's
+ * square count without needing the variant passed in.
+ */
 export function encodePosition(state: Pick<GameState, 'board' | 'toMove'>): string {
   const parts: string[] = [];
-  for (let i = 0; i < NUM_SQUARES; i++) {
+  for (let i = 0; i < state.board.length; i++) {
     const col = state.board[i];
     if (col && col.length > 0) {
       parts.push(`${i}=${stackToString(col)}`);
@@ -65,8 +69,15 @@ export function encodePosition(state: Pick<GameState, 'board' | 'toMove'>): stri
   return `${state.toMove}:${parts.join(',')}`;
 }
 
-/** Parse a position string into a fresh board + side to move. */
-export function decodePosition(str: string): { board: Board; toMove: PlayerColor } {
+/**
+ * Parse a position string into a fresh board + side to move, sized and validated
+ * against `variant` (defaults to Laska for back-compat). The returned `variant`
+ * is included so a caller can spread it straight into a GameState.
+ */
+export function decodePosition(
+  str: string,
+  variant: Variant = DEFAULT_VARIANT,
+): { board: Board; toMove: PlayerColor; variant: Variant } {
   const colonIdx = str.indexOf(':');
   if (colonIdx === -1) throw new Error(`Invalid position string (missing ':'): ${str}`);
   const toMoveRaw = str.slice(0, colonIdx).trim();
@@ -74,7 +85,7 @@ export function decodePosition(str: string): { board: Board; toMove: PlayerColor
     throw new Error(`Invalid side to move "${toMoveRaw}" in: ${str}`);
   }
   const toMove: PlayerColor = toMoveRaw;
-  const board: Board = new Array(NUM_SQUARES).fill(null);
+  const board: Board = new Array(variant.numSquares).fill(null);
 
   const body = str.slice(colonIdx + 1).trim();
   if (body.length > 0) {
@@ -83,7 +94,7 @@ export function decodePosition(str: string): { board: Board; toMove: PlayerColor
       if (eq === -1) throw new Error(`Invalid square token "${token}" in: ${str}`);
       const sq = Number(token.slice(0, eq));
       const stack = token.slice(eq + 1);
-      if (!Number.isInteger(sq) || sq < 0 || sq >= NUM_SQUARES) {
+      if (!Number.isInteger(sq) || sq < 0 || sq >= variant.numSquares) {
         throw new Error(`Square index out of range: ${sq}`);
       }
       if (stack.length === 0 || stack.length % 2 !== 0) {
@@ -92,5 +103,5 @@ export function decodePosition(str: string): { board: Board; toMove: PlayerColor
       board[sq] = stringToStack(stack);
     }
   }
-  return { board, toMove };
+  return { board, toMove, variant };
 }

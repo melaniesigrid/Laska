@@ -26,6 +26,7 @@ function makeMatch(over: Partial<MatchRecord> = {}): MatchRecord {
     id: over.id ?? 'm1',
     whiteId: over.whiteId ?? 'u1',
     blackId: over.blackId ?? 'u2',
+    variant: over.variant ?? 'laska',
     moves: over.moves ?? [{ from: 7, to: 11, captures: [], by: 'W' }],
     result: over.result ?? '1-0',
     endReason: over.endReason ?? 'resignation',
@@ -112,7 +113,7 @@ for (const backend of backends) {
   test(`[${backend.name}] save and fetch matches; history is newest-first and limited`, async () => {
     const repo = backend.make();
     await repo.saveMatch(makeMatch({ id: 'm1', whiteId: 'u1', blackId: 'u2', endedAt: 1000 }));
-    await repo.saveMatch(makeMatch({ id: 'm2', whiteId: 'u3', blackId: 'u1', endedAt: 3000 }));
+    await repo.saveMatch(makeMatch({ id: 'm2', whiteId: 'u3', blackId: 'u1', endedAt: 3000, variant: 'bashni' }));
     await repo.saveMatch(makeMatch({ id: 'm3', whiteId: 'u1', blackId: 'u4', endedAt: 2000 }));
 
     assert.equal((await repo.getMatch('m2'))?.whiteId, 'u3');
@@ -124,6 +125,9 @@ for (const backend of backends) {
     assert.deepEqual(limited.map((m) => m.id), ['m2', 'm3']);
     // Moves round-trip through serialization.
     assert.deepEqual((await repo.getMatch('m1'))?.moves, [{ from: 7, to: 11, captures: [], by: 'W' }]);
+    // The variant round-trips, and defaults to Laska when unset.
+    assert.equal((await repo.getMatch('m2'))?.variant, 'bashni');
+    assert.equal((await repo.getMatch('m1'))?.variant, 'laska');
   });
 
   test(`[${backend.name}] leaderboard excludes guests and unrated, sorts by rating desc`, async () => {
