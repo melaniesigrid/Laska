@@ -421,8 +421,13 @@ a compliant contest layer later does not require reworking the game/rating code.
 - **Ambiguous capture chains** that share a landing square now have an online
   route chooser that sends the full `captures` path. Local play still auto-picks
   the longest chain; add the same chooser there if authored positions expose it.
-- **AI strength is not benchmarked** against a reference Laska engine; heuristic
-  weights are reasonable defaults, not tuned.
+- **AI strength: self-play benchmark shipped** (`server/bench/strength.ts`) — a
+  deterministic round-robin of the difficulty tiers through the real engine,
+  reported as a win-rate matrix + Glicko-2/rank ladder. The fast tiers come out
+  cleanly monotonic (`beginner < easy < intermediate < medium`); `--full` places
+  `hard`/`expert`. Still TODO: benchmark against an *external* reference Laska
+  engine, and tune the heuristic weights (current weights are reasonable defaults,
+  not tuned — the benchmark is now the harness to tune them against).
 - **Rules edge case to confirm**: free-choice vs. maximum-capture. We implemented
   free choice (English-draughts heritage) per sources; confirm against whatever
   competition ruleset you intend to honor. Lasker's original-rules page was
