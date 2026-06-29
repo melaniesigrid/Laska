@@ -672,7 +672,11 @@ export function Landing({
             Las<span>k</span>a
           </span>
           <span className="fine">
-            The Great Strategy Game · after Emanuel Lasker, 1911 ·{' '}
+            The Great Strategy Game · after Emanuel Lasker, 1911 · Built by{' '}
+            <a href="https://northboundsoftwarestudio.com" target="_blank" rel="noopener">
+              Northbound Software Studio
+            </a>{' '}
+            ·{' '}
             <a href="https://github.com/melaniesigrid" target="_blank" rel="noopener noreferrer">
               © Melanie Baratto
             </a>
