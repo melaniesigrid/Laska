@@ -305,6 +305,10 @@ in `TUTORIAL.md` (rules, the four capture beats, copy). Build order:
   init so nothing leaves the device pre-consent, and **verify Vercel Analytics'
   current data-handling/pricing against live docs**. Until then it ships
   PII-free, which lowers but does not remove the obligation.
+- ✅ DONE: `<SpeedInsights/>` (`@vercel/speed-insights`) mounted at the app root in
+  `web/src/main.tsx` for cookieless real-user Core Web Vitals (LCP/CLS/INP), and
+  Speed Insights is **enabled for the project in the Vercel dashboard** — now
+  collecting live on deploy. Cookieless/PII-free like Web Analytics.
 - TODO: decide if/when to add a server `/events` ingest endpoint. Client-only is
   the right call for now — a vendor sink covers reporting, and an own-endpoint
   needs a storage schema, retention policy, and the same consent gate first

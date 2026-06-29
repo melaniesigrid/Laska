@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { MotionConfig } from 'motion/react';
 import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { App } from './App.tsx';
 import { initProdAnalytics } from './analytics/prodInit.ts';
 import './styles.css';
@@ -22,6 +23,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           until the project has Web Analytics enabled in the Vercel dashboard;
           product/funnel events are shipped separately by the Vercel sink. */}
       <Analytics />
+      {/* Vercel Speed Insights: cookieless Core Web Vitals / real-user
+          performance collection. No-op until Speed Insights is enabled for
+          the project in the Vercel dashboard. */}
+      <SpeedInsights />
     </MotionConfig>
   </React.StrictMode>,
 );
