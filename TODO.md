@@ -227,9 +227,13 @@ in `TUTORIAL.md` (rules, the four capture beats, copy). Build order:
     the Beginner bot), first-visit trigger, skippable, resumable via
     `localStorage`. Highest activation lever (most players have never seen Laska).
   - **[tutorial-content-engineer] Curriculum spine (light Phase 0).** The
-    `LessonsPage` track toggle is now a 3-course picker; formalise a `Course`
-    concept with per-course progress, ordering/locking, and a "free intro lesson"
-    seam so the paywall (Phase 5) slots in without touching lesson data.
+    `LessonsPage` track toggle is now a 3-course picker. ✅ Sequential
+    ordering/locking now ships: each lesson unlocks only when the previous one in
+    its track is complete (first is always open), and the completion screen has a
+    "Next lesson →" arrow that advances within the track (`TutorialBoard.onNext` +
+    `nextLessonAfter` in `LessonsPage`). Remaining: formalise a `Course` concept
+    with per-course progress and a "free intro lesson" seam so the paywall
+    (Phase 5) slots in without touching lesson data.
   - **[tutorial-content-engineer] Deepen Strategy + add Tactics & Endgames.**
     The four strategy lessons are mostly single-step. Expand to multi-step lines;
     add a **Tactics** course (capture chains, multi-jumps, the sham-sacrifice
