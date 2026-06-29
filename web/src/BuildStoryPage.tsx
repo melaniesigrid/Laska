@@ -9,6 +9,7 @@ import {
   ScrollText,
   GraduationCap,
   ShieldCheck,
+  MessagesSquare,
   type LucideIcon,
 } from 'lucide-react';
 import './landing.css';
@@ -167,6 +168,18 @@ const MILESTONES: Milestone[] = [
     edge:
       'This is the first strategy set, not yet the flagship first-run “learn Laska in five minutes” capture tutorial. Account-backed progress and course packaging remain open.',
   },
+  {
+    id: 'M12',
+    icon: MessagesSquare,
+    agent: 'backend + growth + frontend',
+    title: 'Social, analytics, sound & polish',
+    shipped:
+      'In-match chat and emotes, a draw-decline, and a one-tap post-game rematch — all relayed and sanitized on the server, never trusted from the client. Plus opt-in sound, PII-free product analytics in production only, and a phone-friendly top bar with a board that deals itself in.',
+    verified:
+      'A dedicated social test suite covers chat relay, sanitization, emote validation, rate-limiting, draw-decline, and both rematch flows; the server suite is now 76 tests and the production web build passes.',
+    edge:
+      'Analytics is PII-free and production-only, but still needs a consent gate before it ships to real users — and chat has no per-user mute or report tooling yet.',
+  },
 ];
 
 export function BuildStoryPage({ onBack, onPlay, onAI }: { onBack: () => void; onPlay: () => void; onAI: () => void }) {
@@ -256,7 +269,7 @@ export function BuildStoryPage({ onBack, onPlay, onAI }: { onBack: () => void; o
             <article className="card note">
               <span className="idx">100</span>
               <h3>Measured, not claimed</h3>
-              <p>55 engine, AI &amp; arena tests plus 68 server tests — 123 automated tests, all green on Node 22. Reproducible with <code>npm test</code>.</p>
+              <p>75 engine, AI &amp; arena tests plus 76 server tests — 151 automated tests, all green on Node 22 (one Redis test skips without a live Redis). Reproducible with <code>npm test</code>.</p>
             </article>
           </div>
         </div>

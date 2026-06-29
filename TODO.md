@@ -15,11 +15,19 @@ retention → monetization → polish/analytics.**
   tokens, guest + linking), in-memory repository behind a `Repository`
   interface, **Elo** ranking, **matchmaking** by rating, real-time **matches**
   over WebSocket with per-move clock, draw offers, resignation, reconnection
-  resync, and match-history/leaderboard REST. 68 tests incl. a 2-client
+  resync, and match-history/leaderboard REST. 76 tests incl. a 2-client
   end-to-end integration test.
+- **In-match social + analytics + sound + responsive polish** (commit
+  `a675da1`) — server-authoritative chat (280-char cap, sanitized,
+  rate-limited), closed-list emotes, draw-decline, and a 60s post-game rematch
+  (swapped colors, same settings); a production-only, PII-free Vercel analytics
+  sink (`web/src/analytics/vercelSink.ts` + `<Analytics/>`); opt-in Web Audio
+  sound (off by default); and responsive top-bar wrapping + board deal-in/shake +
+  landing welcome toast/particles. See `server/test/social.test.ts`.
 
-> Total: **123 automated tests** across engine, AI, and server, all passing on
-> Node ≥ 22. Engine/AI run with native type-stripping; the server adds
+> Total: **151 automated tests** (75 engine/AI + 76 server) across engine, AI,
+> and server, all green on Node ≥ 22 (one Redis integration test skips without a
+> live `REDIS_URL`). Engine/AI run with native type-stripping; the server adds
 > `--experimental-transform-types` (for TS parameter properties / enums).
 
 ---
@@ -142,6 +150,14 @@ ownership, and cross-node message routing:
 - **Quests/missions**, well-timed (non-spammy) push notifications.
 - Social: friend challenges, **shareable replays** (we already persist full move
   lists), spectating, clubs/teams.
+  - ✅ **In-match social shipped** (`a675da1`): server-authoritative chat
+    (280-char cap, sanitized, shared rate limiter), closed-list emotes,
+    draw-decline, and a **60s post-game rematch** (swapped colors, same settings)
+    torn down on accept/decline/leave/expiry. Client renders the chat+emote feed,
+    unread badge, and rematch UX. Remaining: per-user **mute/report** + a
+    moderation/admin view (ties into anti-cheat §8).
+- ✅ **Opt-in sound** (`web/src/sound.ts`): Web Audio blips for
+  move/capture/promote/win/lose, off by default, toggled from the top bar.
 - **Interactive tutorial** — see the dedicated flagship section below. This is a
   primary selling point, not just onboarding.
 
@@ -236,11 +252,15 @@ in `TUTORIAL.md` (rules, the four capture beats, copy). Build order:
   `analytics/events.ts`; streaks/puzzles/billing engineers import event names
   from there. Existing touchpoints wired: app open (`app.loaded`/`app.returned`),
   local + online match start/first-move/finish, signup/login/guest.
-- TODO (gated, NOT YET): swap the default sink for a real product-analytics
-  vendor — **verify the vendor + its current SDK/pricing against live docs**, and
-  **only after a GDPR/CCPA consent gate** is in place (`setSink` must be called
-  from a consent-gated init path; the default stays a no-op so nothing leaves the
-  device pre-consent).
+- ⏳ PARTIAL (`a675da1`): a real vendor sink now exists —
+  `web/src/analytics/vercelSink.ts` forwards typed, **PII-free** funnel events and
+  `<Analytics/>` collects traffic; `web/src/analytics/prodInit.ts` installs the
+  real sink **only in production builds** (dev stays console/no-op).
+- TODO (still gated): the production sink installs without an explicit
+  **GDPR/CCPA consent gate** — wire `setSink`/`prodInit` behind a consent-gated
+  init so nothing leaves the device pre-consent, and **verify Vercel Analytics'
+  current data-handling/pricing against live docs**. Until then it ships
+  PII-free, which lowers but does not remove the obligation.
 - TODO: decide if/when to add a server `/events` ingest endpoint. Client-only is
   the right call for now — a vendor sink covers reporting, and an own-endpoint
   needs a storage schema, retention policy, and the same consent gate first
@@ -272,6 +292,10 @@ project — it shows the milestones and the process, not just the result.
   append a new `### Mn` block to `BUILD_LOG.md` and, if visitor-facing, mirror it
   in `BuildStoryPage.tsx`. Quote only reproducible numbers (`npm test`, a
   benchmark, a replay). Never rewrite a past milestone — append only.
+- ✅ **M12 appended** (`a675da1`): in-match social, product analytics, sound, and
+  responsive/entrance polish are logged in `BUILD_LOG.md` and mirrored in
+  `BuildStoryPage.tsx`; the test-count spine on both was refreshed to the measured
+  151 (75 engine/AI + 76 server).
 - ⏳ **Next candidates to document** when shipped: the flagship tutorial, an
   external AI-strength benchmark, and production hardening (migrations/failover).
 
