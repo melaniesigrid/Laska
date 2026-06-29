@@ -1,17 +1,17 @@
-import { Star, ChevronsUp, Shield, HelpCircle, type LucideIcon } from 'lucide-react';
+import { Star, Shield, HelpCircle, type LucideIcon } from 'lucide-react';
 import type { RankDTO } from '../../server/src/net/protocol.ts';
 
 /**
  * RankBadge — a reusable neumorphic insignia that renders a displayed `Rank`
  * (the ladder from server/src/rating/rank.ts, carried on the wire as `RankDTO`).
  *
- * Visual language, by tier:
- *  - climb ranks (Recruit…Colonel): a shield plaque whose chevron count escalates
- *    with the ladder `index` (0..7) — military rank-insignia stripes.
- *  - general tier: `stars` lucide stars, echoing the Heirloom general-star the
- *    pieces wear (pieceTheme.tsx), so a General reads as the same "star general".
- *  - provisional: muted/desaturated with a `?` overlay; the label is suffixed with
- *    " ?" — the rank is not yet earned.
+ * Stars everywhere (echoing the Heirloom general-star the pieces wear in
+ * pieceTheme.tsx), differentiated by tier:
+ *  - climb ranks (Recruit…Colonel): a shield plaque carrying the rank's 1..3
+ *    sub-stars as vertical pips — debossed into the plate.
+ *  - general tier: a cluster of 1..9 prestige stars (each a full skill step).
+ *  - provisional: muted/desaturated with a `?` overlay; the label is suffixed
+ *    with " ?" — the rank is not yet earned.
  *
  * The badge is sculpted purely from --light/--dark shadows on the shared --plate
  * ground (never a hard border), so it sits correctly on every [data-theme] palette.
@@ -20,20 +20,22 @@ import type { RankDTO } from '../../server/src/net/protocol.ts';
 
 export type RankBadgeSize = 'sm' | 'md' | 'lg';
 
-/** Climb ranks escalate from one stripe (Recruit) to four (Colonel) — capped so
- *  the plaque never overflows. Index 0..7 → 1..4 chevrons. */
-function chevronCount(index: number): number {
-  return Math.min(4, Math.floor(index / 2) + 1);
+/** Render a star count as glyphs ('★★') for climb sub-ranks, or '★N' for the
+ *  open-ended general prestige stars (9 glyphs would be unwieldy). */
+function starText(stars: number, isGeneral: boolean): string {
+  return isGeneral ? `★${stars}` : '★'.repeat(Math.max(1, stars));
 }
 
-function ClimbInsignia({ index }: { index: number }) {
+/** Climb: a shield plaque carrying the rank's 1..3 stars as vertical pips.
+ *  Reuses the .rb-chevrons/.rb-chevron layout (centered, plate-toned, debossed). */
+function ClimbInsignia({ stars }: { stars: number }) {
   const Plate: LucideIcon = Shield;
   return (
     <span className="rb-insignia rb-climb" aria-hidden="true">
       <Plate className="rb-plate" strokeWidth={1.5} absoluteStrokeWidth />
       <span className="rb-chevrons">
-        {Array.from({ length: chevronCount(index) }).map((_, i) => (
-          <ChevronsUp key={i} className="rb-chevron" strokeWidth={2.25} absoluteStrokeWidth />
+        {Array.from({ length: Math.max(1, Math.min(3, stars)) }).map((_, i) => (
+          <Star key={i} className="rb-chevron" fill="currentColor" strokeWidth={1.5} absoluteStrokeWidth />
         ))}
       </span>
     </span>
@@ -62,7 +64,8 @@ export function RankBadge({
   showLabel?: boolean;
 }) {
   const isGeneral = rank.tier === 'general';
-  const label = isGeneral ? `${rank.name} ★${rank.stars}` : rank.name;
+  const stars = starText(rank.stars, isGeneral);
+  const label = `${rank.name} ${stars}`;
   const pct = Math.round(Math.max(0, Math.min(1, rank.progress)) * 100);
 
   return (
@@ -72,7 +75,7 @@ export function RankBadge({
       aria-label={`Rank: ${label}${rank.provisional ? ', provisional' : ''}`}
     >
       <span className="rb-medal" data-stars={isGeneral ? rank.stars : undefined}>
-        {isGeneral ? <GeneralInsignia stars={rank.stars} /> : <ClimbInsignia index={rank.index} />}
+        {isGeneral ? <GeneralInsignia stars={rank.stars} /> : <ClimbInsignia stars={rank.stars} />}
         {rank.provisional && (
           <HelpCircle className="rb-provisional-mark" strokeWidth={2.5} aria-hidden="true" />
         )}
@@ -82,7 +85,7 @@ export function RankBadge({
         <span className="rb-text">
           <span className="rb-name">
             {rank.name}
-            {isGeneral && <span className="rb-stars-suffix"> ★{rank.stars}</span>}
+            <span className="rb-stars-suffix"> {stars}</span>
             {rank.provisional && <span className="rb-q"> ?</span>}
           </span>
           {size === 'lg' && (
