@@ -21,6 +21,7 @@ import {
   Grid3x3,
   Volume2,
   VolumeX,
+  MoreHorizontal,
 } from 'lucide-react';
 import {
   createInitialState,
@@ -71,6 +72,8 @@ import {
   type NewGameInput,
 } from './savedGames.ts';
 import { LessonsPage } from './LessonsPage.tsx';
+import { OpeningsPage } from './OpeningsPage.tsx';
+import { LeaderboardPage } from './LeaderboardPage.tsx';
 import {
   PieceThemeContext,
   PIECE_THEMES,
@@ -228,9 +231,11 @@ export function App() {
     | 'ai'
     | 'build'
     | 'lessons'
+    | 'openings'
     | 'mygames'
     | 'watch'
     | 'featured'
+    | 'leaderboard'
   >('landing');
   const [replayGameId, setReplayGameId] = useState<string | undefined>(undefined);
   const [watchId, setWatchId] = useState<string | undefined>(undefined);
@@ -242,6 +247,27 @@ export function App() {
   const [appMode, setAppMode] = useState<'local' | 'online'>('local');
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
+  // Mobile-only overflow ("More") menu for the secondary top-bar chrome. On
+  // desktop the `.chrome` group is `display: contents` so these buttons flow
+  // inline and this flag is inert; below the breakpoint they collapse behind a
+  // single kebab toggle (see `.chrome-menu` in styles.css).
+  const [chromeOpen, setChromeOpen] = useState(false);
+  const chromeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!chromeOpen) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!chromeRef.current?.contains(e.target as Node)) setChromeOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setChromeOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [chromeOpen]);
   // Sound is opt-in (off by default), persisted, and held by the sound module so
   // any call site can play without prop-drilling. This state only drives the icon.
   const [soundOn, setSoundOn] = useState(() => {
@@ -359,6 +385,7 @@ export function App() {
         onAI={() => setView('ai')}
         onBuild={() => setView('build')}
         onLessons={() => setView('lessons')}
+        onLeaderboard={() => setView('leaderboard')}
         themeLabel={THEME_LABEL[theme]}
         onCycleTheme={cycleTheme}
         onAnalyzeFeatured={analyzeFeatured}
@@ -382,6 +409,17 @@ export function App() {
       <LessonsPage
         onBack={() => setView('landing')}
         onPlay={() => setView('game')}
+        onStudyOpenings={() => setView('openings')}
+        pieceTheme={pieceTheme}
+      />
+    );
+  }
+  if (view === 'openings') {
+    return (
+      <OpeningsPage
+        onBack={() => setView('lessons')}
+        onPlay={() => setView('game')}
+        onLearn={() => setView('lessons')}
         pieceTheme={pieceTheme}
       />
     );
@@ -436,6 +474,18 @@ export function App() {
       />
     );
   }
+  if (view === 'leaderboard') {
+    return (
+      <LeaderboardPage
+        onBack={() => setView('landing')}
+        onPlay={() => {
+          setAppMode('online');
+          setView('game');
+        }}
+        {...(online.user ? { currentUserId: online.user.id } : {})}
+      />
+    );
+  }
   if (view === 'mygames') {
     return (
       <MyGamesPage onBack={() => setView('landing')} onWatch={goWatch} onPlay={() => setView('game')} />
@@ -481,6 +531,18 @@ export function App() {
               <Globe size={15} /> Online
             </button>
           </div>
+          <div className={`chrome${chromeOpen ? ' open' : ''}`} ref={chromeRef}>
+          <button
+            className="btn icon-only chrome-toggle"
+            onClick={() => setChromeOpen((o) => !o)}
+            aria-expanded={chromeOpen}
+            aria-haspopup="menu"
+            aria-label="More options"
+            title="More options"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+          <div className="chrome-menu" role="menu">
           <button className="btn" onClick={cycleTheme} title={`Color theme: ${THEME_LABEL[theme]}`} aria-label={`Color theme: ${THEME_LABEL[theme]}. Click to change.`}>
             <Palette key={theme} className="theme-spin" size={16} /> <span className="btn-label">{THEME_LABEL[theme]}</span>
           </button>
@@ -513,6 +575,11 @@ export function App() {
           <button className="btn" onClick={() => setView('mygames')} title="Your saved games" aria-label="Your saved games">
             <Library size={16} /> <span className="btn-label">My games</span>
           </button>
+          <button className="btn" onClick={() => setView('leaderboard')} title="Ranked leaderboard" aria-label="Ranked leaderboard">
+            <Trophy size={16} /> <span className="btn-label">Leaderboard</span>
+          </button>
+          </div>
+          </div>
         </div>
       </header>
 

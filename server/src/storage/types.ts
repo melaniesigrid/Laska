@@ -5,6 +5,7 @@
  * See TODO.md for the production storage migration.
  */
 import type { PlayerColor, VariantId } from '../../../src/index.ts';
+import type { Rank } from '../rating/rank.ts';
 
 export interface User {
   id: string;
@@ -16,10 +17,16 @@ export interface User {
   passwordHash: string | null;
   isGuest: boolean;
   emailVerified: boolean;
-  /** Glicko/Elo rating. Elo is implemented first (see rating/elo.ts). */
+  /** Glicko-2 rating (Elo-scale display value). See rating/glicko2.ts. */
   rating: number;
-  /** Ranked games played; used for provisional K-factor. */
+  /** Glicko-2 rating deviation (uncertainty). New players start at DEFAULT_RD (350). */
+  ratingDeviation: number;
+  /** Glicko-2 volatility (result erraticness). New players start at DEFAULT_VOLATILITY (0.06). */
+  volatility: number;
+  /** Ranked games played; used for the rank ladder's provisional gate. */
   ratedGames: number;
+  /** Epoch ms of the last ranked game, or null if never; drives RD inactivity inflation. */
+  lastRatedAt: number | null;
   createdAt: number;
 }
 
@@ -56,7 +63,11 @@ export interface LeaderboardEntry {
   userId: string;
   username: string;
   rating: number;
+  /** Glicko-2 rating deviation, so clients can flag provisional standings. */
+  ratingDeviation: number;
   ratedGames: number;
+  /** Displayed rank derived from rating + confidence (see rating/rank.ts). */
+  rank: Rank;
 }
 
 export interface Repository {

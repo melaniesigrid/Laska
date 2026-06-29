@@ -16,7 +16,10 @@ function makeUser(over: Partial<User> = {}): User {
     isGuest: over.isGuest ?? false,
     emailVerified: over.emailVerified ?? false,
     rating: over.rating ?? 1200,
+    ratingDeviation: over.ratingDeviation ?? 350,
+    volatility: over.volatility ?? 0.06,
     ratedGames: over.ratedGames ?? 0,
+    lastRatedAt: over.lastRatedAt !== undefined ? over.lastRatedAt : null,
     createdAt: over.createdAt ?? 1000,
   };
 }
@@ -140,6 +143,13 @@ for (const backend of backends) {
     const board = await repo.topByRating(10);
     assert.deepEqual(board.map((e) => e.userId), ['b', 'a'], 'only rated non-guests, highest first');
     assert.equal((await repo.topByRating(1)).length, 1);
+    // Each entry carries the derived rank + the RD it was derived from.
+    const top = board[0]!;
+    assert.equal(top.ratingDeviation, 350);
+    assert.ok(top.rank && typeof top.rank.name === 'string', 'leaderboard entries carry a displayed rank');
+    // 'b' at 1700 with only 4 rated games is provisional -> clamped to Colonel.
+    assert.equal(top.rank.provisional, true);
+    assert.equal(top.rank.name, 'Colonel');
   });
 
   // Some backends (SQLite) hold a file/handle; close if supported.

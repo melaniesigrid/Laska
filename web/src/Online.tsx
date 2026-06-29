@@ -26,9 +26,10 @@ import {
   type Move,
   type PlayerColor,
 } from '../../src/index.ts';
-import { EMOTES, CHAT_MAX_LEN, type EmoteId } from '../../server/src/net/protocol.ts';
+import { EMOTES, CHAT_MAX_LEN, type EmoteId, type RankDTO } from '../../server/src/net/protocol.ts';
 import { BoardView } from './Board.tsx';
-import { useOnline, type ChatEntry } from './useOnline.ts';
+import { useOnline, type ChatEntry, type RatingChangeSide } from './useOnline.ts';
+import { RankBadge } from './RankBadge.tsx';
 import { DotMascot, WinConfetti } from './mascots.tsx';
 
 /** A fitting lucide icon per canned emote id (no emoji — design-system rule). */
@@ -110,9 +111,15 @@ function Lobby({ online }: { online: ReturnType<typeof useOnline> }) {
   const u = online.user!;
   return (
     <div className="panel">
-      <div className="status">
-        Signed in as <strong>{u.username}</strong> · rating {u.rating}
-        {u.isGuest && ' (guest)'} · <span className={`dot ${online.status}`} /> {online.status}
+      <div className="lobby-identity">
+        <RankBadge rank={u.rank} size="lg" />
+        <div className="lobby-identity-text">
+          <strong>{u.username}</strong>
+          <span className="muted">
+            rating {u.rating}
+            {u.isGuest && ' · guest'} · <span className={`dot ${online.status}`} /> {online.status}
+          </span>
+        </div>
       </div>
       {online.phase === 'idle' && (
         <div className="buttons">
@@ -256,6 +263,77 @@ function ChatPanel({ online, disabled }: { online: ReturnType<typeof useOnline>;
         </button>
         {nearLimit && <span className="chat-counter">{remaining}</span>}
       </div>
+    </div>
+  );
+}
+
+/** A short, neumorphic-styled label for a rank (used in the promotion line). */
+function rankLabel(rank: RankDTO): string {
+  return rank.tier === 'general' ? `${rank.name} ★${rank.stars}` : rank.name;
+}
+
+/** End-screen rank + rating outcome for the local player.
+ *  - rank index INCREASED → a celebratory "Promoted to …" moment (crossing into
+ *    the General tier is the biggest one).
+ *  - DECREASED → a quiet, dignified "Demoted to …" note (no punishment theatrics).
+ *  - otherwise → the rating delta with the current RankBadge.
+ *  All motion is CSS-driven and respects prefers-reduced-motion (see styles.css). */
+function RankResult({ side }: { side: RatingChangeSide }) {
+  const before = side.rank.before;
+  const after = side.rank.after;
+  const promoted = after.index > before.index;
+  const demoted = after.index < before.index;
+  // Crossing climb → general is the headline promotion.
+  const intoGeneral = promoted && before.tier !== 'general' && after.tier === 'general';
+  const sign = side.delta >= 0 ? '+' : '';
+
+  if (promoted) {
+    return (
+      <div className={`rank-result rank-promote${intoGeneral ? ' into-general' : ''}`} role="status" aria-live="polite">
+        <div className="rank-result-burst" aria-hidden="true">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <Sparkles key={i} size={14} style={{ ['--i' as string]: i }} aria-hidden="true" />
+          ))}
+        </div>
+        <span className="rank-result-eyebrow">
+          {intoGeneral ? 'You made General' : 'Promoted'}
+        </span>
+        <RankBadge rank={after} size="lg" />
+        <span className="rank-result-line">
+          Promoted to <b>{rankLabel(after)}</b>!
+        </span>
+        <span className="rank-result-rating">
+          Rating {side.before} → {side.after}{' '}
+          <span className="rating-delta up">({sign}{side.delta})</span>
+        </span>
+      </div>
+    );
+  }
+
+  if (demoted) {
+    return (
+      <div className="rank-result rank-demote" role="status" aria-live="polite">
+        <RankBadge rank={after} size="md" />
+        <span className="rank-result-line quiet">
+          Demoted to <b>{rankLabel(after)}</b>.
+        </span>
+        <span className="rank-result-rating">
+          Rating {side.before} → {side.after}{' '}
+          <span className="rating-delta down">({sign}{side.delta})</span>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rank-result rank-steady">
+      <RankBadge rank={after} size="md" />
+      <span className="rank-result-rating">
+        Rating {side.before} → {side.after}{' '}
+        <span className={`rating-delta ${side.delta > 0 ? 'up' : side.delta < 0 ? 'down' : ''}`}>
+          ({sign}{side.delta})
+        </span>
+      </span>
     </div>
   );
 }
@@ -473,6 +551,7 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
             }`}
           >
             <span className="clock-name">
+              <RankBadge rank={match.opponent.rank} size="sm" showLabel={false} />
               {match.opponent.username} ({COLOR_NAME[oppColor]}) · {match.opponent.rating}
             </span>
             <span className="clock-time">{fmtClock(oppClockMs)}</span>
@@ -483,6 +562,7 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
             }`}
           >
             <span className="clock-name">
+              <RankBadge rank={online.user.rank} size="sm" showLabel={false} />
               You ({COLOR_NAME[myColor]}) · {online.user.rating}
             </span>
             <span className="clock-time">{fmtClock(myClockMs)}</span>
@@ -524,21 +604,9 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
                 </div>
               </>
             )}
-            {end.ratingChange &&
-              (() => {
-                const c = myColor === 'W' ? end.ratingChange.white : end.ratingChange.black;
-                const up = c.delta > 0;
-                const sign = c.delta >= 0 ? '+' : '';
-                return (
-                  <div className="status">
-                    Rating: {c.before} → {c.after}{' '}
-                    <span className={`rating-delta ${up ? 'up' : c.delta < 0 ? 'down' : ''}`}>
-                      ({sign}
-                      {c.delta})
-                    </span>
-                  </div>
-                );
-              })()}
+            {end.ratingChange && (
+              <RankResult side={myColor === 'W' ? end.ratingChange.white : end.ratingChange.black} />
+            )}
             {online.rematchSent ? (
               <div className="rematch-wait status">
                 Waiting for opponent…

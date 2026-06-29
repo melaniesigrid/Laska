@@ -16,19 +16,24 @@ import type {
   SerializedMove,
   User,
 } from './types.ts';
+import { rankFor } from '../rating/rank.ts';
+import { DEFAULT_RD, DEFAULT_VOLATILITY } from '../rating/glicko2.ts';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
-  id              TEXT PRIMARY KEY,
-  username        TEXT NOT NULL,
-  username_lower  TEXT NOT NULL UNIQUE,
-  email           TEXT UNIQUE,
-  password_hash   TEXT,
-  is_guest        INTEGER NOT NULL,
-  email_verified  INTEGER NOT NULL,
-  rating          INTEGER NOT NULL,
-  rated_games     INTEGER NOT NULL,
-  created_at      INTEGER NOT NULL
+  id               TEXT PRIMARY KEY,
+  username         TEXT NOT NULL,
+  username_lower   TEXT NOT NULL UNIQUE,
+  email            TEXT UNIQUE,
+  password_hash    TEXT,
+  is_guest         INTEGER NOT NULL,
+  email_verified   INTEGER NOT NULL,
+  rating           INTEGER NOT NULL,
+  rating_deviation REAL NOT NULL DEFAULT 350,
+  volatility       REAL NOT NULL DEFAULT 0.06,
+  rated_games      INTEGER NOT NULL,
+  last_rated_at    INTEGER,
+  created_at       INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS matches (
@@ -62,7 +67,10 @@ interface UserRow {
   is_guest: number;
   email_verified: number;
   rating: number;
+  rating_deviation: number;
+  volatility: number;
   rated_games: number;
+  last_rated_at: number | null;
   created_at: number;
 }
 
@@ -92,7 +100,10 @@ function rowToUser(r: UserRow): User {
     isGuest: r.is_guest === 1,
     emailVerified: r.email_verified === 1,
     rating: r.rating,
+    ratingDeviation: r.rating_deviation,
+    volatility: r.volatility,
     ratedGames: r.rated_games,
+    lastRatedAt: r.last_rated_at,
     createdAt: r.created_at,
   };
 }
@@ -133,7 +144,10 @@ const USER_COLUMNS: Record<keyof User, string> = {
   isGuest: 'is_guest',
   emailVerified: 'email_verified',
   rating: 'rating',
+  ratingDeviation: 'rating_deviation',
+  volatility: 'volatility',
   ratedGames: 'rated_games',
+  lastRatedAt: 'last_rated_at',
   createdAt: 'created_at',
 };
 
@@ -141,6 +155,14 @@ function toDbValue(key: keyof User, value: unknown): string | number | null {
   if (key === 'isGuest' || key === 'emailVerified') return value ? 1 : 0;
   if (key === 'email') return value ? String(value).toLowerCase() : null;
   return value as string | number | null;
+}
+
+/** Add a column to the users table if a pre-existing DB is missing it. */
+function ensureColumn(db: DatabaseSync, column: string, ddl: string): void {
+  const cols = db.prepare('PRAGMA table_info(users)').all() as unknown as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE users ADD COLUMN ${ddl}`);
+  }
 }
 
 export class SqliteRepository implements Repository {
@@ -151,6 +173,10 @@ export class SqliteRepository implements Repository {
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec('PRAGMA foreign_keys = ON;');
     this.db.exec(SCHEMA);
+    // Idempotent migration for DBs created before the Glicko-2 columns existed.
+    ensureColumn(this.db, 'rating_deviation', `rating_deviation REAL NOT NULL DEFAULT ${DEFAULT_RD}`);
+    ensureColumn(this.db, 'volatility', `volatility REAL NOT NULL DEFAULT ${DEFAULT_VOLATILITY}`);
+    ensureColumn(this.db, 'last_rated_at', 'last_rated_at INTEGER');
   }
 
   async close(): Promise<void> {
@@ -162,8 +188,9 @@ export class SqliteRepository implements Repository {
       this.db
         .prepare(
           `INSERT INTO users
-            (id, username, username_lower, email, password_hash, is_guest, email_verified, rating, rated_games, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (id, username, username_lower, email, password_hash, is_guest, email_verified,
+             rating, rating_deviation, volatility, rated_games, last_rated_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           user.id,
@@ -174,7 +201,10 @@ export class SqliteRepository implements Repository {
           user.isGuest ? 1 : 0,
           user.emailVerified ? 1 : 0,
           user.rating,
+          user.ratingDeviation,
+          user.volatility,
           user.ratedGames,
+          user.lastRatedAt,
           user.createdAt,
         );
     } catch (e) {
@@ -274,18 +304,26 @@ export class SqliteRepository implements Repository {
   async topByRating(limit: number): Promise<LeaderboardEntry[]> {
     const rows = this.db
       .prepare(
-        `SELECT id, username, rating, rated_games
+        `SELECT id, username, rating, rating_deviation, rated_games
          FROM users
          WHERE is_guest = 0 AND rated_games > 0
          ORDER BY rating DESC
          LIMIT ?`,
       )
-      .all(limit) as unknown as { id: string; username: string; rating: number; rated_games: number }[];
+      .all(limit) as unknown as {
+      id: string;
+      username: string;
+      rating: number;
+      rating_deviation: number;
+      rated_games: number;
+    }[];
     return rows.map((r) => ({
       userId: r.id,
       username: r.username,
       rating: r.rating,
+      ratingDeviation: r.rating_deviation,
       ratedGames: r.rated_games,
+      rank: rankFor({ rating: r.rating, ratingDeviation: r.rating_deviation, ratedGames: r.rated_games }),
     }));
   }
 }

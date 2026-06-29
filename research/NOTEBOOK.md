@@ -204,3 +204,37 @@ After B6 cost real work: (1) long background experiments must **checkpoint to a 
 - O1. Opening book: does mining the first N plies of won games yield a first-move policy that beats the depth-2 tier? (arena it.)
 - O2. Value supervision: are `(position → outcome)` pairs dense enough at low game counts to fit anything beyond the existing material/officer terms, or is self-play still the only viable value source until the corpus is ~10³ games?
 - O3. Selection bias: human games skew toward beginner blunders — does that *help* the lower tiers (target behaviour) and *hurt* if pooled into one book? Likely needs per-tier partitioning.
+
+---
+
+## EXP-007 — Is there a first-move (colour) advantage in Laska?
+- **Date:** 2026-06-28/29 · **Thread:** A (+ B) · **Run by:** main loop · **Repo:** `766cb62` (untracked working tree)
+- **Motivation:** The user asked what *new* strategy an engine can discover for the book (whose moat is "engine-verified, never opinion"). Pure-prose Laska literature has never quantified whether moving first helps. Target: a book-grade, CI-backed answer.
+
+**Hypothesis:** Laska, like chess/checkers, gives the first mover (White) a measurable edge — but mandatory capture + the bury-don't-remove dynamic (finding A2) might mute or invert it.
+
+**Method (two stages — a false lead, then the rigorous version):**
+- **Stage 1 (flawed):** ad-hoc harness `scratchpad/discover.ts` + `confirm.ts`: self-play with *epsilon-greedy mid-game noise*, **not colour-balanced**, tallying raw W/B from the fixed start. Seeds `1000+i*7919` / `7+i*104729`.
+- **Stage 2 (rigorous):** `scratchpad/colour-study.ts` + `depth6.ts`, built on the **canonical research substrate** `src/agents/` (per D-002), `createSearchAgent` + `makeRng`. Protocol: generate diverse openings via *k* uniform-random plies (symmetric in expectation), then play out with the **same** agent on both sides; tally by **colour**. Wilson 95% CI on White's share of *decisive* games (isolates signal from the high draw rate). Seeds `20000+i*7919`. `maxPlies` 300–400.
+
+**Result (verbatim):**
+- Stage 1 (artifact): epsilon=0.1 expert-v-expert, 120 games → "White 15% / Black 80% / Draw 5%; first-capturer won 84%." Looked like a huge *second*-mover advantage. **Did not replicate** under pure deterministic play: depth-4 gave White 31% / Black 14%, depth-6 gave White 28% / Black 53% — colour skew *flipped with depth*, "first-capturer wins" swung 15–66%. Conclusion: Stage-1 result is **noise from un-colour-balanced epsilon play**, not a property of the game.
+- Stage 2 (depth 4, mirror, Wilson CI):
+  - open=4, n=240: W 90 · B 27 · D 123 (51% draws), avg 141 plies. **White share of 117 decisive = 76.9% [95% CI 68.5–83.6%] — SIGNIFICANT.**
+  - open=6, n=240: W 79 · B 39 · D 122 (51% draws), avg 141 plies. **White share of 118 decisive = 66.9% [95% CI 58.0–74.8%] — SIGNIFICANT.**
+- Stage 2 (depth 6, n=140, open=4): W 50 · B 59 · D 31 (22% draws), avg 94 plies. **White share of 109 decisive = 45.9% [95% CI 36.8–55.2%] — NOT significant (CI spans 50%).** The depth-4 advantage **does not survive** deeper search.
+
+**Findings:**
+1. **A-new1 — The first-move advantage is DEPTH-DEPENDENT, not a fixed property of the game.** Significant for White at depth 4 (≈67–77% of decisive games, both CIs clear of 50%), but it **evaporates at depth 6** (45.9% [36.8–55.2%], spanning 50%). Interpretation: White's first-move *initiative/tempo* converts to wins only against shallower calculation; deeper search by Black neutralises it. The headline claim "Laska has a first-mover advantage" is therefore **false as stated** — it is "a *shallow-play* first-mover advantage that strong play erases."
+2. **A-new2 — corroborates A2:** at depth 4, ~51% of games draw even with the colour edge; winning needs manufactured imbalance, not just first move. (Note: depth-6 draw rate was lower here, 22% over n=140 — deeper search converted more decisively but over shorter games, avg 94 vs 141 plies; worth a dedicated decisiveness-vs-depth experiment.)
+3. **A-new3 (resolved O1):** the depth-4 edge is a property of the *evaluator-at-shallow-depth*, consistent with EXP-001/002 (search depth gates strength). This is exactly why `bench-strength.ts` colour-balances: at no single depth can colour be trusted to be neutral, so cancel it.
+4. **B-new (meta, Thread B):** a freshly-written harness re-committed the exact mistake the existing `bench-strength.ts` already guards against — it is colour-balanced *on purpose* ("split colours so White's first-move edge cancels"). The naive harness omitted that and produced a sensational false finding (an apparent *second*-mover advantage). Lesson: **reach for the canonical instrument (D-002) before writing a new one**; the guardrails in existing tooling encode hard-won corrections.
+
+**Caveat:** all numbers = the behaviour of *this engine's heuristic* playing itself at a fixed depth, not a game-theoretic proof. Engine-verified in the empirical sense the book uses; state it as such.
+
+**Verdict for the book:** **Nothing about a "first-move advantage" goes into Ch. 4** — the effect is real only at shallow depth and disappears under strong play, so any unqualified claim would be wrong. The *defensible* written claim, if any, is the nuance itself: *"first-move initiative is worth something against weak calculation but is neutralised by strong play"* — which doubles as motivation for why the AI tiers exist. The solid, unconditional facts that CAN ship: (a) exactly **6 legal opening moves**; (b) the centre push and wing steps are near-equal at depth 8; (c) Laska is **drawish at strong equal play**.
+
+**Open questions:**
+- O1. ✅ Resolved (depth-dependence; see A-new1).
+- O2. Per-opening breakdown: is the (shallow) edge concentrated in specific first moves (centre push vs the wing steps that tied at depth 8)?
+- O3. Decisiveness vs depth: depth-4 drew 51% but depth-6 only 22% here — is strong play actually *more* decisive, or is that an n/seed/length artifact? Dedicated experiment needed before any "Laska is drawish" sentence is booked.

@@ -33,7 +33,7 @@ export function buildServer(
     refreshSecret: config.refreshSecret,
     startingRating: config.startingRating,
   });
-  const manager = new MatchManager(repo);
+  const manager = new MatchManager(repo, config.startingRating);
   const gameServer = new GameServer(repo, auth, manager, cluster);
 
   const httpHandler = createHttpHandler({

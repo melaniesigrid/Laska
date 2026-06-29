@@ -22,6 +22,8 @@ import type { TimeControl } from '../game/match.ts';
 export interface QueueMember {
   userId: string;
   rating: number;
+  /** Glicko-2 rating deviation, so high-uncertainty players pair across a wider gap. */
+  ratingDeviation?: number;
   /** The node where this user is connected (so the pairing node can route). */
   nodeId: string;
   joinedAt: number;

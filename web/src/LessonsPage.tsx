@@ -7,9 +7,11 @@ import {
   ChevronRight,
   Gamepad2,
   Layers,
+  BookOpen,
 } from 'lucide-react';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
 import { STRATEGY_LESSONS, BASHNI_LESSONS, type Lesson } from './lessons.ts';
+import { OPENING_LESSONS } from './openingLessons.ts';
 import { TutorialBoard } from './TutorialBoard.tsx';
 import {
   readCompletedLessons,
@@ -25,13 +27,20 @@ const DIFFICULTY_WORD: Record<number, string> = {
   4: 'Advanced',
 };
 
-/** The two lesson tracks the page can show. */
-type Track = 'laska' | 'bashni';
+/** The lesson tracks (courses) the page can show. */
+type Track = 'openings' | 'laska' | 'bashni';
 
 const TRACKS: Record<
   Track,
   { lessons: Lesson[]; eyebrow: string; title: string; lede: string }
 > = {
+  openings: {
+    lessons: OPENING_LESSONS,
+    eyebrow: 'Learn the openings',
+    title: 'Lasker’s openings',
+    lede:
+      'Play the three openings Emanuel Lasker named — the Hague, the Berlin defence and the Wing gambit — move by move on the real board, with the idea behind each one. Every line is the engine replaying Lasker’s own theory.',
+  },
   laska: {
     lessons: STRATEGY_LESSONS,
     eyebrow: 'Learn the strategy',
@@ -60,24 +69,29 @@ const TRACKS: Record<
 export function LessonsPage({
   onBack,
   onPlay,
+  onStudyOpenings,
   pieceTheme,
 }: {
   onBack: () => void;
   onPlay: () => void;
+  /** Open the read-only openings repertoire/study view. */
+  onStudyOpenings: () => void;
   pieceTheme: PieceTheme;
 }) {
   const [completed, setCompleted] = useState<CompletedLessons>(() => readCompletedLessons());
-  const [track, setTrack] = useState<Track>('laska');
+  const [track, setTrack] = useState<Track>('openings');
   const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => window.scrollTo(0, 0), [activeId]);
 
   const { lessons, eyebrow, title, lede } = TRACKS[track];
 
-  // An active lesson is looked up across BOTH tracks so a Bashni lesson stays
-  // open even though the toggle nominally points at one track at a time.
+  // An active lesson is looked up across ALL tracks so a lesson stays open even
+  // though the toggle nominally points at one track at a time.
   const active: Lesson | undefined = activeId
-    ? STRATEGY_LESSONS.find((l) => l.id === activeId) ?? BASHNI_LESSONS.find((l) => l.id === activeId)
+    ? OPENING_LESSONS.find((l) => l.id === activeId) ??
+      STRATEGY_LESSONS.find((l) => l.id === activeId) ??
+      BASHNI_LESSONS.find((l) => l.id === activeId)
     : undefined;
 
   const handleComplete = (id: string) => {
@@ -131,11 +145,18 @@ export function LessonsPage({
                 style={{ marginTop: '1.1rem' }}
               >
                 <button
+                  className={track === 'openings' ? 'active' : ''}
+                  onClick={() => selectTrack('openings')}
+                  title="Openings — Lasker’s named Laska openings, played move by move"
+                >
+                  <BookOpen size={15} /> Openings
+                </button>
+                <button
                   className={track === 'laska' ? 'active' : ''}
                   onClick={() => selectTrack('laska')}
                   title="Laska — column strategy & tactics on the 7×7 board"
                 >
-                  <Gamepad2 size={15} /> Laska
+                  <Gamepad2 size={15} /> Strategy
                 </button>
                 <button
                   className={track === 'bashni' ? 'active' : ''}
@@ -145,9 +166,16 @@ export function LessonsPage({
                   <Layers size={15} /> Bashni
                 </button>
               </div>
-              <p className="since" style={{ marginTop: '0.9rem' }}>
-                {doneCount} of {lessons.length} complete
-              </p>
+              <div className="lesson-meta-row">
+                <p className="since" style={{ margin: 0 }}>
+                  {doneCount} of {lessons.length} complete
+                </p>
+                {track === 'openings' && (
+                  <button className="btn btn-small" onClick={onStudyOpenings}>
+                    <BookOpen size={14} /> Study the repertoire
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>

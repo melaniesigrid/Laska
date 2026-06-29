@@ -32,6 +32,19 @@ import {
 } from './protocol.ts';
 import type { PlayerColor, VariantId } from '../../../src/index.ts';
 import type { TimeControl } from '../game/match.ts';
+import { rankFor } from '../rating/rank.ts';
+import type { User } from '../storage/types.ts';
+import type { PublicOpponent } from './protocol.ts';
+
+/** Build the public opponent view (rating + derived displayed rank). */
+function publicOpponent(u: User): PublicOpponent {
+  return {
+    userId: u.id,
+    username: u.username,
+    rating: u.rating,
+    rank: rankFor({ rating: u.rating, ratingDeviation: u.ratingDeviation, ratedGames: u.ratedGames }),
+  };
+}
 
 interface Conn {
   ws: WebSocket;
@@ -227,7 +240,14 @@ export class GameServer {
     }
     set.add(conn.ws);
     await this.cluster.setPresence(user.id);
-    this.send(conn.ws, { type: 'auth.ok', userId: user.id, username: user.username, rating: user.rating });
+    this.send(conn.ws, {
+      type: 'auth.ok',
+      userId: user.id,
+      username: user.username,
+      rating: user.rating,
+      ratingDeviation: user.ratingDeviation,
+      rank: rankFor({ rating: user.rating, ratingDeviation: user.ratingDeviation, ratedGames: user.ratedGames }),
+    });
 
     // Reconnect resync: if the user has an active match (possibly owned by
     // another node), ask the owner to resend the authoritative state.
@@ -245,6 +265,7 @@ export class GameServer {
     const member: QueueMember = {
       userId,
       rating: user.rating,
+      ratingDeviation: user.ratingDeviation,
       nodeId: this.cluster.nodeId,
       joinedAt: Date.now(),
       ...(msg.timeControl ? { timeControl: msg.timeControl } : {}),
@@ -284,7 +305,7 @@ export class GameServer {
       type: 'match.start',
       matchId: match.id,
       color: 'W',
-      opponent: { userId: black.id, username: black.username, rating: black.rating },
+      opponent: publicOpponent(black),
       timeControl: match.timeControl,
       state,
     });
@@ -292,7 +313,7 @@ export class GameServer {
       type: 'match.start',
       matchId: match.id,
       color: 'B',
-      opponent: { userId: white.id, username: white.username, rating: white.rating },
+      opponent: publicOpponent(white),
       timeControl: match.timeControl,
       state,
     });

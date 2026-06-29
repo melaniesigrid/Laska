@@ -5,7 +5,7 @@
  * cannot drift), auto-refreshes the access token, and transparently reconnects
  * the socket, re-authenticating and resyncing any in-progress match.
  */
-import type { ClientMessage, ServerMessage } from '../../../server/src/net/protocol.ts';
+import type { ClientMessage, ServerMessage, RankDTO } from '../../../server/src/net/protocol.ts';
 
 export interface AuthTokens {
   accessToken: string;
@@ -20,6 +20,20 @@ export interface PublicUser {
   emailVerified: boolean;
   rating: number;
   ratedGames: number;
+  /** Glicko-2 uncertainty; high RD ⇒ provisional rank. */
+  ratingDeviation: number;
+  /** Displayed military rank derived from rating + confidence. */
+  rank: RankDTO;
+}
+
+/** One row of the global leaderboard (REST `GET /leaderboard`). */
+export interface LeaderboardRow {
+  userId: string;
+  username: string;
+  rating: number;
+  ratedGames: number;
+  ratingDeviation: number;
+  rank: RankDTO;
 }
 
 export type ConnStatus = 'disconnected' | 'connecting' | 'connected';
@@ -162,7 +176,7 @@ export class LaskaClient {
     }
   }
 
-  async leaderboard(limit = 50): Promise<{ leaderboard: { userId: string; username: string; rating: number; ratedGames: number }[] }> {
+  async leaderboard(limit = 50): Promise<{ leaderboard: LeaderboardRow[] }> {
     return this.req(`/leaderboard?limit=${limit}`);
   }
 

@@ -207,10 +207,50 @@ in `TUTORIAL.md` (rules, the four capture beats, copy). Build order:
   - ✅ First strategy lesson set shipped: four engine-validated, interactive
     lessons (column safety, guarding, one-handed attack, attack over defence)
     with guided moves and local progress. Course packaging/paywall remains open.
+  - ✅ **Openings course shipped** (`web/src/openingLessons.ts`): a foundational
+    "first move" lesson + Lasker's three named openings (Hague, Berlin defence,
+    Wing gambit), each GENERATED from the engine-validated lines in `openings.ts`
+    (the learner plays White; Black's theory replies auto-play) with per-ply
+    coaching, plus a read-only **OpeningsPage** repertoire browser
+    (`web/src/OpeningsPage.tsx`, `openings` view in `App.tsx`) covering both the
+    Laska and Bashni repertoires with main line + variations + sources. The
+    Lessons page is now course-organised (Openings · Strategy · Bashni).
+
+- **⭐ Tutorial deepening plan (sequenced; "from mechanic to mastery").** The
+  infrastructure is solid (`lessons.ts`/`openingLessons.ts` builders +
+  `TutorialBoard` + `LessonsPage`, all engine-validated); the remaining work is
+  curriculum DEPTH. Owner tags point at the charter engineers.
+  - **[done] Openings course** — see the ✅ above. The user-requested lead phase.
+  - **[next][tutorial-content-engineer] First-run hook (TUTORIAL.md Phase 1).**
+    The flagship 5-tap onboarding does not exist yet as a component. Build a
+    `FirstRun` flow exactly as scripted in TUTORIAL.md (gated steps → first win vs
+    the Beginner bot), first-visit trigger, skippable, resumable via
+    `localStorage`. Highest activation lever (most players have never seen Laska).
+  - **[tutorial-content-engineer] Curriculum spine (light Phase 0).** The
+    `LessonsPage` track toggle is now a 3-course picker; formalise a `Course`
+    concept with per-course progress, ordering/locking, and a "free intro lesson"
+    seam so the paywall (Phase 5) slots in without touching lesson data.
+  - **[tutorial-content-engineer] Deepen Strategy + add Tactics & Endgames.**
+    The four strategy lessons are mostly single-step. Expand to multi-step lines;
+    add a **Tactics** course (capture chains, multi-jumps, the sham-sacrifice
+    gambit — STRATEGY.md §2/§5) and an **Endgames** course (converting a column
+    edge; beating the no-progress draw — STRATEGY.md §1).
+  - **[opening-book-curator-engineer + tutorial-content-engineer] Bashni openings
+    course.** The 4 principled Bashni lines in `openings.ts` are shown in the
+    OpeningsPage study view but have no interactive lessons yet; add a Bashni
+    openings track in `openingLessons.ts` mirroring the Laska one.
+  - **[puzzle-generator-engineer] Practice puzzles woven in (Phase 3).** After a
+    course, offer engine-verified "white to move and capture" drills from the
+    puzzle pipeline; same feed powers daily puzzles (retention §5).
+  - **[growth-monetization-engineer] Packaging & paywall seam (Phase 5).** Course
+    packs, completion UI, analytics funnel events; no real billing until §6.
 - **Tech notes.** Tutorial steps as data (`{position, prompt, expectedMove(s),
   hint, successText}`), rendered over `BoardView`. A `TutorialBoard` wrapper adds
   step highlighting + move gating. Progress saved to `localStorage` (later: account).
-  Keep it engine-driven so lessons can't drift from the real rules.
+  Keep it engine-driven so lessons can't drift from the real rules. Strategy
+  lessons author bespoke positions (`lessons.ts`, gated through `buildLesson`'s
+  forced-reply contract); opening lessons are GENERATED from validated repertoire
+  data (`openingLessons.ts`, opponent replies are authored theory, not forced).
 
 ### 6b. Historic games (heritage content) — ⏳ PARTIAL
 - ✅ **Replay viewer** (`web/src/ReplayPage.tsx` + `games.ts`): steps a recorded
@@ -316,14 +356,16 @@ listed files and consumes the engine read-only via `src/index.ts`.
   hand-asserted best move. Deliver a small seeded, verified set + a deterministic
   puzzle-of-the-day selector. Feeds — does not own — the growth daily-puzzle loop
   (retention §5) and tutorial Phase 3.
-- **[opening-book-curator-engineer]** Populate `web/src/openings.ts` + new
-  `web/src/openingsData.ts` with 2–3 named openings (e.g. Hague opening, Berlin
-  defence, Wing gambit) as **engine-validated line data** — each ply replays through
-  `src/index.ts` at import, the way `games.ts` does — plus a read-only
-  `web/src/OpeningsPage.tsx` study view in the neumorphic style (see `DESIGN.md`) and
-  `OPENINGS.md`. Wiring the page into the router/`App.tsx` is **Frontend's** lane —
-  hand it off, don't edit `App.tsx`. Distinct from the tutorial's paid Openings course
-  (Phase 4), which consumes this repertoire as data.
+- **[opening-book-curator-engineer]** ✅ **MOSTLY DONE.** `web/src/openings.ts`
+  holds Lasker's three named Laska openings (Hague, Berlin defence, Wing gambit) +
+  four principled Bashni lines as **engine-validated line data** (each ply replays
+  through `src/index.ts` at import, the way `games.ts` does). The read-only
+  `web/src/OpeningsPage.tsx` study view (neumorphic, both repertoires, main line +
+  variations + sources) is built and wired into the router (`openings` view in
+  `App.tsx`). The Phase-4 **Openings course** that consumes this data as
+  interactive lessons is also shipped (`web/src/openingLessons.ts`). Remaining:
+  a standalone `OPENINGS.md` reference doc, and recovering the flagged `c5-b5`
+  Hague token if the original scan can be re-read.
 - **[i18n-localization-engineer]** Scaffold `web/src/i18n/` (`index.ts`, `provider.tsx`,
   `useTranslation.ts`, `keys.ts`, `locales/` with an English baseline + one stub locale)
   + `I18N.md`. Provide a `LocaleProvider` + `t()` hook that **reads** the route locale

@@ -162,7 +162,7 @@ button { font-family: inherit; }
 }
 
 .topbar {
-  position: sticky; top: 0; z-index: 40;
+  position: sticky; top: 0; z-index: 40; order: -3; /* keep the header first once the game layout flattens (see local-game layout) */
   width: 100%; max-width: 920px; display: flex; align-items: center; justify-content: space-between; gap: 14px;
   padding: 10px 14px; border-radius: 0 0 18px 18px;
   background: color-mix(in srgb, var(--ground) 84%, transparent);
@@ -172,8 +172,16 @@ button { font-family: inherit; }
 .brand b { color: var(--cobalt); font-weight: 500; }
 .topbar-actions { display: flex; gap: 12px; align-items: center; }
 
+/* The secondary chrome (theme / pieces / coords / sound / my-games / leaderboard).
+   Desktop: `display: contents` so the buttons flow inline in the top bar and the
+   kebab toggle is hidden. Mobile (≤640px, below): they collapse into a popover
+   behind the kebab so the bar stays one clean row. */
+.chrome { display: contents; }
+.topbar .chrome-toggle { display: none; } /* scoped over `.btn`'s inline-flex; re-shown at ≤640px */
+.chrome-menu { display: contents; }
+
 /* ---- masthead -------------------------------------------------------- */
-.head { text-align: center; }
+.head { text-align: center; order: -2; /* sits below the sticky top bar; above the flattened board/status on mobile */ }
 .head .eyebrow {
   font-weight: 600; font-size: clamp(9px, 1.1vw, 11px); letter-spacing: 0.32em; text-transform: uppercase;
   color: var(--ink-soft); margin-bottom: 12px;
@@ -631,31 +639,51 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .searching { font-size: 12px; color: var(--ink-soft); font-style: italic; }
 .foot { font-size: 11px; color: var(--ink-soft); letter-spacing: 0.06em; opacity: 0.7; text-align: center; }
 
-/* Below the desktop two-column breakpoint the six topbar controls (play-mode,
-   theme, pieces, coords, sound, my-games) no longer fit one row, so let them
-   wrap instead of overflowing — before this they ran off both edges of a phone
-   (x=-163 to x=553 in a 390px window, both ends clipped). Desktop (>=960px)
-   keeps the original single nowrap row. */
+/* Tablet band (561–959px): the labelled chrome no longer fits one nowrap row,
+   so let the actions wrap to the right instead of overflowing. Desktop (≥960px)
+   keeps the original single nowrap row; phones (≤640px) use the kebab below. */
 @media (max-width: 959px) {
   .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
-@media (max-width: 560px) {
-  /* Keep the bar a single row: the back arrow stays pinned at the start (the
-     standard mobile app-bar pattern) while the actions fill the rest and wrap
-     to its right — never the old `flex-direction: column`, which stranded the
-     back arrow alone on its own centred line and read as a floating orphan.
-     `align-items: flex-start` levels the back arrow with the first action row. */
-  .topbar { gap: 8px; padding: 8px 10px; align-items: flex-start; }
-  .topbar-actions { flex: 1 1 auto; min-width: 0; justify-content: flex-end; gap: 8px; }
-  /* Collapse the chrome buttons to their icons so the whole cluster fits the
-     viewport. With labels shown the wrapped, centred row was wider than a phone
-     and clipped off BOTH edges (e.g. "Local" and "My games" cut off). Icons +
-     title/aria-label keep them usable and tidy. The Local/Online segment keeps
-     its short labels — it's the primary mode toggle. */
-  .topbar .btn .btn-label { display: none; }
-  .topbar .btn { padding: 11px; gap: 0; border-radius: 14px; }
+
+/* ---- phone (≤640px): one clean app bar + a tidied play column ---------- */
+@media (max-width: 640px) {
+  /* Top bar collapses to a single row: [back] [Local|Online] … [kebab].
+     The five+ secondary controls move into a popover behind the kebab, so the
+     bar never wraps to a lopsided second row or clips off the screen edges. */
+  .topbar { gap: 8px; padding: 8px 10px; }
+  .topbar-actions { flex: 0 0 auto; flex-wrap: nowrap; gap: 8px; }
+  .chrome { display: block; position: relative; }
+  .topbar .chrome-toggle { display: inline-flex; }
+  .chrome-menu {
+    position: absolute; top: calc(100% + 10px); right: 0; z-index: 50;
+    display: none; flex-direction: column; gap: 6px;
+    min-width: 196px; padding: 8px; border-radius: 16px;
+    background: var(--pedestal);
+    box-shadow: 8px 8px 18px var(--dark), -8px -8px 18px var(--light);
+  }
+  .chrome.open .chrome-menu { display: flex; animation: chrome-pop 0.16s var(--ease-settle); }
+  /* In the popover the buttons read as a left-aligned list with full labels. */
+  .chrome-menu .btn { width: 100%; justify-content: flex-start; gap: 10px; padding: 11px 13px; border-radius: 12px; box-shadow: none; }
+  .chrome-menu .btn:hover { box-shadow: none; background: color-mix(in srgb, var(--cobalt) 12%, transparent); }
+  .chrome-menu .btn .btn-label { display: inline; }
+
+  /* Masthead: trim it down so the board sits high on the screen. */
+  .app { gap: 12px; }
+  .head .eyebrow { margin-bottom: 5px; }
+  .head .title { font-size: clamp(26px, 8vw, 38px); }
+  .head .sub { margin-top: 5px; }
+
+  /* Controls: a tidy 2-up grid instead of a ragged centred wrap. Action
+     buttons pair off; the segments and save span the full width. */
+  .controls { gap: 8px; justify-content: stretch; }
+  .controls .btn { flex: 1 1 calc(50% - 4px); justify-content: center; }
+  .controls .segment { flex: 1 1 100%; }
+  .controls .segment button { flex: 1 1 0; justify-content: center; }
+
   .panel { max-width: 100%; }
 }
+@keyframes chrome-pop { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* ==========================================================================
@@ -875,8 +903,237 @@ input[type='radio'] { accent-color: var(--cobalt); }
   100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 
+/* ==========================================================================
+   Rank badge — the displayed military rank (RankBadge.tsx). Sculpted from the
+   shared --light/--dark shadows on the --plate ground (no hard borders), so it
+   sits on every [data-theme] palette. Used in the online match HUD, the result
+   screen, the rank-up celebration, and the leaderboard.
+   ========================================================================== */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+  font-family: var(--font-body);
+  color: var(--ink);
+  vertical-align: middle;
+  /* badge metrics scale off a single size knob set per-size variant below */
+  --rb-medal: 30px;
+  --rb-name: 12px;
+  --rb-ink: var(--cobalt); /* accent that paints the insignia mark */
+}
+.rb-sm { --rb-medal: 24px; --rb-name: 11px; gap: 0.4em; }
+.rb-md { --rb-medal: 30px; --rb-name: 12px; }
+.rb-lg { --rb-medal: 46px; --rb-name: 15px; gap: 0.7em; }
+
+/* The medal: a raised neumorphic disc the insignia is debossed onto. */
+.rb-medal {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--rb-medal);
+  height: var(--rb-medal);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--plate);
+  box-shadow:
+    calc(var(--rb-medal) * 0.07) calc(var(--rb-medal) * 0.07) calc(var(--rb-medal) * 0.16) var(--dark),
+    calc(var(--rb-medal) * -0.07) calc(var(--rb-medal) * -0.07) calc(var(--rb-medal) * 0.16) var(--light);
+  color: var(--rb-ink);
+}
+/* The general tier earns a recessed (inset) plate — a "minted" mastery feel. */
+.rb-tier-general .rb-medal {
+  box-shadow:
+    inset calc(var(--rb-medal) * 0.07) calc(var(--rb-medal) * 0.07) calc(var(--rb-medal) * 0.14) var(--dark),
+    inset calc(var(--rb-medal) * -0.07) calc(var(--rb-medal) * -0.07) calc(var(--rb-medal) * 0.14) var(--light);
+}
+
+.rb-insignia { display: grid; place-items: center; width: 100%; height: 100%; }
+
+/* Climb: a shield plaque with escalating chevron stripes. */
+.rb-climb { position: relative; }
+.rb-climb .rb-plate {
+  position: absolute;
+  width: 78%;
+  height: 78%;
+  color: color-mix(in srgb, var(--rb-ink) 80%, var(--ink-soft));
+  opacity: 0.85;
+}
+.rb-chevrons {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--rb-medal) * -0.07);
+  z-index: 1;
+}
+.rb-chevron {
+  width: calc(var(--rb-medal) * 0.34);
+  height: calc(var(--rb-medal) * 0.34);
+  color: var(--plate);
+  filter: drop-shadow(0 0.5px 0.5px var(--dark));
+}
+
+/* General: a cluster of stars, capped at 5 per row (wraps for 6..9). */
+.rb-general {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: calc(var(--rb-medal) * 0.02);
+  padding: 12%;
+}
+.rb-general .rb-star {
+  width: calc(var(--rb-medal) * 0.28);
+  height: calc(var(--rb-medal) * 0.28);
+  filter: drop-shadow(0 0.5px 0.5px var(--dark));
+}
+/* Lone star (★1) reads bigger — it's the milestone of crossing into mastery. */
+.rb-medal[data-stars='1'] .rb-star { width: 58%; height: 58%; }
+.rb-medal[data-stars='2'] .rb-star,
+.rb-medal[data-stars='3'] .rb-star { width: calc(var(--rb-medal) * 0.34); height: calc(var(--rb-medal) * 0.34); }
+
+.rb-text { display: inline-flex; flex-direction: column; gap: 0.25em; min-width: 0; }
+.rb-name {
+  font-weight: 700;
+  font-size: var(--rb-name);
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.rb-stars-suffix { color: var(--rb-ink); font-weight: 600; }
+.rb-q { color: var(--ink-soft); font-weight: 600; }
+
+/* lg variant: a thin recessed progress track toward the next rank. */
+.rb-progress {
+  display: block;
+  width: 100%;
+  min-width: 92px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--plate);
+  box-shadow: inset 1.5px 1.5px 3px var(--dark), inset -1.5px -1.5px 3px var(--light);
+  overflow: hidden;
+}
+.rb-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--rb-ink) 70%, var(--win)), var(--rb-ink));
+  transition: width var(--t-move) var(--ease-settle);
+}
+
+/* Provisional: muted, desaturated, with a small ? overlay on the medal. */
+.rb-provisional { --rb-ink: var(--ink-soft); }
+.rb-provisional .rb-medal { filter: saturate(0.55) opacity(0.82); }
+.rb-provisional .rb-name { color: var(--ink-soft); }
+.rb-provisional-mark {
+  position: absolute;
+  right: -6%;
+  bottom: -6%;
+  width: 42%;
+  height: 42%;
+  color: var(--ink-soft);
+  background: var(--plate);
+  border-radius: 50%;
+  box-shadow: 1px 1px 2px var(--dark), -1px -1px 2px var(--light);
+}
+
+/* ---- online lobby identity (own rank, persistent) ---------------------- */
+.lobby-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--pedestal);
+  box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light);
+}
+.lobby-identity-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lobby-identity-text strong { font-family: var(--font-display); font-size: 1.05rem; color: var(--ink); }
+.lobby-identity-text .muted { font-size: 12px; color: var(--ink-soft); display: flex; align-items: center; gap: 5px; }
+
+/* The in-match clock name now leads with a small rank badge. */
+.clock-name { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ---- end-screen rank outcome + rank-up celebration --------------------- */
+.rank-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+  text-align: center;
+}
+.rank-result-rating { font-size: 13px; color: var(--ink-soft); }
+.rank-result-line { font-family: var(--font-display); font-size: 1.05rem; color: var(--ink); }
+.rank-result-line.quiet { color: var(--ink-soft); font-size: 0.98rem; }
+.rank-result-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--cobalt);
+}
+
+/* Promotion: one orchestrated reveal — the eyebrow, badge, line and rating
+   stagger in, the medal gives a brass pop, and a small sparkle burst fires. */
+.rank-promote { box-shadow: 6px 6px 13px var(--dark), -6px -6px 13px var(--light); position: relative; overflow: hidden; }
+.rank-promote .rank-result-eyebrow { animation: rr-rise 0.45s var(--ease-settle) 0.05s both; }
+.rank-promote .rank-badge { animation: rr-medal 0.6s var(--ease-settle) 0.18s both; }
+.rank-promote .rank-result-line { animation: rr-rise 0.45s var(--ease-settle) 0.34s both; }
+.rank-promote .rank-result-rating { animation: rr-rise 0.45s var(--ease-settle) 0.46s both; }
+.rank-promote.into-general {
+  box-shadow: 7px 7px 16px var(--dark), -7px -7px 16px var(--light),
+              inset 0 0 0 2px color-mix(in srgb, var(--cobalt) 40%, transparent);
+}
+.rank-promote.into-general .rank-result-eyebrow { color: var(--cobalt); font-size: 11px; }
+
+@keyframes rr-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes rr-medal {
+  0% { opacity: 0; transform: scale(0.3) rotate(-18deg); }
+  55% { transform: scale(1.18) rotate(6deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+/* Sparkle burst — seven sparkles fan out from the medal area. */
+.rank-result-burst {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.rank-result-burst svg {
+  position: absolute;
+  color: var(--cobalt);
+  opacity: 0;
+  animation: rr-spark 0.9s ease-out 0.3s both;
+  transform: rotate(calc(var(--i) * 51deg)) translateY(-10px);
+}
+@keyframes rr-spark {
+  0% { opacity: 0; transform: rotate(calc(var(--i) * 51deg)) translateY(-6px) scale(0.4); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(calc(var(--i) * 51deg)) translateY(-46px) scale(1); }
+}
+
+/* Demotion: quiet and dignified — no burst, no pop, just a gentle fade in. */
+.rank-demote { box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light); }
+.rank-demote .rank-badge { animation: rr-rise 0.4s ease both; }
+
 @media (prefers-reduced-motion: reduce) {
   .field.dealing .column { animation: none; }
   .theme-sweep { display: none !important; }
   .sq.dark.shake, .undo-spin, .status.win .ico { animation: none; }
+  .rank-promote .rank-result-eyebrow,
+  .rank-promote .rank-badge,
+  .rank-promote .rank-result-line,
+  .rank-promote .rank-result-rating,
+  .rank-demote .rank-badge,
+  .rank-result-burst svg { animation: none; opacity: 1; transform: none; }
+  .rank-result-burst { display: none; }
 }

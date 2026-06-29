@@ -15,8 +15,8 @@ test('online players see the board from their own side', async ({ browser }) => 
     ]);
 
     await Promise.all([
-      firstPage.getByRole('button', { name: 'Play online (ranked)' }).click(),
-      secondPage.getByRole('button', { name: 'Play online (ranked)' }).click(),
+      firstPage.getByRole('button', { name: 'Play Laska (ranked)' }).click(),
+      secondPage.getByRole('button', { name: 'Play Laska (ranked)' }).click(),
     ]);
 
     const firstBoard = firstPage.locator('.field[data-perspective]');
