@@ -790,3 +790,58 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .hr-tag { font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--faint); }
 .hr-tag.win { color: var(--accent-dk); }
 .hr-tag.loss { color: color-mix(in srgb, var(--l-ink) 55%, transparent); }
+
+/* ---- streak indicator ------------------------------------------------ */
+/* A recessed pill that reads as carved from the same clay surface (inset
+   neumorphism), so it sits quietly in the top bar next to the raised .btn
+   controls. The flame is the one warm spark; the count uses the ink tone, the
+   freeze badge the cobalt accent. Ember hue is fixed (not palette-derived) so a
+   "hot streak" reads as warm against every board theme. All motion below is
+   disabled by the global prefers-reduced-motion kill-switch earlier in this file. */
+.streak-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 13px; border-radius: 14px;
+  background: var(--pedestal); color: var(--ink);
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+  font-family: var(--font-display); font-weight: 500; line-height: 1;
+  user-select: none; transition: box-shadow 0.18s ease, opacity 0.18s ease;
+}
+.streak-flame { display: inline-flex; color: #d9622b; filter: drop-shadow(0 0 3px rgba(217, 98, 43, 0.35)); }
+.streak-count {
+  font-size: 15px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+  min-width: 0.7em; text-align: center;
+}
+.streak-freezes {
+  display: inline-flex; align-items: center; gap: 2px;
+  margin-left: 2px; padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--ink-soft) 28%, transparent);
+  color: var(--cobalt);
+}
+.streak-freeze-n { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Streak alive but today's match not yet played: soften it as a gentle nudge. */
+.streak-pill.streak-dim { opacity: 0.62; }
+.streak-pill.streak-dim .streak-flame { color: color-mix(in srgb, #d9622b 55%, var(--ink-soft)); filter: none; }
+
+/* One-shot "ignite" on advance: the pill lifts to raised for a beat and the
+   flame pops + flickers, then settles back into the surface. */
+.streak-pill.igniting {
+  box-shadow: 4px 4px 10px var(--dark), -4px -4px 10px var(--light);
+  animation: streak-settle 0.72s ease-out;
+}
+.streak-pill.igniting .streak-flame { animation: streak-ignite 0.72s ease-out; }
+.streak-pill.igniting .streak-count { animation: streak-tick 0.72s ease-out; }
+@keyframes streak-settle {
+  0%   { box-shadow: 6px 6px 13px var(--dark), -6px -6px 13px var(--light); }
+  100% { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); }
+}
+@keyframes streak-ignite {
+  0%   { transform: scale(0.6) translateY(2px); color: #f0a23a; }
+  35%  { transform: scale(1.35) rotate(-6deg); color: #ff7a3d; filter: drop-shadow(0 0 8px rgba(255, 122, 61, 0.7)); }
+  60%  { transform: scale(0.95) rotate(4deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes streak-tick {
+  0%   { transform: translateY(0.45em); opacity: 0; }
+  45%  { transform: translateY(-0.12em); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
