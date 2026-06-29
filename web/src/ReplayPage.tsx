@@ -15,12 +15,16 @@ import { HISTORIC_GAMES, type HistoricGame } from './games.ts';
 import { moveToSan } from './savedGames.ts';
 import {
   useGameAnalysis,
+  useCommentator,
   EvalBar,
   AnalysisSummary,
   ReviewBadge,
-  BestLine,
+  MoveCommentary,
+  FromHereHint,
+  CommentatorPicker,
   QualityMark,
 } from './gameAnalysis.tsx';
+import { isBrilliant } from './commentary.ts';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
 import { ShareButton } from './ShareButton.tsx';
 import './landing.css';
@@ -71,6 +75,7 @@ export function ReplayPage({
   const lastPly = game.plies.length;
   const [ply, setPly] = useState(0); // 0 = opening position
   const [playing, setPlaying] = useState(false);
+  const [persona, setPersona] = useCommentator();
   const listRef = useRef<HTMLDivElement>(null);
 
   const selectGame = (idx: number) => {
@@ -107,7 +112,19 @@ export function ReplayPage({
   });
   const currentReview = ply > 0 ? review.reviews[ply - 1] ?? null : null;
   const currentWhiteEval = review.analysis ? review.analysis[ply]?.whiteEval ?? null : null;
+  const evalBefore = review.analysis?.[ply - 1]?.whiteEval ?? 0;
   const bestNext = review.analysis?.[ply]?.scored[0]?.move ?? null;
+  const currentBrilliant =
+    currentReview && current
+      ? isBrilliant(currentReview, {
+          side: current.side,
+          ply,
+          whiteEvalBefore: evalBefore,
+          whiteEvalAfter: currentWhiteEval ?? 0,
+          move: current.move,
+          bestSan: null,
+        })
+      : false;
 
   // ring the square the last move landed on
   const landing = useMemo(() => (current ? new Set([current.move.to]) : EMPTY), [current]);
@@ -214,12 +231,11 @@ export function ReplayPage({
               ) : (
                 <>
                   <EvalBar white={currentWhiteEval ?? 0} />
-                  <AnalysisSummary summary={review.summary!} />
-                  {bestNext && ply < lastPly && (
-                    <p className="best-from-here">
-                      Engine likes <b>{moveToSan(bestNext)}</b> here.
-                    </p>
+                  <AnalysisSummary summary={review.summary!} persona={persona} />
+                  {ply < lastPly && (
+                    <FromHereHint best={bestNext} ply={ply} sanOf={moveToSan} persona={persona} />
                   )}
+                  <CommentatorPicker value={persona} onChange={setPersona} />
                 </>
               )}
             </div>
@@ -227,10 +243,19 @@ export function ReplayPage({
             <div className="replay-note reveal in">
               <span className="replay-ply-label">
                 {ply === 0 ? 'Opening' : `${current!.moveNo}. ${current!.side === 'W' ? 'White' : 'Black'} — ${current!.san}`}
-                <ReviewBadge review={currentReview} />
+                <ReviewBadge review={currentReview} brilliant={currentBrilliant} />
               </span>
               {noteText && <p>{noteText}</p>}
-              <BestLine review={currentReview} sanOf={moveToSan} />
+              <MoveCommentary
+                review={currentReview}
+                side={current?.side ?? 'W'}
+                ply={ply}
+                whiteEvalBefore={evalBefore}
+                whiteEvalAfter={currentWhiteEval ?? 0}
+                move={current?.move ?? null}
+                sanOf={moveToSan}
+                persona={persona}
+              />
             </div>
 
             <div className="replay-controls">
