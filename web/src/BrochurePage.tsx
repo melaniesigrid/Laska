@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ArrowLeft, Play, FileText, Layers } from 'lucide-react';
 import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
 import { OPENINGS, FIRST_MOVES, OPENING_SOURCES } from './openings.ts';
+import { useCoords } from './coordsPref.ts';
 import './landing.css';
 
 /**
@@ -14,9 +15,15 @@ import './landing.css';
 /** The board with Lasker's 1–25 square numbering (square N ↔ engine index N−1),
  *  drawn White-at-the-bottom exactly as the game board displays it. */
 function NumberedBoard() {
+  // The a–g / 1–7 edge gutter follows the same global toggle as the play boards;
+  // it complements Lasker's in-cell 1–25 numbering rather than replacing it.
+  const showCoords = useCoords();
   const cells = [];
   for (let displayRow = 0; displayRow < BOARD_DIM; displayRow++) {
     const boardRow = BOARD_DIM - 1 - displayRow;
+    if (showCoords) {
+      cells.push(<div key={`rank-${displayRow}`} className="bd-coord bd-rank" aria-hidden="true">{boardRow + 1}</div>);
+    }
     for (let col = 0; col < BOARD_DIM; col++) {
       const sq = RC_TO_SQUARE[boardRow * BOARD_DIM + col]!;
       if (sq === -1) {
@@ -32,7 +39,18 @@ function NumberedBoard() {
       );
     }
   }
-  return <div className="numbered-board" role="img" aria-label="Laska board, squares numbered 1 to 25; White starts on 1–11, Black on 15–25, the centre 12–14 empty.">{cells}</div>;
+  if (showCoords) {
+    // Bottom file row: an empty corner under the rank column, then a–g.
+    cells.push(<div key="corner" className="bd-coord" aria-hidden="true" />);
+    for (let col = 0; col < BOARD_DIM; col++) {
+      cells.push(
+        <div key={`file-${col}`} className="bd-coord bd-file" aria-hidden="true">
+          {String.fromCharCode(97 + col)}
+        </div>,
+      );
+    }
+  }
+  return <div className={`numbered-board${showCoords ? ' with-coords' : ''}`} role="img" aria-label="Laska board, squares numbered 1 to 25; White starts on 1–11, Black on 15–25, the centre 12–14 empty.">{cells}</div>;
 }
 
 function Term({ term, children }: { term: string; children: React.ReactNode }) {

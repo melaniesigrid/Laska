@@ -368,6 +368,12 @@
 .landing-page .numbered-board { display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(3px, 0.8vw, 6px); width: 100%; max-width: 360px; aspect-ratio: 1/1; padding: clamp(0.6rem, 1.6vw, 1rem); background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset-deep); }
 .landing-page .numbered-board.dim8 { grid-template-columns: repeat(8, 1fr); }
 .landing-page .numbered-board.dim8 .bd-cell { font-size: clamp(0.62rem, 1.5vw, 0.85rem); }
+/* Coordinate gutter: a thin auto-width rank column on the left + a file-letter
+   row along the bottom, complementing the in-cell Lasker numbering. */
+.landing-page .numbered-board.with-coords { grid-template-columns: auto repeat(7, 1fr); }
+.landing-page .numbered-board.dim8.with-coords { grid-template-columns: auto repeat(8, 1fr); }
+.landing-page .bd-coord { display: flex; align-items: center; justify-content: center; font-family: 'Hanken Grotesk', sans-serif; font-weight: 700; font-size: clamp(0.5rem, 1.3vw, 0.72rem); color: var(--faint); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.landing-page .bd-rank { padding-right: clamp(2px, 0.6vw, 5px); }
 .landing-page .bd-cell { display: flex; align-items: center; justify-content: center; border-radius: 7px; font-family: 'Hanken Grotesk', sans-serif; font-size: clamp(0.7rem, 1.7vw, 0.95rem); font-weight: 600; font-variant-numeric: tabular-nums; }
 .landing-page .bd-cell.light { background: transparent; }
 .landing-page .bd-cell.play { box-shadow: inset 2px 2px 4px var(--l-shadow), inset -2px -2px 4px var(--l-light); }

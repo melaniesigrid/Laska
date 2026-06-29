@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ArrowLeft, Play, Crown, Layers } from 'lucide-react';
 import { BASHNI } from '../../src/index.ts';
 import { BASHNI_OPENINGS } from './openings.ts';
+import { useCoords } from './coordsPref.ts';
 import './landing.css';
 
 /**
@@ -16,10 +17,16 @@ import './landing.css';
  *  engine index N−1), drawn White-at-the-bottom exactly as the game board shows
  *  it. White starts on 1–12, Black on 21–32, the two centre rows empty. */
 function BashniBoard() {
+  // a–h / 1–8 edge gutter, following the same global toggle as the play boards;
+  // it complements the in-cell 1–32 numbering rather than replacing it.
+  const showCoords = useCoords();
   const dim = BASHNI.boardDim;
   const cells = [];
   for (let displayRow = 0; displayRow < dim; displayRow++) {
     const boardRow = dim - 1 - displayRow;
+    if (showCoords) {
+      cells.push(<div key={`rank-${displayRow}`} className="bd-coord bd-rank" aria-hidden="true">{boardRow + 1}</div>);
+    }
     for (let col = 0; col < dim; col++) {
       const sq = BASHNI.rcToSquare[boardRow * dim + col]!;
       if (sq === -1) {
@@ -35,9 +42,20 @@ function BashniBoard() {
       );
     }
   }
+  if (showCoords) {
+    // Bottom file row: an empty corner under the rank column, then a–h.
+    cells.push(<div key="corner" className="bd-coord" aria-hidden="true" />);
+    for (let col = 0; col < dim; col++) {
+      cells.push(
+        <div key={`file-${col}`} className="bd-coord bd-file" aria-hidden="true">
+          {String.fromCharCode(97 + col)}
+        </div>,
+      );
+    }
+  }
   return (
     <div
-      className="numbered-board dim8"
+      className={`numbered-board dim8${showCoords ? ' with-coords' : ''}`}
       role="img"
       aria-label="Bashni board, 8 by 8, dark squares numbered 1 to 32; White starts on 1–12, Black on 21–32, the two centre rows empty."
     >
