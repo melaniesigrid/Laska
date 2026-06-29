@@ -81,6 +81,8 @@ import {
   setSelectedMascotTint,
   reconcileCosmetics,
 } from './cosmetics.ts';
+import { useStreak } from './useStreak.ts';
+import { StreakIndicator } from './StreakIndicator.tsx';
 
 type Mode = 'hotseat' | 'ai';
 
@@ -224,6 +226,10 @@ export function App() {
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
   const [mascotTint, setMascotTint] = useState<MascotTint>(getSelectedMascotTint);
   const online = useOnline();
+  // Daily-streak retention loop. Owned here at the root; `recordDailyAction` is
+  // handed down to the finished-match funnel in LocalGame so a streak ticks once
+  // per genuinely-finished local game (idempotent per calendar day).
+  const streak = useStreak();
 
   // Reconcile cosmetics whenever the signed-in user resolves (login / restore):
   // server value wins, else the locally-stored pick, else the default. Writes the
@@ -436,6 +442,14 @@ export function App() {
         boardTheme={theme}
         boardThemeOptions={BOARD_THEME_OPTIONS}
         onBoardTheme={chooseBoardTheme}
+        // Map the streak's `longest` -> the slot's `best`. Hide the slot entirely
+        // for brand-new players (no current streak and nothing ever earned) so it
+        // doesn't show an empty 0-day badge.
+        streak={
+          streak.state.current === 0 && streak.state.longest === 0
+            ? undefined
+            : { current: streak.state.current, best: streak.state.longest }
+        }
       />
     );
   }
@@ -489,6 +503,7 @@ export function App() {
           >
             <Star size={16} /> {PIECE_THEME_LABEL[pieceTheme]}
           </button>
+          <StreakIndicator state={streak.state} countedToday={streak.countedToday} />
           <button className="btn" onClick={() => setView('mygames')} aria-label="Your saved games">
             <Library size={16} /> My games
           </button>
@@ -505,7 +520,11 @@ export function App() {
       </div>
 
       {appMode === 'local' ? (
-        <LocalGame onLearnAI={() => setView('ai')} onOpenMyGames={() => setView('mygames')} />
+        <LocalGame
+          onLearnAI={() => setView('ai')}
+          onOpenMyGames={() => setView('mygames')}
+          onMatchFinished={streak.recordDailyAction}
+        />
       ) : (
         <OnlinePanel online={online} />
       )}
@@ -520,7 +539,16 @@ export function App() {
   );
 }
 
-function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpenMyGames: () => void }) {
+function LocalGame({
+  onLearnAI,
+  onOpenMyGames,
+  onMatchFinished,
+}: {
+  onLearnAI: () => void;
+  onOpenMyGames: () => void;
+  /** Fired once per genuinely-finished local match (drives the daily streak). */
+  onMatchFinished: () => void;
+}) {
   const [state, setState] = useState<GameState>(() => createInitialState());
   const [mode, setMode] = useState<Mode>('ai');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
@@ -592,9 +620,13 @@ function LocalGame({ onLearnAI, onOpenMyGames }: { onLearnAI: () => void; onOpen
         reason: (status as { reason: string }).reason,
         plies: moves.length,
       });
+      // Same once-per-finished-game guard: tick the daily streak for a genuinely
+      // played local match. Idempotent per calendar day inside the hook, so
+      // finishing several games in a day still counts once.
+      onMatchFinished();
     }
     if (!gameOver) finishedReportedAt.current = null;
-  }, [gameOver, status, moves.length, mode, aiColor]);
+  }, [gameOver, status, moves.length, mode, aiColor, onMatchFinished]);
 
   // The squares the player can click next. Mid-capture these are the landing
   // squares for the NEXT leap only (`path[depth]`); otherwise the first step of

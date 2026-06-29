@@ -143,9 +143,11 @@ ownership, and cross-node message routing:
 - **Cosmetics: account-backed** ✅ — mascot tint / piece theme / board palette
   persist via `PATCH /me/cosmetics` (`selectedMascotTint`/`selectedPieceTheme`/
   `selectedBoardTheme` on `PublicUser`), localStorage fallback for guests.
-- Daily **streaks** (mostly built on `growth/daily-streaks`: pure `streak.ts` +
-  freeze mechanic + `StreakIndicator`; pending: rebase, surface on the profile),
-  daily **puzzles/challenges** derived from real positions
+- Daily **streaks** ✅ — pure `streak.ts` (freeze mechanic, 14 unit tests) +
+  `useStreak` hook + topbar `StreakIndicator`, ticked once per finished local
+  match, surfaced on the Profile streak card. Next: server-sync the streak so it
+  follows the account (today it's per-device localStorage).
+- Daily **puzzles/challenges** derived from real positions
   (generate from finished-match positions; the engine can verify solutions).
 - **Achievements / trophy shelf** — derive badges from saved-game data; render in
   the profile's achievements slot.
