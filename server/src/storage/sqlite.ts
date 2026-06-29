@@ -12,12 +12,14 @@ import { DatabaseSync } from 'node:sqlite';
 import type {
   LeaderboardEntry,
   MatchRecord,
+  PlatformStats,
   Repository,
   SerializedMove,
   User,
 } from './types.ts';
 import { rankFor } from '../rating/rank.ts';
 import { DEFAULT_RD, DEFAULT_VOLATILITY } from '../rating/glicko2.ts';
+import { utcDay, windows, signupDayWindow, fillSignupDays } from './stats.ts';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -325,5 +327,99 @@ export class SqliteRepository implements Repository {
       ratedGames: r.rated_games,
       rank: rankFor({ rating: r.rating, ratingDeviation: r.rating_deviation, ratedGames: r.rated_games }),
     }));
+  }
+
+  async platformStats(now: number): Promise<PlatformStats> {
+    const { d1, d7, d30 } = windows(now);
+
+    const userAgg = this.db
+      .prepare(
+        `SELECT
+           COUNT(*)                                         AS total,
+           SUM(CASE WHEN is_guest = 0 THEN 1 ELSE 0 END)    AS registered,
+           SUM(CASE WHEN is_guest = 1 THEN 1 ELSE 0 END)    AS guests,
+           SUM(CASE WHEN email_verified = 1 THEN 1 ELSE 0 END) AS verified,
+           SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS new24h,
+           SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS new7d,
+           SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS new30d
+         FROM users`,
+      )
+      .get(d1, d7, d30) as {
+      total: number;
+      registered: number | null;
+      guests: number | null;
+      verified: number | null;
+      new24h: number | null;
+      new7d: number | null;
+      new30d: number | null;
+    };
+
+    const matchAgg = this.db
+      .prepare(
+        `SELECT
+           COUNT(*)                                         AS total,
+           SUM(CASE WHEN ranked = 1 THEN 1 ELSE 0 END)      AS ranked,
+           SUM(CASE WHEN ended_at >= ? THEN 1 ELSE 0 END)   AS last24h,
+           SUM(CASE WHEN ended_at >= ? THEN 1 ELSE 0 END)   AS last7d
+         FROM matches`,
+      )
+      .get(d1, d7) as {
+      total: number;
+      ranked: number | null;
+      last24h: number | null;
+      last7d: number | null;
+    };
+
+    // Activity signal: distinct users (either color) who FINISHED a match
+    // (ended_at) within each window. ended_at covers all completed play —
+    // ranked and casual, both players — a truer "active" signal than
+    // last_rated_at, which only reflects ranked games.
+    const activeFor = (since: number): number => {
+      const row = this.db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM (
+             SELECT white_id AS uid FROM matches WHERE ended_at >= ?
+             UNION
+             SELECT black_id AS uid FROM matches WHERE ended_at >= ?
+           )`,
+        )
+        .get(since, since) as { n: number };
+      return row.n;
+    };
+
+    // signupsByDay: range-query the 30-day window, then bucket in JS so we can
+    // gap-fill missing days with 0.
+    const { days, sinceMs } = signupDayWindow(now);
+    const signupRows = this.db
+      .prepare('SELECT created_at FROM users WHERE created_at >= ?')
+      .all(sinceMs) as unknown as { created_at: number }[];
+    const dayCounts = new Map<string, number>();
+    for (const r of signupRows) {
+      const day = utcDay(r.created_at);
+      dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
+    }
+
+    return {
+      generatedAt: now,
+      users: {
+        total: userAgg.total,
+        registered: userAgg.registered ?? 0,
+        guests: userAgg.guests ?? 0,
+        verified: userAgg.verified ?? 0,
+      },
+      active: { d1: activeFor(d1), d7: activeFor(d7), d30: activeFor(d30) },
+      newUsers: {
+        last24h: userAgg.new24h ?? 0,
+        last7d: userAgg.new7d ?? 0,
+        last30d: userAgg.new30d ?? 0,
+      },
+      signupsByDay: fillSignupDays(days, dayCounts),
+      matches: {
+        total: matchAgg.total,
+        ranked: matchAgg.ranked ?? 0,
+        last24h: matchAgg.last24h ?? 0,
+        last7d: matchAgg.last7d ?? 0,
+      },
+    };
   }
 }

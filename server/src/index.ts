@@ -40,6 +40,7 @@ export function buildServer(
     auth,
     repo,
     ...(config.authRateLimit ? { authRateLimit: config.authRateLimit } : {}),
+    ...(config.adminToken ? { adminToken: config.adminToken } : {}),
   });
   const http = createServer((req, res) => void httpHandler(req, res));
   const wss = new WebSocketServer({ server: http, path: '/ws' });
@@ -62,6 +63,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log(`  WebSocket: ws://localhost:${config.port}/ws`);
       console.log(`  Storage:   ${config.db.kind}${config.db.kind === 'sqlite' ? ` (${config.db.sqlitePath})` : ''}`);
       console.log(`  Cluster:   ${config.cluster.kind} (node ${nodeId})`);
+      console.log(
+        `  Admin stats: ${config.adminToken ? 'enabled (GET /admin/stats)' : 'disabled (set LASKA_ADMIN_TOKEN to enable)'}`,
+      );
       if (config.usingDefaultSecrets) {
         console.warn(
           '  WARNING: using random per-boot token secrets. Set LASKA_ACCESS_SECRET and ' +
