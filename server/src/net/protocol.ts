@@ -5,6 +5,17 @@
  */
 import type { PlayerColor, VariantId } from '../../../src/index.ts';
 import type { MatchResult } from '../storage/types.ts';
+import type { Rank } from '../rating/rank.ts';
+
+// ---- Ranking -------------------------------------------------------------
+
+/**
+ * Displayed rank, structurally identical to the server's internal `Rank`
+ * (rating/rank.ts). Re-exported here so the web client gets the rank contract
+ * from the single protocol module it already imports. See rating/rank.ts for the
+ * ladder table and the provisional/calibration rules.
+ */
+export type RankDTO = Rank;
 
 // ---- Social: canned emotes -----------------------------------------------
 
@@ -68,6 +79,8 @@ export interface PublicOpponent {
   userId: string;
   username: string;
   rating: number;
+  /** Displayed rank derived from the opponent's rating + confidence. */
+  rank: RankDTO;
 }
 
 export interface ClockDTO {
@@ -95,9 +108,18 @@ export interface MatchStateDTO {
   variant: VariantId;
 }
 
+/** Per-side rating + rank movement from a finished ranked game. */
+export interface RatingChangeSideDTO {
+  before: number;
+  after: number;
+  delta: number;
+  /** Displayed rank before/after — lets the client celebrate a rank-up. */
+  rank: { before: RankDTO; after: RankDTO };
+}
+
 export interface RatingChangeDTO {
-  white: { before: number; after: number; delta: number };
-  black: { before: number; after: number; delta: number };
+  white: RatingChangeSideDTO;
+  black: RatingChangeSideDTO;
 }
 
 /** A chat line or emote relayed to both players. `from` is the sender's userId;
@@ -112,7 +134,7 @@ export interface ChatDTO {
 }
 
 export type ServerMessage =
-  | { type: 'auth.ok'; userId: string; username: string; rating: number }
+  | { type: 'auth.ok'; userId: string; username: string; rating: number; ratingDeviation: number; rank: RankDTO }
   | { type: 'queue.joined' }
   | { type: 'queue.left' }
   | {

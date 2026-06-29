@@ -38,7 +38,7 @@ test('never pairs players queuing for different variants', () => {
 });
 
 test('does not pair players outside the initial window until wait widens it', () => {
-  const mm = new Matchmaker({ baseWindow: 100, windowGrowthPerSec: 50, maxWindow: 1000 });
+  const mm = new Matchmaker({ baseWindow: 100, windowGrowthPerSec: 50, maxWindow: 1000, rdWindowFactor: 0.5 });
   const t0 = 1_000_000;
   mm.enqueue('low', 1200, t0);
   mm.enqueue('high', 1500, t0); // gap 300 > base window 100

@@ -1,6 +1,6 @@
 /**
  * Owns all active matches and turns a finished game into durable side effects:
- * server-side Elo update (ranked only) and a persisted MatchRecord.
+ * server-side Glicko-2 rating update (ranked only) and a persisted MatchRecord.
  *
  * Reconnection: matches are keyed by id and also indexed by player id, so a
  * client that drops can look up its in-progress match and resync from the
@@ -9,16 +9,25 @@
 import { randomUUID } from 'node:crypto';
 import type { VariantId } from '../../../src/index.ts';
 import type { Repository, MatchRecord, MatchResult } from '../storage/types.ts';
-import { updateRatings, type Score } from '../rating/elo.ts';
+import { bothPlayers, inflateDeviation, STARTING_RATING, type Score } from '../rating/glicko2.ts';
+import { rankFor, type Rank } from '../rating/rank.ts';
 import { Match, type MatchEndInfo, type TimeControl } from './match.ts';
+
+interface SideRatingChange {
+  before: number;
+  after: number;
+  delta: number;
+  /** Displayed rank before/after this game — powers rank-up celebration. */
+  rank: { before: Rank; after: Rank };
+}
 
 export interface FinishedSummary {
   matchId: string;
   end: MatchEndInfo;
   ranked: boolean;
   ratingChange: {
-    white: { before: number; after: number; delta: number };
-    black: { before: number; after: number; delta: number };
+    white: SideRatingChange;
+    black: SideRatingChange;
   } | null;
 }
 
@@ -33,7 +42,14 @@ export class MatchManager {
   private active = new Map<string, Match>();
   private byUser = new Map<string, string>(); // userId -> matchId (their current match)
 
-  constructor(private repo: Repository) {}
+  /**
+   * @param anchor Glicko-2 rating anchor (mu = 0). Must equal config.startingRating
+   *   so a fresh player maps to the internal origin. Defaults to STARTING_RATING.
+   */
+  constructor(
+    private repo: Repository,
+    private anchor: number = STARTING_RATING,
+  ) {}
 
   createMatch(
     whiteId: string,
@@ -91,27 +107,94 @@ export class MatchManager {
     let blackAfter = blackBefore;
 
     if (match.ranked && white && black) {
+      const endedAt = match.endedAtMs() || Date.now();
       const scoreWhite = resultToScoreA(end.result);
-      const change = updateRatings(
-        { rating: white.rating, ratedGames: white.ratedGames },
-        { rating: black.rating, ratedGames: black.ratedGames },
+
+      // Rank BEFORE, from the stored (pre-game) state.
+      const whiteRankBefore = rankFor({
+        rating: white.rating,
+        ratingDeviation: white.ratingDeviation,
+        ratedGames: white.ratedGames,
+      });
+      const blackRankBefore = rankFor({
+        rating: black.rating,
+        ratingDeviation: black.ratingDeviation,
+        ratedGames: black.ratedGames,
+      });
+
+      // (a) Inflate each player's RD for time idle since their last ranked game,
+      // so a long-absent player's rating can move appropriately on return.
+      const whiteRd =
+        white.lastRatedAt !== null
+          ? inflateDeviation(
+              { rating: white.rating, ratingDeviation: white.ratingDeviation, volatility: white.volatility },
+              endedAt - white.lastRatedAt,
+              this.anchor,
+            )
+          : white.ratingDeviation;
+      const blackRd =
+        black.lastRatedAt !== null
+          ? inflateDeviation(
+              { rating: black.rating, ratingDeviation: black.ratingDeviation, volatility: black.volatility },
+              endedAt - black.lastRatedAt,
+              this.anchor,
+            )
+          : black.ratingDeviation;
+
+      // (b) Single-game Glicko-2 update for both players (same input states).
+      const next = bothPlayers(
+        { rating: white.rating, ratingDeviation: whiteRd, volatility: white.volatility },
+        { rating: black.rating, ratingDeviation: blackRd, volatility: black.volatility },
         scoreWhite,
+        this.anchor,
       );
-      whiteBefore = change.a.before;
-      blackBefore = change.b.before;
-      whiteAfter = change.a.after;
-      blackAfter = change.b.after;
+
+      whiteBefore = white.rating;
+      blackBefore = black.rating;
+      whiteAfter = next.white.rating;
+      blackAfter = next.black.rating;
+
+      // (c) Persist new rating/RD/volatility, bump ratedGames, stamp lastRatedAt.
       await this.repo.updateUser(white.id, {
-        rating: whiteAfter,
+        rating: next.white.rating,
+        ratingDeviation: next.white.ratingDeviation,
+        volatility: next.white.volatility,
         ratedGames: white.ratedGames + 1,
+        lastRatedAt: endedAt,
       });
       await this.repo.updateUser(black.id, {
-        rating: blackAfter,
+        rating: next.black.rating,
+        ratingDeviation: next.black.ratingDeviation,
+        volatility: next.black.volatility,
+        ratedGames: black.ratedGames + 1,
+        lastRatedAt: endedAt,
+      });
+
+      // Rank AFTER, from the new state (ratedGames already incremented).
+      const whiteRankAfter = rankFor({
+        rating: next.white.rating,
+        ratingDeviation: next.white.ratingDeviation,
+        ratedGames: white.ratedGames + 1,
+      });
+      const blackRankAfter = rankFor({
+        rating: next.black.rating,
+        ratingDeviation: next.black.ratingDeviation,
         ratedGames: black.ratedGames + 1,
       });
+
       ratingChange = {
-        white: { before: whiteBefore, after: whiteAfter, delta: change.a.delta },
-        black: { before: blackBefore, after: blackAfter, delta: change.b.delta },
+        white: {
+          before: whiteBefore,
+          after: whiteAfter,
+          delta: whiteAfter - whiteBefore,
+          rank: { before: whiteRankBefore, after: whiteRankAfter },
+        },
+        black: {
+          before: blackBefore,
+          after: blackAfter,
+          delta: blackAfter - blackBefore,
+          rank: { before: blackRankBefore, after: blackRankAfter },
+        },
       };
     }
 

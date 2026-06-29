@@ -20,6 +20,7 @@ import {
 import {
   loadSavedGames,
   deleteSavedGame,
+  savedGameVariant,
   type SavedGame,
 } from './savedGames.ts';
 import { buildTrainingCorpus, corpusToJsonl, corpusStats } from './training.ts';
@@ -133,6 +134,7 @@ export function MyGamesPage({
                   const ResultIcon = g.result === 'draw' ? Minus : g.result === 'unfinished' ? CircleDot : Trophy;
                   const ModeIcon = MODE_ICON[g.mode];
                   const annotated = (g.note ? 1 : 0) + g.moves.filter((m) => m.note).length;
+                  const variant = savedGameVariant(g);
                   return (
                     <article className="saved-card" key={g.id}>
                       <div className="saved-card-head">
@@ -142,6 +144,7 @@ export function MyGamesPage({
                         </span>
                       </div>
                       <p className="saved-meta">
+                        <span className={`saved-variant ${variant.id}`}>{variant.name}</span>
                         <ModeIcon size={13} /> {MODE_LABEL[g.mode]} · {g.moves.length} plies
                         {annotated > 0 ? ` · ${annotated} ${annotated === 1 ? 'note' : 'notes'}` : ''}
                       </p>

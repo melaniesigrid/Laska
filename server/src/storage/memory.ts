@@ -10,6 +10,18 @@ import type {
   Repository,
   User,
 } from './types.ts';
+import { rankFor } from '../rating/rank.ts';
+import { DEFAULT_RD, DEFAULT_VOLATILITY } from '../rating/glicko2.ts';
+
+/** Backfill Glicko-2 / inactivity fields on a user that predates them. */
+function withRatingDefaults(user: User): User {
+  return {
+    ...user,
+    ratingDeviation: user.ratingDeviation ?? DEFAULT_RD,
+    volatility: user.volatility ?? DEFAULT_VOLATILITY,
+    lastRatedAt: user.lastRatedAt ?? null,
+  };
+}
 
 export class InMemoryRepository implements Repository {
   private users = new Map<string, User>();
@@ -28,7 +40,7 @@ export class InMemoryRepository implements Repository {
     }
     const unameKey = user.username.toLowerCase();
     if (this.usernameIndex.has(unameKey)) throw new Error('Username already taken');
-    this.users.set(user.id, { ...user, email });
+    this.users.set(user.id, withRatingDefaults({ ...user, email }));
     if (email) this.emailIndex.set(email, user.id);
     this.usernameIndex.set(unameKey, user.id);
   }
@@ -110,7 +122,13 @@ export class InMemoryRepository implements Repository {
         userId: u.id,
         username: u.username,
         rating: u.rating,
+        ratingDeviation: u.ratingDeviation,
         ratedGames: u.ratedGames,
+        rank: rankFor({
+          rating: u.rating,
+          ratingDeviation: u.ratingDeviation,
+          ratedGames: u.ratedGames,
+        }),
       }));
   }
 }

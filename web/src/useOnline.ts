@@ -11,7 +11,7 @@ import {
   type PlayerColor,
   type VariantId,
 } from '../../src/index.ts';
-import type { ServerMessage, MoveDTO, ClockDTO, EmoteId } from '../../server/src/net/protocol.ts';
+import type { ServerMessage, MoveDTO, ClockDTO, EmoteId, RankDTO } from '../../server/src/net/protocol.ts';
 import { CHAT_MAX_LEN } from '../../server/src/net/protocol.ts';
 import { LaskaClient, type ConnStatus, type PublicUser, ApiError } from './net/client.ts';
 import { track } from './analytics/index.ts';
@@ -24,10 +24,19 @@ export type OnlinePhase = 'idle' | 'queued' | 'matched' | 'ended';
 export interface MatchInfo {
   matchId: string;
   myColor: PlayerColor;
-  opponent: { userId: string; username: string; rating: number };
+  opponent: { userId: string; username: string; rating: number; rank: RankDTO };
   timeControl: { initialMs: number; incrementMs: number };
   /** The rule variant this match is played under (so the board sizes correctly). */
   variant: VariantId;
+}
+
+/** Per-side rating + rank movement from a finished ranked game (mirrors
+ *  RatingChangeSideDTO; `rank.before`/`rank.after` drive the rank-up celebration). */
+export interface RatingChangeSide {
+  before: number;
+  after: number;
+  delta: number;
+  rank: { before: RankDTO; after: RankDTO };
 }
 
 export interface EndInfo {
@@ -35,8 +44,8 @@ export interface EndInfo {
   reason: string;
   winner: PlayerColor | null;
   ratingChange: {
-    white: { before: number; after: number; delta: number };
-    black: { before: number; after: number; delta: number };
+    white: RatingChangeSide;
+    black: RatingChangeSide;
   } | null;
 }
 
@@ -97,7 +106,9 @@ export function useOnline() {
     (msg: ServerMessage) => {
       switch (msg.type) {
         case 'auth.ok':
-          setUser((u) => (u ? { ...u, rating: msg.rating } : u));
+          setUser((u) =>
+            u ? { ...u, rating: msg.rating, ratingDeviation: msg.ratingDeviation, rank: msg.rank } : u,
+          );
           break;
         case 'queue.joined':
           setPhase('queued');
@@ -173,10 +184,10 @@ export function useOnline() {
           setPhase('ended');
           setClock((c) => (c ? { ...c, running: null } : c));
           client.setCurrentMatch(null);
-          // Refresh our rating display.
+          // Refresh our rating + displayed rank.
           if (user && msg.ratingChange) {
             const mine = match?.myColor === 'W' ? msg.ratingChange.white : msg.ratingChange.black;
-            setUser((u) => (u ? { ...u, rating: mine.after } : u));
+            setUser((u) => (u ? { ...u, rating: mine.after, rank: mine.rank.after } : u));
           }
           break;
         }

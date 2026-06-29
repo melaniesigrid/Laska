@@ -15,6 +15,14 @@ import type { VariantId } from '../../../src/index.ts';
 export interface QueueEntry {
   userId: string;
   rating: number;
+  /**
+   * Glicko-2 rating deviation. Higher = less certain about this player's rating,
+   * so they should match across a wider gap. Optional for back-compat with
+   * callers that don't carry it yet (treated as DEFAULT_RD-equivalent: 0 RD
+   * contribution would understate a new player's true uncertainty, so absent
+   * means "no RD widening", which is the conservative pre-Glicko behavior).
+   */
+  ratingDeviation?: number;
   joinedAt: number;
   /** Rule variant queued for; absent means Laska. Only same-variant entries pair. */
   variant?: VariantId;
@@ -32,12 +40,19 @@ export interface MatchmakingConfig {
   windowGrowthPerSec: number;
   /** Hard cap on the gap. */
   maxWindow: number;
+  /**
+   * How much each rating point of uncertainty (RD) widens a player's window.
+   * Confidence-aware pairing: an uncertain (high-RD) player matches across a
+   * wider gap, since their displayed rating is a looser estimate anyway.
+   */
+  rdWindowFactor: number;
 }
 
 export const DEFAULT_MATCHMAKING: MatchmakingConfig = {
   baseWindow: 100,
   windowGrowthPerSec: 50,
   maxWindow: 1000,
+  rdWindowFactor: 0.5,
 };
 
 export interface Pairing {
@@ -47,7 +62,9 @@ export interface Pairing {
 
 function windowFor(entry: QueueEntry, config: MatchmakingConfig, now: number): number {
   const waitedSec = Math.max(0, (now - entry.joinedAt) / 1000);
-  return Math.min(config.maxWindow, config.baseWindow + waitedSec * config.windowGrowthPerSec);
+  const rdTerm = (entry.ratingDeviation ?? 0) * config.rdWindowFactor;
+  const effective = config.baseWindow + waitedSec * config.windowGrowthPerSec + rdTerm;
+  return Math.min(config.maxWindow, effective);
 }
 
 /**
@@ -101,9 +118,21 @@ export class Matchmaker {
   }
 
   /** Add a player. Re-joining replaces the old entry (resets wait time). */
-  enqueue(userId: string, rating: number, now = Date.now(), variant?: VariantId): void {
+  enqueue(
+    userId: string,
+    rating: number,
+    now = Date.now(),
+    variant?: VariantId,
+    ratingDeviation?: number,
+  ): void {
     this.remove(userId);
-    this.queue.push({ userId, rating, joinedAt: now, ...(variant ? { variant } : {}) });
+    this.queue.push({
+      userId,
+      rating,
+      joinedAt: now,
+      ...(ratingDeviation !== undefined ? { ratingDeviation } : {}),
+      ...(variant ? { variant } : {}),
+    });
   }
 
   remove(userId: string): void {

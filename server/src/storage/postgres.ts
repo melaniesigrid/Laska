@@ -14,20 +14,29 @@ import type {
   SerializedMove,
   User,
 } from './types.ts';
+import { rankFor } from '../rating/rank.ts';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
-  id              TEXT PRIMARY KEY,
-  username        TEXT NOT NULL,
-  username_lower  TEXT NOT NULL UNIQUE,
-  email           TEXT UNIQUE,
-  password_hash   TEXT,
-  is_guest        BOOLEAN NOT NULL,
-  email_verified  BOOLEAN NOT NULL,
-  rating          INTEGER NOT NULL,
-  rated_games     INTEGER NOT NULL,
-  created_at      BIGINT NOT NULL
+  id               TEXT PRIMARY KEY,
+  username         TEXT NOT NULL,
+  username_lower   TEXT NOT NULL UNIQUE,
+  email            TEXT UNIQUE,
+  password_hash    TEXT,
+  is_guest         BOOLEAN NOT NULL,
+  email_verified   BOOLEAN NOT NULL,
+  rating           INTEGER NOT NULL,
+  rating_deviation DOUBLE PRECISION NOT NULL DEFAULT 350,
+  volatility       DOUBLE PRECISION NOT NULL DEFAULT 0.06,
+  rated_games      INTEGER NOT NULL,
+  last_rated_at    BIGINT,
+  created_at       BIGINT NOT NULL
 );
+
+-- Idempotent migration for DBs created before the Glicko-2 columns existed.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_deviation DOUBLE PRECISION NOT NULL DEFAULT 350;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS volatility DOUBLE PRECISION NOT NULL DEFAULT 0.06;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_rated_at BIGINT;
 
 CREATE TABLE IF NOT EXISTS matches (
   id                   TEXT PRIMARY KEY,
@@ -59,7 +68,10 @@ interface UserRow {
   is_guest: boolean;
   email_verified: boolean;
   rating: number;
+  rating_deviation: number;
+  volatility: number;
   rated_games: number;
+  last_rated_at: string | null; // BIGINT comes back as a string from pg
   created_at: string; // BIGINT comes back as a string from pg
 }
 
@@ -89,7 +101,10 @@ function rowToUser(r: UserRow): User {
     isGuest: r.is_guest,
     emailVerified: r.email_verified,
     rating: r.rating,
+    ratingDeviation: Number(r.rating_deviation),
+    volatility: Number(r.volatility),
     ratedGames: r.rated_games,
+    lastRatedAt: r.last_rated_at === null ? null : Number(r.last_rated_at),
     createdAt: Number(r.created_at),
   };
 }
@@ -133,7 +148,10 @@ const USER_COLUMNS: Partial<Record<keyof User, string>> = {
   isGuest: 'is_guest',
   emailVerified: 'email_verified',
   rating: 'rating',
+  ratingDeviation: 'rating_deviation',
+  volatility: 'volatility',
   ratedGames: 'rated_games',
+  lastRatedAt: 'last_rated_at',
   createdAt: 'created_at',
 };
 
@@ -157,8 +175,9 @@ export class PostgresRepository implements Repository {
     try {
       await this.pool.query(
         `INSERT INTO users
-          (id, username, username_lower, email, password_hash, is_guest, email_verified, rating, rated_games, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          (id, username, username_lower, email, password_hash, is_guest, email_verified,
+           rating, rating_deviation, volatility, rated_games, last_rated_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           user.id,
           user.username,
@@ -168,7 +187,10 @@ export class PostgresRepository implements Repository {
           user.isGuest,
           user.emailVerified,
           user.rating,
+          user.ratingDeviation,
+          user.volatility,
           user.ratedGames,
+          user.lastRatedAt,
           user.createdAt,
         ],
       );
@@ -261,14 +283,31 @@ export class PostgresRepository implements Repository {
   }
 
   async topByRating(limit: number): Promise<LeaderboardEntry[]> {
-    const { rows } = await this.pool.query<{ id: string; username: string; rating: number; rated_games: number }>(
-      `SELECT id, username, rating, rated_games
+    const { rows } = await this.pool.query<{
+      id: string;
+      username: string;
+      rating: number;
+      rating_deviation: number;
+      rated_games: number;
+    }>(
+      `SELECT id, username, rating, rating_deviation, rated_games
        FROM users
        WHERE is_guest = false AND rated_games > 0
        ORDER BY rating DESC
        LIMIT $1`,
       [limit],
     );
-    return rows.map((r) => ({ userId: r.id, username: r.username, rating: r.rating, ratedGames: r.rated_games }));
+    return rows.map((r) => ({
+      userId: r.id,
+      username: r.username,
+      rating: r.rating,
+      ratingDeviation: Number(r.rating_deviation),
+      ratedGames: r.rated_games,
+      rank: rankFor({
+        rating: r.rating,
+        ratingDeviation: Number(r.rating_deviation),
+        ratedGames: r.rated_games,
+      }),
+    }));
   }
 }

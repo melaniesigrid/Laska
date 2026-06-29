@@ -12,7 +12,7 @@ import {
   type Move,
   type PlayerColor,
 } from '../../src/index.ts';
-import { Palette, Sparkles, X } from 'lucide-react';
+import { Palette, Sparkles, X, Trophy } from 'lucide-react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
 import { DotMascot } from './mascots.tsx';
 import './landing.css';
@@ -250,6 +250,7 @@ export function Landing({
   onAI,
   onBuild,
   onLessons,
+  onLeaderboard,
   themeLabel,
   onCycleTheme,
   onAnalyzeFeatured,
@@ -261,6 +262,7 @@ export function Landing({
   onAI: () => void;
   onBuild: () => void;
   onLessons: () => void;
+  onLeaderboard: () => void;
   themeLabel: string;
   onCycleTheme: () => void;
   onAnalyzeFeatured: DemoSnapshot;
@@ -324,6 +326,9 @@ export function Landing({
               title="Change color theme"
             >
               <Palette key={themeLabel} className="theme-spin" size={16} /> {themeLabel}
+            </button>
+            <button className="btn" onClick={onLeaderboard} title="Ranked leaderboard">
+              <Trophy size={16} /> Leaderboard
             </button>
             <button className="btn" onClick={onPlay}>
               <span className="dot" />
