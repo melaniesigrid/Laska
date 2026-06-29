@@ -15,17 +15,21 @@ import {
   createInitialState,
   legalMoves,
   applyMove,
-  RC_TO_SQUARE,
+  LASKA,
+  BASHNI,
   type GameState,
   type Move,
+  type Variant,
 } from '../../src/index.ts';
 import { moveToSan } from './savedGames.ts';
 
-/** Algebraic square (e.g. "c3") → engine square index 0..24. */
-function sq(alg: string): number {
+/** Algebraic square (e.g. "c3") → engine square index, on `v`'s board.
+ *  Files a.. → cols 0.., ranks 1.. → rows 0.. — White at the bottom moving up,
+ *  identical geometry to the engine; the board side length comes from `v`. */
+function sqOn(v: Variant, alg: string): number {
   const col = alg.charCodeAt(0) - 97; // 'a' -> 0
   const row = Number(alg[1]) - 1; // '1' -> 0
-  const idx = RC_TO_SQUARE[row * 7 + col];
+  const idx = v.rcToSquare[row * v.boardDim + col];
   if (idx == null || idx === -1) throw new Error(`bad square "${alg}"`);
   return idx;
 }
@@ -42,28 +46,31 @@ function pathToMove(sqs: number[]): { from: number; landings: number[] } {
 }
 
 /**
- * A move token → {from, landings}. Two source notations are supported:
- *  - lasca.org algebraic ("c3-d4", "c3xe5xg7"): files+ranks; `x` separates
- *    landing squares, `-` separates every traversed square.
+ * A move token → {from, landings}, parsed on `v`'s board. Two source notations
+ * are supported:
+ *  - algebraic ("c3-d4", "c3xe5xg7"): files+ranks (a-h × 1-8 sized to `v`); `x`
+ *    separates landing squares, `-` separates every traversed square. Used for
+ *    lasca.org Laska scores and for our Bashni engine-played demonstration game.
  *  - Lasker 1911 brochure numeric ("9—13", "17—13—9"): squares numbered 1..25
- *    (→ index N-1), dashes separate every traversed square.
+ *    (→ index N-1), dashes separate every traversed square. Laska-only.
  * A trailing "*" (promotion/marker) is ignored; the engine handles promotion.
  */
-function parseToken(raw: string, numeric: boolean): { from: number; landings: number[] } {
+function parseToken(v: Variant, raw: string, numeric: boolean): { from: number; landings: number[] } {
   const tok = raw.replace(/\*/g, '').trim();
   if (numeric) {
     return pathToMove(tok.split(/[—-]/).map((s) => Number(s.trim()) - 1));
   }
   if (tok.includes('x')) {
-    const sqs = tok.split('x').map(sq);
+    const sqs = tok.split('x').map((a) => sqOn(v, a));
     return { from: sqs[0]!, landings: sqs.slice(1) };
   }
-  return pathToMove(tok.split('-').map(sq));
+  return pathToMove(tok.split('-').map((a) => sqOn(v, a)));
 }
 
 /** Resolve a notation token to the matching legal Move in `state`. */
 function resolveMove(state: GameState, tok: string, numeric: boolean): Move {
-  const { from, landings } = parseToken(tok, numeric);
+  const v = state.variant ?? LASKA;
+  const { from, landings } = parseToken(v, tok, numeric);
   const to = landings[landings.length - 1]!;
   const moves = legalMoves(state);
   const exact = moves.find(
@@ -97,6 +104,8 @@ export interface HistoricGame {
   plies: ReplayPly[];
   /** states[0] = opening; states[k] = position after ply k. length = plies+1. */
   states: GameState[];
+  /** The rule variant; absent means Laska (recorded historic games are all Laska). */
+  variant?: Variant;
 }
 
 interface RawPly {
@@ -109,9 +118,11 @@ interface RawGame extends Omit<HistoricGame, 'plies' | 'states'> {
   numeric?: boolean;
 }
 
-/** Replay a raw game through the engine into renderable states + resolved plies. */
+/** Replay a raw game through the engine into renderable states + resolved plies.
+ *  Honors `raw.variant` (Laska when unset), so a Bashni score replays on the 8x8
+ *  board and resolves through the Bashni rules just as Laska scores do on 7x7. */
 function build(raw: RawGame): HistoricGame {
-  let state = createInitialState();
+  let state = createInitialState(raw.variant ?? LASKA);
   const states: GameState[] = [state];
   const numeric = raw.numeric ?? false;
   const plies: ReplayPly[] = raw.moves.map((rp, i) => {
@@ -136,13 +147,14 @@ export function buildLiveGame(
   moves: Move[],
   meta: Omit<HistoricGame, 'plies' | 'states'>,
 ): HistoricGame {
-  let state = createInitialState();
+  const variant = meta.variant ?? LASKA;
+  let state = createInitialState(variant);
   const states: GameState[] = [state];
   const plies: ReplayPly[] = moves.map((move, i) => {
     const side: 'W' | 'B' = i % 2 === 0 ? 'W' : 'B';
     state = applyMove(state, move);
     states.push(state);
-    return { san: moveToSan(move), side, moveNo: Math.floor(i / 2) + 1, move };
+    return { san: moveToSan(move, variant), side, moveNo: Math.floor(i / 2) + 1, move };
   });
   return { ...meta, plies, states };
 }
@@ -159,6 +171,21 @@ function laskerGame(
     note: notes[i],
   }));
   return build({ ...meta, numeric: true, moves });
+}
+
+/** Build a game from a comma-separated algebraic move string (files+ranks, `x`
+ *  for jump landings, `-` for a quiet step). Variant comes from `meta.variant`
+ *  (Bashni for the 8x8 demonstration game). Notes are a sparse ply-index map. */
+function algebraicGame(
+  meta: Omit<HistoricGame, 'plies' | 'states'>,
+  movesStr: string,
+  notes: Record<number, string> = {},
+): HistoricGame {
+  const moves: RawPly[] = movesStr.split(',').map((s, i) => ({
+    san: s.trim(),
+    note: notes[i],
+  }));
+  return build({ ...meta, moves });
 }
 
 /**
@@ -260,8 +287,44 @@ const LASKER_1911_G3 = laskerGame(
   },
 );
 
+/**
+ * Bashni demonstration game — the engine playing itself on the 8x8 board, NOT a
+ * historic human score (Bashni's recorded games are not readily verifiable, and
+ * we will not fabricate a provenance). It was generated deterministically by
+ * engine self-play under the BASHNI variant — a fixed depth-4 negamax search with
+ * a seeded RNG (mulberry32, seed 4) — and is recorded here as its algebraic move
+ * list. Like every game in this file it replays move-for-move through the real
+ * engine at import (it throws on the first illegal ply), so it is proof the
+ * Bashni rules — forward-only quiet moves, four-way captures, flying kings, and
+ * promotion-continues — all work end to end. Black wins: White is left with no
+ * legal move. The finale (44. c1xe3xb6xd4xg1) is a flying-king chain that turns
+ * three corners — the clearest possible showcase of Bashni's long-range capture.
+ */
+const BASHNI_DEMO = algebraicGame(
+  {
+    id: 'bashni-engine-demo',
+    title: 'Bashni — engine self-play',
+    white: 'Engine (White)',
+    black: 'Engine (Black)',
+    event: 'Engine self-play · BASHNI variant',
+    result: 'Black wins (White cannot move)',
+    sourceNote: 'Generated by deterministic engine self-play — not a historic score',
+    intro:
+      'Not a historic game: this is the engine playing itself under Bashni rules — the Russian “towers” draughts Lasca grew from — recorded so you can watch flying kings and four-way captures on the 8×8 board. Every ply replays on the live engine. It ends with a flying-king sweep that turns three corners and freezes White.',
+    variant: BASHNI,
+  },
+  'c3-b4,d6-c5,b4xd6,e7xc5,e3-d4,c5xe3,d2xf4,d6-e5,f4xd6,c7xe5,g3-f4,e5xg3,h2xf4,d6-c5,b2-c3,b8-c7,c3-b4,c7-d6,c1-d2,f6-g5,b4-a5,d8-c7,g3-h4,g7-f6,g1-h2,h8-g7,h2-g3,c5-d4,e3xc5xe3,b6-c5,a3-b4,c5xa3,a1-b2,a3xc1,a5-b6,c7xa5,f4-e5,d6xf4xh2,f2-g3,h2xf4,e1-f2,e5-d4,e3xc5,c1xe3xb6xd4xg1',
+  {
+    0: 'Bashni opens like draughts — men step diagonally forward only; the back two rows stay home until a capture pulls them out.',
+    28: 'A two-jump chain that loops back to e3 — Bashni men capture in any of the four diagonals, forward or backward, unlike Lasca privates.',
+    33: 'Promotion mid-capture: this man lands on the back rank (c1) and is crowned. In Bashni the crown comes immediately and, were more jumps available, the new king would keep capturing.',
+    43: 'A flying king sweeps c1→e3→b6→d4→g1, taking prisoners in every diagonal direction — long range and backward captures, the Bashni signature. White has no reply.',
+  },
+);
+
 export const HISTORIC_GAMES: HistoricGame[] = [
   build(MOSCOW_1996),
   LASKER_1911_G2,
   LASKER_1911_G3,
+  BASHNI_DEMO,
 ];

@@ -180,9 +180,14 @@ export class GameServer {
     }
     const user = await this.repo.getUserById(userId);
     if (!user) return;
-    const member: QueueMember = msg.timeControl
-      ? { userId, rating: user.rating, nodeId: this.cluster.nodeId, joinedAt: Date.now(), timeControl: msg.timeControl }
-      : { userId, rating: user.rating, nodeId: this.cluster.nodeId, joinedAt: Date.now() };
+    const member: QueueMember = {
+      userId,
+      rating: user.rating,
+      nodeId: this.cluster.nodeId,
+      joinedAt: Date.now(),
+      ...(msg.timeControl ? { timeControl: msg.timeControl } : {}),
+      ...(msg.variant ? { variant: msg.variant } : {}),
+    };
     await this.cluster.enqueue(member);
     this.send(conn.ws, { type: 'queue.joined' });
     await this.drainMatchmaking();
@@ -196,9 +201,12 @@ export class GameServer {
       const white = aIsWhite ? a : b;
       const black = aIsWhite ? b : a;
       const tc = white.timeControl ?? black.timeControl;
+      // Both members are in the same variant bucket (findPairing guarantees it).
+      const variant = white.variant ?? black.variant;
       const match = this.manager.createMatch(white.userId, black.userId, {
         ranked: true,
         ...(tc ? { timeControl: tc } : {}),
+        ...(variant ? { variant } : {}),
       });
       await this.cluster.registerMatch(match.id, match.whiteId, match.blackId);
       await this.announceStart(match);
@@ -287,6 +295,7 @@ export class GameServer {
       clock: match.clockState(),
       drawOfferBy: match.pendingDrawOfferBy,
       moveCount: match.moveCount,
+      variant: match.variantId,
     };
   }
 

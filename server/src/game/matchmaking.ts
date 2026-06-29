@@ -10,10 +10,19 @@
  * Redis sorted sets (see TODO.md); the `pair`/`tryMatch` shape stays the same.
  */
 
+import type { VariantId } from '../../../src/index.ts';
+
 export interface QueueEntry {
   userId: string;
   rating: number;
   joinedAt: number;
+  /** Rule variant queued for; absent means Laska. Only same-variant entries pair. */
+  variant?: VariantId;
+}
+
+/** The variant key an entry pairs on (Laska is the default bucket). */
+function variantKey(entry: QueueEntry): VariantId {
+  return entry.variant ?? 'laska';
 }
 
 export interface MatchmakingConfig {
@@ -53,15 +62,26 @@ export function findPairing(
   now: number,
 ): Pairing | null {
   if (entries.length < 2) return null;
-  const sorted = [...entries].sort((x, y) => x.rating - y.rating);
+  // Players are only ever paired with others queuing for the SAME variant, so
+  // bucket by variant and find the closest acceptable pair within each bucket.
+  const buckets = new Map<VariantId, QueueEntry[]>();
+  for (const e of entries) {
+    const key = variantKey(e);
+    (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(e);
+  }
+
   let best: { a: QueueEntry; b: QueueEntry; gap: number } | null = null;
-  for (let i = 0; i + 1 < sorted.length; i++) {
-    const a = sorted[i]!;
-    const b = sorted[i + 1]!;
-    const gap = Math.abs(a.rating - b.rating);
-    const allowed = Math.min(windowFor(a, config, now), windowFor(b, config, now));
-    if (gap <= allowed && (!best || gap < best.gap)) {
-      best = { a, b, gap };
+  for (const bucket of buckets.values()) {
+    if (bucket.length < 2) continue;
+    const sorted = [...bucket].sort((x, y) => x.rating - y.rating);
+    for (let i = 0; i + 1 < sorted.length; i++) {
+      const a = sorted[i]!;
+      const b = sorted[i + 1]!;
+      const gap = Math.abs(a.rating - b.rating);
+      const allowed = Math.min(windowFor(a, config, now), windowFor(b, config, now));
+      if (gap <= allowed && (!best || gap < best.gap)) {
+        best = { a, b, gap };
+      }
     }
   }
   return best ? { a: best.a, b: best.b } : null;
@@ -81,9 +101,9 @@ export class Matchmaker {
   }
 
   /** Add a player. Re-joining replaces the old entry (resets wait time). */
-  enqueue(userId: string, rating: number, now = Date.now()): void {
+  enqueue(userId: string, rating: number, now = Date.now(), variant?: VariantId): void {
     this.remove(userId);
-    this.queue.push({ userId, rating, joinedAt: now });
+    this.queue.push({ userId, rating, joinedAt: now, ...(variant ? { variant } : {}) });
   }
 
   remove(userId: string): void {

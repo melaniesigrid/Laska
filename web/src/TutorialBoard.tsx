@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Lightbulb, CheckCircle2, RotateCcw, Trophy } from 'lucide-react';
 import {
-  RC_TO_SQUARE,
-  BOARD_DIM,
   beginCaptureChain,
   nextHopTargets,
   advanceCaptureChain,
@@ -309,8 +307,8 @@ export function TutorialBoard({
       <div className="tutorial-board">
         <BoardView
           board={stepBoard ?? state.board}
-          dim={BOARD_DIM}
-          rcToSquare={RC_TO_SQUARE}
+          dim={lesson.variant.boardDim}
+          rcToSquare={lesson.variant.rcToSquare}
           selected={movingSquare}
           movable={movable}
           destinations={destinations}

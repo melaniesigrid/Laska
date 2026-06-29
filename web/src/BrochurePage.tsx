@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ArrowLeft, Play, FileText } from 'lucide-react';
+import { ArrowLeft, Play, FileText, Layers } from 'lucide-react';
 import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
 import { OPENINGS, FIRST_MOVES, OPENING_SOURCES } from './openings.ts';
 import './landing.css';
@@ -48,10 +48,13 @@ export function BrochurePage({
   onBack,
   onPlay,
   onReplay,
+  onBashniRules,
 }: {
   onBack: () => void;
   onPlay: () => void;
   onReplay: (gameId?: string) => void;
+  /** Open the Bashni rules page (the towers game Lasca descends from). */
+  onBashniRules?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -466,6 +469,35 @@ export function BrochurePage({
           </div>
         </div>
       </section>
+
+      {/* the ancestor: Bashni */}
+      {onBashniRules && (
+        <section style={{ paddingBlock: 'clamp(2rem,5vw,3.5rem)' }}>
+          <div className="wrap" style={{ maxWidth: '760px' }}>
+            <div className="reveal card note" style={{ padding: 'clamp(1.8rem,4vw,2.6rem)' }}>
+              <p className="eyebrow">Where Lasca came from</p>
+              <h3 style={{ fontSize: '1.4rem', margin: '0.5rem 0 0.8rem' }}>
+                Bashni — the Russian towers game.
+              </h3>
+              <p>
+                Lasker built Lasca from <em className="serif">bashni</em>, the Russian “towers” draughts
+                in which a captured man is buried, not removed. Bashni keeps the full 8×8 board, lets men
+                capture in every direction, and crowns long-range flying kings. It’s the same stacking
+                idea you’ve just read — in the larger, older form Lasker started from, and you can play it
+                here too.
+              </p>
+              <div className="hero-actions" style={{ marginTop: '1.4rem' }}>
+                <button className="btn" onClick={onBashniRules}>
+                  <Layers size={15} /> Read the Bashni rules
+                </button>
+                <button className="btn" onClick={() => onReplay('bashni-engine-demo')}>
+                  <Play size={15} /> Watch the engine play Bashni
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* closing */}
       <section className="closing">

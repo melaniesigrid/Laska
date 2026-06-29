@@ -4,9 +4,12 @@ import {
   applyMove,
   encodePosition,
   decodePosition,
+  VARIANTS,
+  LASKA,
   type GameState,
   type Move,
   type PlayerColor,
+  type VariantId,
 } from '../../src/index.ts';
 import type { ServerMessage, MoveDTO, ClockDTO } from '../../server/src/net/protocol.ts';
 import { LaskaClient, type ConnStatus, type PublicUser, ApiError } from './net/client.ts';
@@ -22,6 +25,8 @@ export interface MatchInfo {
   myColor: PlayerColor;
   opponent: { userId: string; username: string; rating: number };
   timeControl: { initialMs: number; incrementMs: number };
+  /** The rule variant this match is played under (so the board sizes correctly). */
+  variant: VariantId;
 }
 
 export interface EndInfo {
@@ -36,10 +41,11 @@ export interface EndInfo {
 
 /** Build a minimal GameState from a server position string (enough for legal-move
  *  generation and optimistic application; the server remains the authority). */
-function stateFromPosition(position: string): GameState {
-  const { board, toMove } = decodePosition(position);
+function stateFromPosition(position: string, variantId: VariantId = 'laska'): GameState {
+  const variant = VARIANTS[variantId] ?? LASKA;
+  const { board, toMove } = decodePosition(position, variant);
   const key = encodePosition({ board, toMove });
-  return { board, toMove, plyNoProgress: 0, positionCounts: { [key]: 1 } };
+  return { board, toMove, plyNoProgress: 0, positionCounts: { [key]: 1 }, variant };
 }
 
 export function useOnline() {
@@ -85,8 +91,9 @@ export function useOnline() {
             myColor: msg.color,
             opponent: msg.opponent,
             timeControl: msg.timeControl,
+            variant: msg.state.variant,
           });
-          const gs = stateFromPosition(msg.state.position);
+          const gs = stateFromPosition(msg.state.position, msg.state.variant);
           setAuthoritative(gs);
           setRendered(gs);
           setClock(msg.state.clock);
@@ -105,7 +112,7 @@ export function useOnline() {
         case 'match.update': {
           // The server is authoritative: snap rendered state to it (this both
           // confirms our optimistic move and corrects any divergence).
-          const gs = stateFromPosition(msg.state.position);
+          const gs = stateFromPosition(msg.state.position, msg.state.variant);
           setAuthoritative(gs);
           setRendered(gs);
           setClock(msg.state.clock);
@@ -245,11 +252,14 @@ export function useOnline() {
   }, [client]);
 
   // ---- match actions ----
-  const joinQueue = useCallback(() => {
-    setError(null);
-    setEnd(null);
-    client.send({ type: 'queue.join' });
-  }, [client]);
+  const joinQueue = useCallback(
+    (variant: VariantId = 'laska') => {
+      setError(null);
+      setEnd(null);
+      client.send(variant === 'laska' ? { type: 'queue.join' } : { type: 'queue.join', variant });
+    },
+    [client],
+  );
   const leaveQueue = useCallback(() => client.send({ type: 'queue.leave' }), [client]);
 
   const submitMove = useCallback(

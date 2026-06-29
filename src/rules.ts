@@ -40,14 +40,16 @@ import type { Board, Column, GameOutcome, GameState, Move, Piece, PlayerColor } 
 import {
   ALL_DIRECTIONS,
   FORWARD_DIRECTIONS,
-  NUM_SQUARES,
-  WHITE_HOME_SQUARES,
-  BLACK_HOME_SQUARES,
-  isPromotionSquare,
-  step,
+  DEFAULT_VARIANT,
+  variantOf,
+  stepIn,
+  isPromotionSquareIn,
   type Direction,
-} from './board.ts';
+  type Variant,
+} from './variant.ts';
 import { encodePosition } from './notation.ts';
+
+export { variantOf } from './variant.ts';
 
 /** Default threshold for the no-progress draw rule, in plies (half-moves). */
 export const DEFAULT_NO_PROGRESS_PLY_LIMIT = 40;
@@ -79,16 +81,23 @@ function cloneBoard(board: Board): Board {
   return board.map((col) => (col ? cloneColumn(col) : null));
 }
 
-/** Allowed step directions for whatever sits on top of `col`. */
-function directionsFor(col: Column): Direction[] {
+/**
+ * Allowed directions for whatever sits on top of `col`, in a given `mode`.
+ * Officers always act in all four directions. A man always MOVES quietly forward
+ * only; whether it may CAPTURE backward is the per-variant `manCaptureDirs` flag
+ * (Laska: forward only; Bashni/Russian: all four).
+ */
+function directionsFor(v: Variant, col: Column, mode: 'move' | 'capture'): Direction[] {
   const c = commander(col)!;
-  return c.rank === 'officer' ? ALL_DIRECTIONS : FORWARD_DIRECTIONS[c.color];
+  if (c.rank === 'officer') return ALL_DIRECTIONS;
+  if (mode === 'capture' && v.manCaptureDirs === 'all') return ALL_DIRECTIONS;
+  return FORWARD_DIRECTIONS[c.color];
 }
 
 /** Square indices currently controlled by `color`. */
 export function controlledSquares(board: Board, color: PlayerColor): number[] {
   const out: number[] = [];
-  for (let i = 0; i < NUM_SQUARES; i++) {
+  for (let i = 0; i < board.length; i++) {
     if (controlledBy(board[i] ?? null, color)) out.push(i);
   }
   return out;
@@ -98,10 +107,10 @@ export function controlledSquares(board: Board, color: PlayerColor): number[] {
 // Initial position
 // --------------------------------------------------------------------------
 
-export function createInitialState(): GameState {
-  const board: Board = new Array(NUM_SQUARES).fill(null);
-  for (const sq of WHITE_HOME_SQUARES) board[sq] = [{ color: 'W', rank: 'soldier' }];
-  for (const sq of BLACK_HOME_SQUARES) board[sq] = [{ color: 'B', rank: 'soldier' }];
+export function createInitialState(variant: Variant = DEFAULT_VARIANT): GameState {
+  const board: Board = new Array(variant.numSquares).fill(null);
+  for (const sq of variant.homeSquares.W) board[sq] = [{ color: 'W', rank: 'soldier' }];
+  for (const sq of variant.homeSquares.B) board[sq] = [{ color: 'B', rank: 'soldier' }];
 
   const toMove: PlayerColor = 'W';
   const key = encodePosition({ board, toMove });
@@ -110,6 +119,7 @@ export function createInitialState(): GameState {
     toMove,
     plyNoProgress: 0,
     positionCounts: { [key]: 1 },
+    variant,
   };
 }
 
@@ -118,15 +128,31 @@ export function createInitialState(): GameState {
 // --------------------------------------------------------------------------
 
 /** Non-capture moves for the column on `square` (assumed controlled by `color`). */
-function quietMovesFrom(board: Board, square: number, color: PlayerColor): Move[] {
+function quietMovesFrom(v: Variant, board: Board, square: number, color: PlayerColor): Move[] {
   const col = board[square]!;
   const moves: Move[] = [];
-  for (const dir of directionsFor(col)) {
-    const dest = step(square, dir);
+  const isFlyingKing = commander(col)!.rank === 'officer' && v.kingType === 'flying';
+
+  if (isFlyingKing) {
+    // Flying king: glide any number of EMPTY squares along each diagonal, stopping
+    // at the first occupied square or the board edge. Kings never promote.
+    for (const dir of ALL_DIRECTIONS) {
+      let dest = stepIn(v, square, dir);
+      while (dest !== -1 && board[dest] === null) {
+        moves.push({ from: square, to: dest, path: [dest], captures: [], isCapture: false, promotion: false });
+        dest = stepIn(v, dest, dir);
+      }
+    }
+    return moves;
+  }
+
+  // Single-step move (a man, or a Laska step-officer): exactly one diagonal.
+  for (const dir of directionsFor(v, col, 'move')) {
+    const dest = stepIn(v, square, dir);
     if (dest === -1) continue;
     if (board[dest] !== null) continue; // must be vacant
     const isSoldierTop = commander(col)!.rank === 'soldier';
-    const promotion = isSoldierTop && isPromotionSquare(color, dest);
+    const promotion = isSoldierTop && isPromotionSquareIn(v, color, dest);
     moves.push({
       from: square,
       to: dest,
@@ -151,9 +177,63 @@ function quietMovesFrom(board: Board, square: number, color: PlayerColor): Move[
  * jumped again this turn. The number of enemy pieces is finite, so the chain
  * length is bounded. (A defensive depth cap is also applied.)
  */
-function captureSequencesFrom(board: Board, square: number, color: PlayerColor): Move[] {
+function captureSequencesFrom(v: Variant, board: Board, square: number, color: PlayerColor): Move[] {
   const results: Move[] = [];
-  const MAX_DEPTH = NUM_SQUARES * 2; // far beyond any real chain
+  const MAX_DEPTH = v.numSquares * 2; // far beyond any real chain
+
+  // Perform one jump (over `midSq`, landing on `landing`) on a fresh board copy,
+  // then either end the move (promotion in a 'endMove' variant) or recurse to
+  // continue the mandatory capture. Shared by step and flying jumps — only the
+  // (midSq, landing) candidate generation in `dfs` differs.
+  function emitJump(
+    work: Board,
+    cur: number,
+    midSq: number,
+    landing: number,
+    movingCol: Column,
+    path: number[],
+    captures: number[],
+    promoted: boolean,
+  ): void {
+    const next = cloneBoard(work);
+    const capturedTop = commander(next[midSq] ?? null)!; // enemy commander taken
+    const midStack = next[midSq]!;
+    next[midSq] = midStack.length > 1 ? midStack.slice(0, -1) : null;
+    next[cur] = null;
+    // prisoner goes to the BOTTOM; commander on top is preserved
+    let newMovingCol: Column = [{ color: capturedTop.color, rank: capturedTop.rank }, ...movingCol];
+    next[landing] = newMovingCol;
+
+    const newPath = [...path, landing];
+    const newCaptures = [...captures, midSq];
+
+    const topIsSoldier = commander(newMovingCol)!.rank === 'soldier';
+    const crowns = topIsSoldier && isPromotionSquareIn(v, color, landing);
+
+    if (crowns && v.promotionMidCapture === 'endMove') {
+      // Laska: crowning ends the move immediately, even if more jumps exist.
+      results.push({ from: square, to: landing, path: newPath, captures: newCaptures, isCapture: true, promotion: true });
+      return;
+    }
+
+    if (crowns) {
+      // Bashni/Russian: the man crowns NOW and continues the capture as a king
+      // (a flying king, if the variant flies), so search the continuation crowned.
+      newMovingCol = [...newMovingCol.slice(0, -1), { color, rank: 'officer' }];
+      next[landing] = newMovingCol;
+    }
+
+    const promotedNow = promoted || crowns;
+
+    // The same piece must continue capturing if it can.
+    const before = results.length;
+    dfs(next, landing, newMovingCol, newPath, newCaptures, promotedNow);
+    if (results.length === before) {
+      // No further captures from here -> this is a completed sequence. `promotion`
+      // is true if the column crowned at ANY point during the chain.
+      results.push({ from: square, to: landing, path: newPath, captures: newCaptures, isCapture: true, promotion: promotedNow });
+    }
+  }
 
   function dfs(
     work: Board,
@@ -161,66 +241,42 @@ function captureSequencesFrom(board: Board, square: number, color: PlayerColor):
     movingCol: Column,
     path: number[],
     captures: number[],
+    promoted: boolean,
   ): void {
     if (path.length > MAX_DEPTH) {
       throw new Error('Capture search exceeded depth bound — logic error');
     }
-    const dirs = directionsFor(movingCol);
+    const isFlying = commander(movingCol)!.rank === 'officer' && v.kingType === 'flying';
+    const dirs = directionsFor(v, movingCol, 'capture');
 
     for (const dir of dirs) {
-      const mid = step(cur, dir);
-      if (mid === -1) continue;
-      const midCol = work[mid] ?? null;
-      if (!controlledBy(midCol, opponent(color))) continue; // must jump an enemy
-      const landing = step(mid, dir);
-      if (landing === -1) continue;
-      if (work[landing] !== null) continue; // landing must be vacant
-
-      // Perform the jump on a fresh copy so siblings are independent.
-      const next = cloneBoard(work);
-      const capturedTop = commander(midCol)!; // enemy commander taken
-      const midStack = next[mid]!;
-      next[mid] = midStack.length > 1 ? midStack.slice(0, -1) : null;
-      next[cur] = null;
-      // prisoner goes to the BOTTOM; commander on top is preserved
-      const newMovingCol: Column = [{ color: capturedTop.color, rank: capturedTop.rank }, ...movingCol];
-      next[landing] = newMovingCol;
-
-      const newPath = [...path, landing];
-      const newCaptures = [...captures, mid];
-
-      // Promotion ends the move immediately, even if more jumps exist.
-      const topIsSoldier = commander(newMovingCol)!.rank === 'soldier';
-      if (topIsSoldier && isPromotionSquare(color, landing)) {
-        results.push({
-          from: square,
-          to: landing,
-          path: newPath,
-          captures: newCaptures,
-          isCapture: true,
-          promotion: true,
-        });
-        continue;
-      }
-
-      // Otherwise the same piece must continue capturing if it can.
-      const before = results.length;
-      dfs(next, landing, newMovingCol, newPath, newCaptures);
-      if (results.length === before) {
-        // No further captures from here -> this is a completed sequence.
-        results.push({
-          from: square,
-          to: landing,
-          path: newPath,
-          captures: newCaptures,
-          isCapture: true,
-          promotion: false,
-        });
+      if (!isFlying) {
+        // Step jump: an adjacent enemy, landing on the square just beyond it.
+        const mid = stepIn(v, cur, dir);
+        if (mid === -1) continue;
+        if (!controlledBy(work[mid] ?? null, opponent(color))) continue; // must jump an enemy
+        const landing = stepIn(v, mid, dir);
+        if (landing === -1) continue;
+        if (work[landing] !== null) continue; // landing must be vacant
+        emitJump(work, cur, mid, landing, movingCol, path, captures, promoted);
+      } else {
+        // Flying jump: scan along the diagonal to the FIRST occupied square; it
+        // must be an enemy column with an empty square immediately beyond, and
+        // the king may then land on ANY empty square past it (one branch each).
+        let scan = stepIn(v, cur, dir);
+        while (scan !== -1 && work[scan] === null) scan = stepIn(v, scan, dir);
+        if (scan === -1) continue; // ran off the board with no victim
+        if (!controlledBy(work[scan] ?? null, opponent(color))) continue; // blocked by a non-enemy
+        let landing = stepIn(v, scan, dir);
+        while (landing !== -1 && work[landing] === null) {
+          emitJump(work, cur, scan, landing, movingCol, path, captures, promoted);
+          landing = stepIn(v, landing, dir);
+        }
       }
     }
   }
 
-  dfs(board, square, board[square]!, [], []);
+  dfs(board, square, board[square]!, [], [], false);
   return results;
 }
 
@@ -232,18 +288,19 @@ function captureSequencesFrom(board: Board, square: number, color: PlayerColor):
  */
 export function legalMoves(state: GameState): Move[] {
   const { board, toMove } = state;
+  const v = variantOf(state);
   const mySquares = controlledSquares(board, toMove);
 
   const captures: Move[] = [];
   for (const sq of mySquares) {
-    const seqs = captureSequencesFrom(board, sq, toMove);
+    const seqs = captureSequencesFrom(v, board, sq, toMove);
     for (const m of seqs) captures.push(m);
   }
   if (captures.length > 0) return captures;
 
   const quiet: Move[] = [];
   for (const sq of mySquares) {
-    for (const m of quietMovesFrom(board, sq, toMove)) quiet.push(m);
+    for (const m of quietMovesFrom(v, board, sq, toMove)) quiet.push(m);
   }
   return quiet;
 }
@@ -259,6 +316,7 @@ export function legalMoves(state: GameState): Move[] {
  * so an internally-inconsistent Move throws instead of corrupting the board.
  */
 export function applyMove(state: GameState, move: Move): GameState {
+  const v = variantOf(state);
   const board = cloneBoard(state.board);
   const color = state.toMove;
 
@@ -277,7 +335,7 @@ export function applyMove(state: GameState, move: Move): GameState {
     if (dest === undefined) throw new Error('Quiet move has empty path');
     if (board[dest] !== null) throw new Error(`Destination ${dest} is not vacant`);
     board[dest] = movingCol;
-    maybePromote(board, dest, color);
+    maybePromote(v, board, dest, color);
   } else {
     let cur = move.from;
     for (let i = 0; i < move.path.length; i++) {
@@ -295,10 +353,16 @@ export function applyMove(state: GameState, move: Move): GameState {
       const midStack = midCol!;
       board[mid] = midStack.length > 1 ? midStack.slice(0, -1) : null;
       movingCol = [{ color: capturedTop.color, rank: capturedTop.rank }, ...movingCol];
+      // A man that lands on its back rank crowns at once. In a 'continue' variant
+      // (Bashni) this happens MID-chain, so the remainder flies as a king; in
+      // 'endMove' (Laska) the generated chain has already ended on this landing.
+      const movTop = movingCol[movingCol.length - 1]!;
+      if (movTop.rank === 'soldier' && movTop.color === color && isPromotionSquareIn(v, color, landing)) {
+        movingCol[movingCol.length - 1] = { color, rank: 'officer' };
+      }
       cur = landing;
     }
     board[cur] = movingCol;
-    maybePromote(board, cur, color);
   }
 
   // Progress = capture, or a soldier-topped (forward-only, irreversible) move,
@@ -315,6 +379,7 @@ export function applyMove(state: GameState, move: Move): GameState {
     toMove: nextToMove,
     plyNoProgress: progressed ? 0 : state.plyNoProgress + 1,
     positionCounts,
+    ...(state.variant ? { variant: state.variant } : {}),
   };
 }
 
@@ -333,6 +398,7 @@ export function applyMove(state: GameState, move: Move): GameState {
  * than re-deriving capture mechanics outside `src/`.
  */
 export function moveStepBoards(state: GameState, move: Move): Board[] {
+  const v = variantOf(state);
   const color = state.toMove;
   const working = cloneBoard(state.board);
 
@@ -351,7 +417,7 @@ export function moveStepBoards(state: GameState, move: Move): Board[] {
     if (dest === undefined) throw new Error('Quiet move has empty path');
     const board = cloneBoard(working);
     board[dest] = movingCol;
-    maybePromote(board, dest, color);
+    maybePromote(v, board, dest, color);
     snapshots.push(board);
     return snapshots;
   }
@@ -370,21 +436,26 @@ export function moveStepBoards(state: GameState, move: Move): Board[] {
     const midStack = midCol!;
     working[mid] = midStack.length > 1 ? midStack.slice(0, -1) : null;
     movingCol = [{ color: capturedTop.color, rank: capturedTop.rank }, ...movingCol];
+    // Crown mid-chain (Bashni 'continue') or on the last landing (Laska 'endMove'),
+    // so every snapshot shows the correct rank — matching applyMove's re-simulation.
+    const movTop = movingCol[movingCol.length - 1]!;
+    if (movTop.rank === 'soldier' && movTop.color === color && isPromotionSquareIn(v, color, landing)) {
+      movingCol[movingCol.length - 1] = { color, rank: 'officer' };
+    }
 
     const board = cloneBoard(working);
     board[landing] = cloneColumn(movingCol);
-    if (i === move.path.length - 1) maybePromote(board, landing, color);
     snapshots.push(board);
   }
   return snapshots;
 }
 
 /** Crown the commander on `square` if a soldier of `color` reached its back rank. */
-function maybePromote(board: Board, square: number, color: PlayerColor): void {
+function maybePromote(v: Variant, board: Board, square: number, color: PlayerColor): void {
   const col = board[square];
   if (!col || col.length === 0) return;
   const top = col[col.length - 1]!;
-  if (top.color === color && top.rank === 'soldier' && isPromotionSquare(color, square)) {
+  if (top.color === color && top.rank === 'soldier' && isPromotionSquareIn(v, color, square)) {
     col[col.length - 1] = { color, rank: 'officer' };
   }
 }

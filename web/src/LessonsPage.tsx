@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, GraduationCap, CheckCircle2, Lock, ChevronRight } from 'lucide-react';
+import {
+  ArrowLeft,
+  GraduationCap,
+  CheckCircle2,
+  Lock,
+  ChevronRight,
+  Gamepad2,
+  Layers,
+} from 'lucide-react';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
-import { STRATEGY_LESSONS, type Lesson } from './lessons.ts';
+import { STRATEGY_LESSONS, BASHNI_LESSONS, type Lesson } from './lessons.ts';
 import { TutorialBoard } from './TutorialBoard.tsx';
 import {
   readCompletedLessons,
@@ -17,11 +25,37 @@ const DIFFICULTY_WORD: Record<number, string> = {
   4: 'Advanced',
 };
 
+/** The two lesson tracks the page can show. */
+type Track = 'laska' | 'bashni';
+
+const TRACKS: Record<
+  Track,
+  { lessons: Lesson[]; eyebrow: string; title: string; lede: string }
+> = {
+  laska: {
+    lessons: STRATEGY_LESSONS,
+    eyebrow: 'Learn the strategy',
+    title: 'Column strategy & tactics',
+    lede:
+      'Four hands-on lessons played on the real board — from why a tall column is safe on the edge to the one-handed attack. Every move is checked by the live rules engine.',
+  },
+  bashni: {
+    lessons: BASHNI_LESSONS,
+    eyebrow: 'Learn the towers game',
+    title: 'Bashni — the towers game',
+    lede:
+      'Four hands-on lessons on the 8×8 board Laska grew from: men that capture backward, the flying king, and crowning mid-jump. Every move runs on the live Bashni rules.',
+  },
+};
+
 /**
- * The strategy-lessons surface: a picker over the four engine-validated lessons
- * in `lessons.ts`, each run through `TutorialBoard`. Progress (which lessons are
- * completed) persists to `localStorage` (see lessonProgress.ts) and is shown in
- * the list. Styling reuses the `.landing-page` scope, matching ReplayPage.
+ * The strategy-lessons surface: a picker over the engine-validated lessons in
+ * `lessons.ts`, each run through `TutorialBoard`. A variant toggle switches
+ * between the Laska track (column strategy & tactics) and the Bashni track (what
+ * makes the towers game distinct). Progress (which lessons are completed) is
+ * keyed by lesson id and persists to `localStorage` (see lessonProgress.ts), so
+ * the two tracks share one progress store without collision. Styling reuses the
+ * `.landing-page` scope, matching ReplayPage.
  */
 export function LessonsPage({
   onBack,
@@ -33,12 +67,17 @@ export function LessonsPage({
   pieceTheme: PieceTheme;
 }) {
   const [completed, setCompleted] = useState<CompletedLessons>(() => readCompletedLessons());
+  const [track, setTrack] = useState<Track>('laska');
   const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => window.scrollTo(0, 0), [activeId]);
 
+  const { lessons, eyebrow, title, lede } = TRACKS[track];
+
+  // An active lesson is looked up across BOTH tracks so a Bashni lesson stays
+  // open even though the toggle nominally points at one track at a time.
   const active: Lesson | undefined = activeId
-    ? STRATEGY_LESSONS.find((l) => l.id === activeId)
+    ? STRATEGY_LESSONS.find((l) => l.id === activeId) ?? BASHNI_LESSONS.find((l) => l.id === activeId)
     : undefined;
 
   const handleComplete = (id: string) => {
@@ -46,7 +85,13 @@ export function LessonsPage({
     setCompleted(next);
   };
 
-  const doneCount = STRATEGY_LESSONS.filter((l) => completed[l.id]).length;
+  const selectTrack = (t: Track) => {
+    if (t === track) return;
+    setActiveId(null);
+    setTrack(t);
+  };
+
+  const doneCount = lessons.filter((l) => completed[l.id]).length;
 
   return (
     <div className="landing-page">
@@ -69,20 +114,41 @@ export function LessonsPage({
         <div className="wrap">
           <p className="eyebrow">
             <GraduationCap size={14} style={{ verticalAlign: '-2px', marginRight: '0.4rem' }} />
-            Learn the strategy
+            {active ? eyebrow : 'Learn by playing'}
           </p>
           <h1 style={{ fontSize: 'clamp(2.2rem,5vw,3.6rem)', margin: '0.4rem 0 0' }}>
-            {active ? active.title : 'Column strategy & tactics'}
+            {active ? active.title : title}
           </h1>
           <p className="lede" style={{ maxWidth: '54ch' }}>
-            {active
-              ? active.intro
-              : 'Four hands-on lessons played on the real board — from why a tall column is safe on the edge to the one-handed attack. Every move is checked by the live rules engine.'}
+            {active ? active.intro : lede}
           </p>
           {!active && (
-            <p className="since" style={{ marginTop: '0.9rem' }}>
-              {doneCount} of {STRATEGY_LESSONS.length} complete
-            </p>
+            <>
+              <div
+                className="segment lesson-track-toggle"
+                role="group"
+                aria-label="Lesson track"
+                style={{ marginTop: '1.1rem' }}
+              >
+                <button
+                  className={track === 'laska' ? 'active' : ''}
+                  onClick={() => selectTrack('laska')}
+                  title="Laska — column strategy & tactics on the 7×7 board"
+                >
+                  <Gamepad2 size={15} /> Laska
+                </button>
+                <button
+                  className={track === 'bashni' ? 'active' : ''}
+                  onClick={() => selectTrack('bashni')}
+                  title="Bashni — the Russian towers game: 8×8, backward captures, flying kings"
+                >
+                  <Layers size={15} /> Bashni
+                </button>
+              </div>
+              <p className="since" style={{ marginTop: '0.9rem' }}>
+                {doneCount} of {lessons.length} complete
+              </p>
+            </>
           )}
         </div>
       </section>
@@ -95,7 +161,7 @@ export function LessonsPage({
             </PieceThemeContext.Provider>
           ) : (
             <div className="lesson-grid">
-              {STRATEGY_LESSONS.map((lesson) => {
+              {lessons.map((lesson) => {
                 const isDone = !!completed[lesson.id];
                 return (
                   <button

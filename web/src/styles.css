@@ -223,6 +223,19 @@ button { font-family: inherit; }
 }
 .sq.light { background: var(--sq-light); }
 .sq.dark { background: var(--sq-dark); box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi); }
+/* Board coordinate labels (files a–g / ranks 1–7) live in the field's padding
+   gutter — a quiet ink-soft border ring that never collides with the pieces.
+   `with-coords` widens the left+bottom gutters so the glyphs have room. */
+.field.with-coords { padding-left: calc(var(--field-pad) + var(--sq) * 0.42); padding-bottom: calc(var(--field-pad) + var(--sq) * 0.42); }
+.coord-ranks, .coord-files {
+  position: absolute; display: flex; pointer-events: none;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-weight: 700; font-size: calc(var(--sq) * 0.26); line-height: 1;
+  color: var(--ink-soft); letter-spacing: 0.02em;
+}
+.coord-ranks { left: 0; top: var(--field-pad); width: calc(var(--field-pad) + var(--sq) * 0.42); flex-direction: column; }
+.coord-files { bottom: 0; left: calc(var(--field-pad) + var(--sq) * 0.42); height: calc(var(--field-pad) + var(--sq) * 0.42); flex-direction: row; }
+.coord-ranks span, .coord-files span { flex: 1; display: flex; align-items: center; justify-content: center; }
 .sq.dark.play { cursor: pointer; transition: box-shadow 0.16s ease; }
 .sq.dark.play:disabled { cursor: default; }
 .sq.dark.highlight {
@@ -594,3 +607,76 @@ input[type='radio'] { accent-color: var(--cobalt); }
 }
 .mascot-state .ms-title { font-family: var(--font-display); font-weight: 500; font-size: clamp(16px, 2.4vw, 20px); color: var(--ink); }
 .mascot-state .ms-sub { font-size: 13px; color: var(--ink-soft); max-width: 32ch; line-height: 1.5; }
+
+/* ---- victory confetti (one-shot shower, mounted on a win) ----------------
+   A fixed full-screen field of falling dot-chips. Per-chip start (left), colour,
+   drift, spin and timing come from inline styles set by <WinConfetti>; the fall
+   itself is this one keyframe. pointer-events:none so it never blocks the board.
+   Hidden entirely under reduced-motion (below), so it's purely additive joy. */
+.confetti-field { position: fixed; inset: 0; z-index: 80; pointer-events: none; overflow: hidden; }
+.confetti-bit {
+  position: absolute; top: -28px; width: 10px; height: 10px; opacity: 0;
+  will-change: transform, opacity;
+  animation-name: confetti-fall; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  animation-iteration-count: 1; animation-fill-mode: forwards;
+}
+@keyframes confetti-fall {
+  0%   { transform: translate(0, -10px) rotate(0) scale(var(--scale, 1)); opacity: 0; }
+  8%   { opacity: 1; }
+  100% { transform: translate(var(--drift, 0), 104vh) rotate(var(--rot, 360deg)) scale(var(--scale, 1)); opacity: 1; }
+}
+
+/* ---- promotion sparkle (an accent ring blooms when a coin is crowned) ----
+   Sits inside the popping commander (Board.tsx renders it on `pop`). Uses the
+   theme accent (gold on Navy, grape on Confetti…), so it reads as "rank earned".*/
+.promo-ring {
+  position: absolute; left: 50%; top: 50%; width: var(--coin); height: var(--coin);
+  border-radius: 50%; border: 2px solid var(--cobalt); pointer-events: none; z-index: 3;
+  transform: translate(-50%, -50%) scale(0.4); opacity: 0;
+  animation: promo-ring 0.62s ease-out 0.12s forwards;
+}
+@keyframes promo-ring {
+  0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.85; }
+  100% { transform: translate(-50%, -50%) scale(1.9); opacity: 0; }
+}
+
+/* ---- multi-capture "combo" badge (2+ prisoners in one move) -------------
+   Board-anchored: rendered inside the relative `.stage` (see BoardView overlay).
+   A soft accent-tinted pill that pops in, holds, then floats up and fades — one
+   shot, remounted per combo so it replays. Neutral ink keeps it legible on any
+   palette; the accent colours the icon + count. */
+.combo-pop {
+  position: absolute; top: 6%; left: 50%; z-index: 5; pointer-events: none;
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  padding: 9px 18px; border-radius: 999px;
+  background: color-mix(in srgb, var(--cobalt) 16%, var(--pedestal));
+  color: var(--ink); font-family: var(--font-display); font-weight: 600;
+  font-size: clamp(13px, 2.1vw, 17px);
+  box-shadow: 0 8px 22px rgb(var(--cast) / 0.28);
+  transform: translateX(-50%);
+  animation: combo-pop 1.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.combo-pop .combo-ico, .combo-pop .combo-n { color: var(--cobalt); }
+.combo-pop .combo-n { font-variant-numeric: tabular-nums; }
+@keyframes combo-pop {
+  0%   { opacity: 0; transform: translate(-50%, 12px) scale(0.7); }
+  14%  { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  28%  { transform: translate(-50%, 0) scale(1); }
+  72%  { opacity: 1; transform: translate(-50%, -6px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -30px) scale(0.96); }
+}
+
+/* ---- palette-icon spin when the colour theme cycles --------------------- */
+.theme-spin { animation: theme-spin 0.55s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes theme-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ---- save-success checkmark pop ---------------------------------------- */
+.save-pop { animation: save-pop 0.42s var(--ease-settle); }
+@keyframes save-pop { 0% { transform: scale(0.2); opacity: 0; } 60% { transform: scale(1.25); } 100% { transform: scale(1); opacity: 1; } }
+
+/* Both celebrations are decorative — fully removed when motion is reduced. */
+@media (prefers-reduced-motion: reduce) {
+  .confetti-field, .promo-ring { display: none !important; }
+  .combo-pop { animation: none; opacity: 1; transform: translateX(-50%); }
+  .theme-spin, .save-pop { animation: none; }
+}

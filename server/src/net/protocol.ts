@@ -3,14 +3,20 @@
  * `type`. These types are the contract between the server and any client (the
  * web app today, React Native later).
  */
-import type { PlayerColor } from '../../../src/index.ts';
+import type { PlayerColor, VariantId } from '../../../src/index.ts';
 import type { MatchResult } from '../storage/types.ts';
 
 // ---- Client -> Server ----------------------------------------------------
 
 export type ClientMessage =
   | { type: 'auth'; token: string }
-  | { type: 'queue.join'; timeControl?: { initialMs: number; incrementMs: number } }
+  | {
+      type: 'queue.join';
+      timeControl?: { initialMs: number; incrementMs: number };
+      /** Rule variant to queue for; absent means Laska. Players are only paired
+       *  with others queuing for the same variant. */
+      variant?: VariantId;
+    }
   | { type: 'queue.leave' }
   | { type: 'match.move'; matchId: string; from: number; to: number; captures?: number[] }
   | { type: 'match.resign'; matchId: string }
@@ -48,6 +54,8 @@ export interface MatchStateDTO {
   clock: ClockDTO;
   drawOfferBy: PlayerColor | null;
   moveCount: number;
+  /** The rule variant this match is played under, so the client sizes the board. */
+  variant: VariantId;
 }
 
 export interface RatingChangeDTO {
