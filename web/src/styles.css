@@ -640,10 +640,20 @@ input[type='radio'] { accent-color: var(--cobalt); }
   .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
 @media (max-width: 560px) {
-  .topbar { flex-direction: column; gap: 10px; }
-  /* full-width, centred, so the wrapped action buttons read as a tidy cluster
-     under the back arrow instead of hugging one edge */
-  .topbar-actions { width: 100%; justify-content: center; gap: 8px; }
+  /* Keep the bar a single row: the back arrow stays pinned at the start (the
+     standard mobile app-bar pattern) while the actions fill the rest and wrap
+     to its right — never the old `flex-direction: column`, which stranded the
+     back arrow alone on its own centred line and read as a floating orphan.
+     `align-items: flex-start` levels the back arrow with the first action row. */
+  .topbar { gap: 8px; padding: 8px 10px; align-items: flex-start; }
+  .topbar-actions { flex: 1 1 auto; min-width: 0; justify-content: flex-end; gap: 8px; }
+  /* Collapse the chrome buttons to their icons so the whole cluster fits the
+     viewport. With labels shown the wrapped, centred row was wider than a phone
+     and clipped off BOTH edges (e.g. "Local" and "My games" cut off). Icons +
+     title/aria-label keep them usable and tidy. The Local/Online segment keeps
+     its short labels — it's the primary mode toggle. */
+  .topbar .btn .btn-label { display: none; }
+  .topbar .btn { padding: 11px; gap: 0; border-radius: 14px; }
   .panel { max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
