@@ -585,3 +585,64 @@
 [data-theme='confetti'] .landing-page .btn-lg {
   box-shadow: 0 4px 0 var(--dark), 0 10px 22px rgb(var(--cast) / 0.12);
 }
+
+/* ---- first-visit welcome toast ----------------------------------------
+   A one-time friendly nudge to the tutorial, bottom-left. Slides up on appear;
+   reduced-motion shows it in place. Dismissal is remembered (see Landing). */
+.landing-page .welcome-toast {
+  position: fixed; left: clamp(12px, 3vw, 24px); bottom: clamp(12px, 3vw, 24px); z-index: 60;
+  display: flex; align-items: flex-start; gap: 0.85rem;
+  max-width: min(360px, calc(100vw - 24px)); padding: 1rem 1.1rem;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 16px 40px rgb(var(--cast) / 0.22);
+  animation: welcome-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.landing-page .welcome-toast .wt-body { display: flex; flex-direction: column; gap: 0.25rem; }
+.landing-page .welcome-toast strong { font-family: 'Fraunces', serif; font-size: 1.05rem; color: var(--l-ink); }
+.landing-page .welcome-toast .wt-body > span { font-size: 0.9rem; color: var(--l-body); line-height: 1.45; }
+.landing-page .welcome-toast .wt-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.landing-page .welcome-toast .wt-cta {
+  display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer;
+  font-family: 'Hanken Grotesk', sans-serif; font-weight: 700; font-size: 0.82rem;
+  color: #fff; background: var(--l-accent); border: 0; border-radius: 999px; padding: 0.5rem 0.95rem;
+}
+.landing-page .welcome-toast .wt-cta:hover { filter: brightness(1.06); }
+.landing-page .welcome-toast .wt-later {
+  cursor: pointer; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.82rem;
+  color: var(--faint); background: transparent; border: 0; padding: 0.5rem 0.4rem;
+}
+.landing-page .welcome-toast .wt-later:hover { color: var(--l-ink); }
+.landing-page .welcome-toast .wt-close {
+  position: absolute; top: 0.5rem; right: 0.5rem; display: grid; place-items: center;
+  width: 26px; height: 26px; border: 0; border-radius: 50%; cursor: pointer;
+  color: var(--faint); background: transparent;
+}
+.landing-page .welcome-toast .wt-close:hover { color: var(--l-ink); background: color-mix(in srgb, var(--l-ink) 8%, transparent); }
+@keyframes welcome-in { from { opacity: 0; transform: translateY(18px) scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .landing-page .welcome-toast { animation: none; } }
+
+/* ---- hero ambient particles -------------------------------------------
+   A few slow-drifting accent dots behind the hero for atmosphere and depth.
+   Decorative + low-opacity so they never fight the copy; content sits above
+   via z-index. Removed entirely under reduced-motion. */
+.landing-page .hero { position: relative; }
+.landing-page .hero-grid { position: relative; z-index: 1; }
+.landing-page .hero-ambient { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.landing-page .amb-dot {
+  position: absolute; border-radius: 50%; opacity: 0.16; background: var(--l-accent);
+  animation: amb-float 15s ease-in-out infinite;
+}
+.landing-page .amb-dot:nth-child(1) { top: 12%; left: 7%;  width: 11px; height: 11px; animation-delay: 0s; }
+.landing-page .amb-dot:nth-child(2) { top: 72%; left: 13%; width: 7px;  height: 7px;  animation-delay: -3s; background: var(--accent-dk); }
+.landing-page .amb-dot:nth-child(3) { top: 32%; left: 44%; width: 6px;  height: 6px;  animation-delay: -6s; }
+.landing-page .amb-dot:nth-child(4) { top: 84%; left: 50%; width: 9px;  height: 9px;  animation-delay: -2s; background: var(--accent-dk); }
+.landing-page .amb-dot:nth-child(5) { top: 16%; left: 78%; width: 13px; height: 13px; animation-delay: -8s; }
+.landing-page .amb-dot:nth-child(6) { top: 56%; left: 90%; width: 8px;  height: 8px;  animation-delay: -5s; background: var(--accent-dk); }
+.landing-page .amb-dot:nth-child(7) { top: 44%; left: 24%; width: 5px;  height: 5px;  animation-delay: -10s; }
+.landing-page .amb-dot:nth-child(8) { top: 88%; left: 82%; width: 7px;  height: 7px;  animation-delay: -7s; }
+.landing-page .amb-dot:nth-child(9) { top: 6%;  left: 58%; width: 6px;  height: 6px;  animation-delay: -12s; background: var(--accent-dk); }
+@keyframes amb-float {
+  0%, 100% { transform: translate(0, 0); opacity: 0.10; }
+  50% { transform: translate(8px, -22px); opacity: 0.22; }
+}
+@media (prefers-reduced-motion: reduce) { .landing-page .amb-dot { animation: none; } }

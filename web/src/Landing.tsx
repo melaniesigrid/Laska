@@ -12,7 +12,7 @@ import {
   type Move,
   type PlayerColor,
 } from '../../src/index.ts';
-import { Palette, Sparkles } from 'lucide-react';
+import { Palette, Sparkles, X } from 'lucide-react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
 import { DotMascot } from './mascots.tsx';
 import './landing.css';
@@ -267,6 +267,24 @@ export function Landing({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
+  // First-visit welcome: show a friendly one-time nudge toward the tutorial,
+  // remembered in localStorage so it never nags a returning player.
+  const [welcome, setWelcome] = useState(() => {
+    try {
+      return !localStorage.getItem('laska-welcomed');
+    } catch {
+      return false;
+    }
+  });
+  const dismissWelcome = () => {
+    setWelcome(false);
+    try {
+      localStorage.setItem('laska-welcomed', '1');
+    } catch {
+      /* ignore */
+    }
+  };
+
   // gentle scroll reveal, matching the original
   useEffect(() => {
     const root = rootRef.current;
@@ -316,6 +334,11 @@ export function Landing({
       </header>
 
       <section className="hero">
+        <div className="hero-ambient" aria-hidden="true">
+          {Array.from({ length: 9 }, (_, i) => (
+            <span key={i} className="amb-dot" />
+          ))}
+        </div>
         <div className="wrap hero-grid">
           <div className="reveal">
             <p className="eyebrow">The Great Military Game · 1911</p>
@@ -651,6 +674,33 @@ export function Landing({
           </span>
         </div>
       </footer>
+
+      {welcome && (
+        <div className="welcome-toast" role="dialog" aria-label="Welcome to Laska">
+          <DotMascot color="var(--l-accent)" mood="idle" size={56} label="Laska mascot" />
+          <div className="wt-body">
+            <strong>New to Laska?</strong>
+            <span>Learn the whole game in about a minute.</span>
+            <div className="wt-actions">
+              <button
+                className="wt-cta"
+                onClick={() => {
+                  dismissWelcome();
+                  onLessons();
+                }}
+              >
+                <Sparkles size={14} /> Start the tutorial
+              </button>
+              <button className="wt-later" onClick={dismissWelcome}>
+                Maybe later
+              </button>
+            </div>
+          </div>
+          <button className="wt-close" onClick={dismissWelcome} aria-label="Dismiss welcome">
+            <X size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

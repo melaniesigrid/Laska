@@ -19,6 +19,8 @@ import {
   Library,
   Lightbulb,
   Grid3x3,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import {
   createInitialState,
@@ -80,6 +82,7 @@ import {
 import { useCoords, toggleCoords } from './coordsPref.ts';
 import { track, trackAppOpen, type MatchMode } from './analytics/index.ts';
 import { DotMascot, WinConfetti } from './mascots.tsx';
+import { sound } from './sound.ts';
 
 type Mode = 'hotseat' | 'ai';
 
@@ -91,6 +94,18 @@ const COMBO_WORD: Record<number, string> = {
   5: 'Quintuple!!',
 };
 const comboLabel = (n: number) => COMBO_WORD[n] ?? `${n}× combo!`;
+
+/** A short tactile buzz on capture, where the device supports it (mobile).
+ *  Skipped under reduced-motion. `pattern` is a ms duration or a vibrate pattern. */
+function haptic(pattern: number | number[]) {
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  try {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    navigator.vibrate(pattern);
+  } catch {
+    /* ignore — vibration is best-effort */
+  }
+}
 
 const COLOR_NAME: Record<PlayerColor, string> = { W: 'White', B: 'Black' };
 
@@ -227,6 +242,29 @@ export function App() {
   const [appMode, setAppMode] = useState<'local' | 'online'>('local');
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
+  // Sound is opt-in (off by default), persisted, and held by the sound module so
+  // any call site can play without prop-drilling. This state only drives the icon.
+  const [soundOn, setSoundOn] = useState(() => {
+    try {
+      return localStorage.getItem('laska-sound') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    sound.setEnabled(soundOn);
+  }, [soundOn]);
+  const toggleSound = () =>
+    setSoundOn((on) => {
+      const next = !on;
+      if (next) sound.unlock(); // this click is the gesture that unlocks audio
+      try {
+        localStorage.setItem('laska-sound', next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
   const showCoords = useCoords();
   // The local-game variant lives here so the page title can reflect it; LocalGame
   // owns the actual game state and resets when the choice changes.
@@ -461,6 +499,14 @@ export function App() {
           >
             <Grid3x3 size={16} /> Coords {showCoords ? 'on' : 'off'}
           </button>
+          <button
+            className="btn"
+            onClick={toggleSound}
+            aria-pressed={soundOn}
+            aria-label={`Sound ${soundOn ? 'on' : 'off'}. Click to ${soundOn ? 'mute' : 'unmute'}.`}
+          >
+            {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />} Sound {soundOn ? 'on' : 'off'}
+          </button>
           <button className="btn" onClick={() => setView('mygames')} aria-label="Your saved games">
             <Library size={16} /> My games
           </button>
@@ -552,6 +598,33 @@ function LocalGame({
   // a monotonic id so each fresh combo remounts the badge and replays its pop.
   const [combo, setCombo] = useState<{ n: number; id: number } | null>(null);
   const comboSeq = useRef(0);
+  // Bumped whenever a fresh board is dealt (new game / variant / mode switch) so
+  // the board plays a one-shot staggered entrance. Starts at 0 → deals on first
+  // entry too. A monotonic light-sweep id replays when the piece insignia changes.
+  const [dealKey, setDealKey] = useState(0);
+  const [pieceSweep, setPieceSweep] = useState(0);
+  // Sweep a band of light across the board when the rank-insignia theme changes.
+  // Watches the context (changed by the top-bar Pieces button); skips first mount.
+  const insigniaTheme = usePieceTheme();
+  const lastInsignia = useRef(insigniaTheme);
+  useEffect(() => {
+    if (lastInsignia.current === insigniaTheme) return;
+    lastInsignia.current = insigniaTheme;
+    setPieceSweep((k) => k + 1);
+    const t = setTimeout(() => setPieceSweep(0), 800);
+    return () => clearTimeout(t);
+  }, [insigniaTheme]);
+  // The square to shake when a click can't be acted on (wrong piece / must-capture
+   // elsewhere) — a quick "no" wiggle. Cleared after the animation.
+  const [shakeSquare, setShakeSquare] = useState<number | null>(null);
+  const shakeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const triggerShake = useCallback((sq: number) => {
+    setShakeSquare(sq);
+    if (shakeTimer.current) clearTimeout(shakeTimer.current);
+    shakeTimer.current = setTimeout(() => setShakeSquare(null), 380);
+  }, []);
+  // Bumped on Undo so its icon spins counter-clockwise (a "rewind" tick).
+  const [undoNonce, setUndoNonce] = useState(0);
   const [resignedWinner, setResignedWinner] = useState<PlayerColor | null>(null);
   // A multi-jump in progress, shown one leap at a time. `stepBoard` overrides the
   // committed `state.board` while a chain plays out (the engine state only flips
@@ -598,6 +671,9 @@ function LocalGame({
       if (status.state === 'win') {
         outcome = mode === 'ai' ? (status.winner === aiColor ? 'loss' : 'win') : 'win';
       }
+      // Audio sting on the result (no-ops unless sound is enabled).
+      if (outcome === 'win') sound.win();
+      else sound.lose();
       track('match.finished', {
         mode: matchMode,
         outcome,
@@ -656,6 +732,12 @@ function LocalGame({
     setStepBoard(null);
     // Reward a multi-jump: 2+ prisoners in a single move pop a combo badge.
     if (move.captures.length >= 2) setCombo({ n: move.captures.length, id: ++comboSeq.current });
+    // A short haptic buzz on any capture (stronger pattern for a multi-jump).
+    if (move.isCapture) haptic(move.captures.length >= 2 ? [10, 32, 16] : 11);
+    // Audio feedback (no-ops unless the player enabled sound).
+    if (move.isCapture) sound.capture();
+    else sound.move();
+    if (move.promotion) sound.promote();
   }, []);
 
   // The combo badge is a one-shot flourish — clear it after its animation so it
@@ -846,6 +928,9 @@ function LocalGame({
         setSelected((cur) => (cur === square ? null : square));
         return;
       }
+      // Clicked a square you can't act on. If it holds a piece (an opponent's, or
+      // one you can't move because a capture is forced elsewhere), shake it.
+      if (state.board[square]) triggerShake(square);
       setSelected(null);
     },
     [
@@ -863,6 +948,7 @@ function LocalGame({
       mode,
       difficulty,
       aiColor,
+      triggerShake,
     ],
   );
 
@@ -885,6 +971,7 @@ function LocalGame({
     setThinking(false);
     setResignedWinner(null);
     setHint(null);
+    setDealKey((k) => k + 1); // deal the fresh board in with a staggered entrance
   }, []);
 
   const newGame = useCallback(() => startFresh(variant), [startFresh, variant]);
@@ -917,6 +1004,7 @@ function LocalGame({
     setHint(null);
     setCapture(null);
     setStepBoard(null);
+    setUndoNonce((n) => n + 1); // spin the rewind icon
     setHistory((h) => {
       if (h.length === 0) return h;
       let target = h.length - 1;
@@ -998,13 +1086,18 @@ function LocalGame({
         colIds={colIds}
         moveFx={moveFx}
         highlight={hintSquares}
+        dealKey={dealKey}
+        shakeSquare={shakeSquare}
         overlay={
-          combo ? (
-            <div className="combo-pop" key={combo.id} role="status" aria-live="polite">
-              <Layers className="combo-ico" size={18} aria-hidden="true" />
-              {comboLabel(combo.n)} <span className="combo-n">×{combo.n}</span>
-            </div>
-          ) : null
+          <>
+            {combo && (
+              <div className="combo-pop" key={combo.id} role="status" aria-live="polite">
+                <Layers className="combo-ico" size={18} aria-hidden="true" />
+                {comboLabel(combo.n)} <span className="combo-n">×{combo.n}</span>
+              </div>
+            )}
+            {pieceSweep > 0 && <div className="theme-sweep" key={pieceSweep} aria-hidden="true" />}
+          </>
         }
       />
 
@@ -1067,7 +1160,7 @@ function LocalGame({
             <RotateCcw size={16} /> New game
           </button>
           <button className="btn" onClick={undo} disabled={history.length === 0 || isAiTurn || thinking}>
-            <Undo2 size={16} /> Undo
+            <Undo2 key={undoNonce} className="undo-spin" size={16} /> Undo
           </button>
           <button
             className="btn"

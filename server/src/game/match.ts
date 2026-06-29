@@ -280,6 +280,17 @@ export class Match {
     return this.finish({ result: '1/2-1/2', reason: 'agreement', winner: null }, now);
   }
 
+  /** Decline a standing draw offer made by the opponent (clears the offer). */
+  declineDraw(userId: string): void {
+    if (this.phase !== 'active') throw new MatchError('not-active', 'Match is not active');
+    const color = this.colorOf(userId);
+    if (!color) throw new MatchError('not-a-player', 'You are not a player in this match');
+    if (!this.drawOfferBy || this.drawOfferBy === color) {
+      throw new MatchError('illegal-move', 'No draw offer from your opponent to decline');
+    }
+    this.drawOfferBy = null;
+  }
+
   get pendingDrawOfferBy(): PlayerColor | null {
     return this.drawOfferBy;
   }

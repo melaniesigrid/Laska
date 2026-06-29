@@ -11,7 +11,8 @@ import {
   type PlayerColor,
   type VariantId,
 } from '../../src/index.ts';
-import type { ServerMessage, MoveDTO, ClockDTO } from '../../server/src/net/protocol.ts';
+import type { ServerMessage, MoveDTO, ClockDTO, EmoteId } from '../../server/src/net/protocol.ts';
+import { CHAT_MAX_LEN } from '../../server/src/net/protocol.ts';
 import { LaskaClient, type ConnStatus, type PublicUser, ApiError } from './net/client.ts';
 import { track } from './analytics/index.ts';
 
@@ -37,6 +38,20 @@ export interface EndInfo {
     white: { before: number; after: number; delta: number };
     black: { before: number; after: number; delta: number };
   } | null;
+}
+
+/** One rendered line in the in-match social feed — a chat message or an emote.
+ *  `mine` is resolved against the local player's color so the UI can lateralize
+ *  bubbles without re-deriving it on every render. */
+export interface ChatEntry {
+  id: string;
+  kind: 'chat' | 'emote';
+  fromColor: PlayerColor;
+  fromName: string;
+  mine: boolean;
+  ts: number;
+  text?: string;
+  emote?: EmoteId;
 }
 
 /** Build a minimal GameState from a server position string (enough for legal-move
@@ -69,6 +84,13 @@ export function useOnline() {
   const [drawOfferBy, setDrawOfferBy] = useState<PlayerColor | null>(null);
   const [end, setEnd] = useState<EndInfo | null>(null);
   const pendingRef = useRef(false);
+  // ---- social layer ----
+  const [chatLog, setChatLog] = useState<ChatEntry[]>([]);
+  const [rematchOfferBy, setRematchOfferBy] = useState<PlayerColor | null>(null);
+  const [rematchSent, setRematchSent] = useState(false);
+  const [unreadChat, setUnreadChat] = useState(0);
+  // A monotonic id source for chat entries (the wire carries no per-line id).
+  const chatSeqRef = useRef(0);
 
   // ---- server message handling ----
   const onMessage = useCallback(
@@ -103,6 +125,13 @@ export function useOnline() {
           setEnd(null);
           setPhase('matched');
           pendingRef.current = false;
+          // match.start also fires for a rematch — wipe the prior match's social
+          // state so the fresh game starts with a clean feed and no stale offers.
+          setChatLog([]);
+          setRematchOfferBy(null);
+          setRematchSent(false);
+          setUnreadChat(0);
+          chatSeqRef.current = 0;
           // Funnel: an online match began. (We don't have a clean per-user
           // "first move" hook online — the server is authoritative — so
           // match.started is the online activation signal.)
@@ -151,6 +180,33 @@ export function useOnline() {
           }
           break;
         }
+        case 'chat': {
+          const mine = match?.myColor === msg.fromColor;
+          const id = `c${chatSeqRef.current++}`;
+          setChatLog((log) => [
+            ...log,
+            { id, kind: 'chat', fromColor: msg.fromColor, fromName: msg.fromName, mine, ts: msg.ts, text: msg.text },
+          ]);
+          if (!mine) setUnreadChat((n) => n + 1);
+          break;
+        }
+        case 'emote': {
+          const mine = match?.myColor === msg.fromColor;
+          const id = `c${chatSeqRef.current++}`;
+          setChatLog((log) => [
+            ...log,
+            { id, kind: 'emote', fromColor: msg.fromColor, fromName: msg.fromName, mine, ts: msg.ts, emote: msg.emote },
+          ]);
+          if (!mine) setUnreadChat((n) => n + 1);
+          break;
+        }
+        case 'rematch.offered':
+          setRematchOfferBy(msg.by);
+          break;
+        case 'rematch.declined':
+          setRematchOfferBy(null);
+          setRematchSent(false);
+          break;
         case 'error':
           // A rejected move: roll the optimistic board back to authoritative.
           if (pendingRef.current) {
@@ -242,6 +298,15 @@ export function useOnline() {
       }),
     [client, withError],
   );
+  // Wipe the in-match social state (chat feed + rematch offers + unread count).
+  const resetSocial = useCallback(() => {
+    setChatLog([]);
+    setRematchOfferBy(null);
+    setRematchSent(false);
+    setUnreadChat(0);
+    chatSeqRef.current = 0;
+  }, []);
+
   const logout = useCallback(() => {
     client.logout();
     setUser(null);
@@ -249,7 +314,8 @@ export function useOnline() {
     setMatch(null);
     setRendered(null);
     setEnd(null);
-  }, [client]);
+    resetSocial();
+  }, [client, resetSocial]);
 
   // ---- match actions ----
   const joinQueue = useCallback(
@@ -296,7 +362,38 @@ export function useOnline() {
     setEnd(null);
     setLastMove(null);
     setClock(null);
-  }, []);
+    resetSocial();
+  }, [resetSocial]);
+
+  // ---- social actions ----
+  const sendChat = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!match || !trimmed) return;
+      client.send({ type: 'match.chat', matchId: match.matchId, text: trimmed.slice(0, CHAT_MAX_LEN) });
+    },
+    [client, match],
+  );
+  const sendEmote = useCallback(
+    (emote: EmoteId) => {
+      if (match) client.send({ type: 'match.emote', matchId: match.matchId, emote });
+    },
+    [client, match],
+  );
+  const offerRematch = useCallback(() => {
+    if (!match) return;
+    client.send({ type: 'match.rematchOffer', matchId: match.matchId });
+    setRematchSent(true);
+  }, [client, match]);
+  const declineRematch = useCallback(() => {
+    if (match) client.send({ type: 'match.rematchDecline', matchId: match.matchId });
+    setRematchSent(false);
+    setRematchOfferBy(null);
+  }, [client, match]);
+  const declineDraw = useCallback(() => {
+    if (match) client.send({ type: 'match.declineDraw', matchId: match.matchId });
+  }, [client, match]);
+  const markChatRead = useCallback(() => setUnreadChat(0), []);
 
   // Whose turn, and is it mine right now (based on optimistic state)?
   const myTurn = !!(rendered && match && rendered.toMove === match.myColor && phase === 'matched' && !pendingRef.current);
@@ -320,6 +417,11 @@ export function useOnline() {
     end,
     myTurn,
     legalMoves: legal,
+    // social state
+    chatLog,
+    rematchOfferBy,
+    rematchSent,
+    unreadChat,
     // actions
     register,
     login,
@@ -332,6 +434,13 @@ export function useOnline() {
     offerDraw,
     acceptDraw,
     newOnlineGame,
+    // social actions
+    sendChat,
+    sendEmote,
+    offerRematch,
+    declineRematch,
+    declineDraw,
+    markChatRead,
     clearError: () => setError(null),
   };
 }

@@ -121,10 +121,17 @@ export function ReplayPage({
     setPly(Math.max(0, Math.min(lastPly, p)));
   };
 
-  // keep the active move scrolled into view in the list
+  // keep the active move scrolled into view in the list — only inside the
+  // move-list, never the window (plain scrollIntoView scrolls every scrollable
+  // ancestor, which would yank the board off-screen on each move).
   useEffect(() => {
-    const el = listRef.current?.querySelector('.move-cell.active');
-    el?.scrollIntoView({ block: 'nearest' });
+    const list = listRef.current;
+    const el = list?.querySelector<HTMLElement>('.move-cell.active');
+    if (!list || !el) return;
+    const elRect = el.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    if (elRect.top < listRect.top) list.scrollTop -= listRect.top - elRect.top;
+    else if (elRect.bottom > listRect.bottom) list.scrollTop += elRect.bottom - listRect.bottom;
   }, [ply]);
 
   const noteText =

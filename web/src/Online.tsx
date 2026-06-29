@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import {
+  RefreshCw,
+  Send,
+  Handshake,
+  Sparkles,
+  Hand,
+  ThumbsUp,
+  Star,
+  Flame,
+  Frown,
+  Hourglass,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   VARIANTS,
   LASKA,
@@ -14,9 +26,27 @@ import {
   type Move,
   type PlayerColor,
 } from '../../src/index.ts';
+import { EMOTES, CHAT_MAX_LEN, type EmoteId } from '../../server/src/net/protocol.ts';
 import { BoardView } from './Board.tsx';
-import { useOnline } from './useOnline.ts';
+import { useOnline, type ChatEntry } from './useOnline.ts';
 import { DotMascot, WinConfetti } from './mascots.tsx';
+
+/** A fitting lucide icon per canned emote id (no emoji — design-system rule). */
+const EMOTE_ICON: Record<EmoteId, LucideIcon> = {
+  gg: Handshake,
+  gl: Sparkles,
+  hello: Hand,
+  nice: ThumbsUp,
+  wow: Star,
+  close: Flame,
+  oops: Frown,
+  thinking: Hourglass,
+};
+
+/** Short wall-clock time for a chat/emote line (e.g. "3:07 PM"). */
+function fmtTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
 
 /** ms per leap while animating an opponent's multi-jump. */
 const ANIM_LEAP_MS = 300;
@@ -107,6 +137,125 @@ function Lobby({ online }: { online: ReturnType<typeof useOnline> }) {
         </button>
       </div>
       {online.error && <div className="status draw">{online.error}</div>}
+    </div>
+  );
+}
+
+/** Quick-bar of canned emotes — one button per `EMOTES` entry, each a lucide
+ *  icon + its label. Disabled while reconnecting (mirrors the other actions). */
+function EmoteBar({ online, disabled }: { online: ReturnType<typeof useOnline>; disabled: boolean }) {
+  return (
+    <div className="emote-bar" role="group" aria-label="Quick emotes">
+      {(Object.keys(EMOTES) as EmoteId[]).map((id) => {
+        const Icon = EMOTE_ICON[id];
+        return (
+          <button
+            key={id}
+            type="button"
+            className="emote-btn"
+            onClick={() => online.sendEmote(id)}
+            disabled={disabled}
+            title={EMOTES[id]}
+          >
+            <Icon size={15} aria-hidden="true" />
+            <span>{EMOTES[id]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** One rendered feed line: a chat bubble or an inline emote chip. */
+function ChatLine({ entry }: { entry: ChatEntry }) {
+  if (entry.kind === 'emote' && entry.emote) {
+    const Icon = EMOTE_ICON[entry.emote];
+    return (
+      <div className={`chat-line ${entry.mine ? 'mine' : 'theirs'}`}>
+        <span className="chat-emote-chip">
+          <Icon size={14} aria-hidden="true" />
+          {EMOTES[entry.emote]}
+        </span>
+        <span className="chat-meta">
+          {entry.mine ? 'You' : entry.fromName} · {fmtTime(entry.ts)}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className={`chat-line ${entry.mine ? 'mine' : 'theirs'}`}>
+      <div className="chat-bubble">{entry.text}</div>
+      <span className="chat-meta">
+        {entry.mine ? 'You' : entry.fromName} · {fmtTime(entry.ts)}
+      </span>
+    </div>
+  );
+}
+
+/** In-match social panel: scrollable feed (auto-scrolls to latest) + composer.
+ *  Shown both during and after a match (players want to say "gg"). Marks chat
+ *  read on mount and whenever new lines land while it's on screen. */
+function ChatPanel({ online, disabled }: { online: ReturnType<typeof useOnline>; disabled: boolean }) {
+  const [draft, setDraft] = useState('');
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  const { chatLog, unreadChat, markChatRead } = online;
+
+  // Auto-scroll to the latest line on every new message.
+  useEffect(() => {
+    const el = feedRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatLog.length]);
+
+  // The panel is always visible while shown, so clear the unread badge whenever
+  // it's non-zero (e.g. a line arrives while the player is looking at it).
+  useEffect(() => {
+    if (unreadChat > 0) markChatRead();
+  }, [unreadChat, markChatRead]);
+
+  const submit = () => {
+    online.sendChat(draft);
+    setDraft('');
+  };
+
+  const remaining = CHAT_MAX_LEN - draft.length;
+  const nearLimit = remaining <= 20;
+
+  return (
+    <div className="chat-panel">
+      <div className="chat-feed" ref={feedRef}>
+        {chatLog.length === 0 ? (
+          <p className="chat-empty">Say hello, or send an emote below.</p>
+        ) : (
+          chatLog.map((entry) => <ChatLine key={entry.id} entry={entry} />)
+        )}
+      </div>
+      <EmoteBar online={online} disabled={disabled} />
+      <div className="chat-composer">
+        <input
+          className="chat-input"
+          value={draft}
+          maxLength={CHAT_MAX_LEN}
+          placeholder="Message…"
+          aria-label="Chat message"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="chat-send"
+          aria-label="Send message"
+          onClick={submit}
+          disabled={!draft.trim()}
+        >
+          <Send size={16} aria-hidden="true" />
+        </button>
+        {nearLimit && <span className="chat-counter">{remaining}</span>}
+      </div>
     </div>
   );
 }
@@ -318,13 +467,21 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
         )}
 
         <div className="clocks">
-          <div className={`clock ${clock?.running === oppColor ? 'active' : ''}`}>
+          <div
+            className={`clock ${clock?.running === oppColor ? 'active' : ''}${
+              clock?.running === oppColor && oppClockMs < 10000 ? ' low' : ''
+            }`}
+          >
             <span className="clock-name">
               {match.opponent.username} ({COLOR_NAME[oppColor]}) · {match.opponent.rating}
             </span>
             <span className="clock-time">{fmtClock(oppClockMs)}</span>
           </div>
-          <div className={`clock ${clock?.running === myColor ? 'active' : ''}`}>
+          <div
+            className={`clock ${clock?.running === myColor ? 'active' : ''}${
+              clock?.running === myColor && myClockMs < 10000 ? ' low' : ''
+            }`}
+          >
             <span className="clock-name">
               You ({COLOR_NAME[myColor]}) · {online.user.rating}
             </span>
@@ -341,6 +498,9 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
             {match.opponent.username} offers a draw.
             <div className="buttons">
               <button onClick={() => online.acceptDraw()} disabled={online.status !== 'connected'}>Accept</button>
+              <button className="secondary" onClick={() => online.declineDraw()} disabled={online.status !== 'connected'}>
+                Decline
+              </button>
             </div>
           </div>
         )}
@@ -364,23 +524,56 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
                 </div>
               </>
             )}
-            {end.ratingChange && (
-              <div className="status">
-                Rating:{' '}
-                {(() => {
-                  const c = myColor === 'W' ? end.ratingChange.white : end.ratingChange.black;
-                  const sign = c.delta >= 0 ? '+' : '';
-                  return `${c.before} → ${c.after} (${sign}${c.delta})`;
-                })()}
+            {end.ratingChange &&
+              (() => {
+                const c = myColor === 'W' ? end.ratingChange.white : end.ratingChange.black;
+                const up = c.delta > 0;
+                const sign = c.delta >= 0 ? '+' : '';
+                return (
+                  <div className="status">
+                    Rating: {c.before} → {c.after}{' '}
+                    <span className={`rating-delta ${up ? 'up' : c.delta < 0 ? 'down' : ''}`}>
+                      ({sign}
+                      {c.delta})
+                    </span>
+                  </div>
+                );
+              })()}
+            {online.rematchSent ? (
+              <div className="rematch-wait status">
+                Waiting for opponent…
+                <div className="buttons">
+                  <button
+                    className="secondary"
+                    onClick={() => online.declineRematch()}
+                    disabled={online.status !== 'connected'}
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="buttons">
+                <button
+                  className={online.rematchOfferBy === oppColor ? 'rematch-ready' : ''}
+                  onClick={() => online.offerRematch()}
+                  disabled={online.status !== 'connected'}
+                >
+                  <RefreshCw size={15} aria-hidden="true" />
+                  {online.rematchOfferBy === oppColor ? 'Rematch — opponent is ready' : 'Rematch'}
+                </button>
+                <button className="secondary" onClick={() => online.newOnlineGame()}>
+                  Back to lobby
+                </button>
               </div>
             )}
-            <div className="buttons">
-              <button onClick={() => online.newOnlineGame()}>Back to lobby</button>
-            </div>
           </>
         )}
 
         {online.error && !end && <div className="status draw">{online.error}</div>}
+
+        <ChatPanel online={online} disabled={online.status !== 'connected'} />
+
         <div className="conn-note">
           <span className={`dot ${online.status}`} /> {online.status}
           {online.status !== 'connected' && ' — reconnecting…'}
