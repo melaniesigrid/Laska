@@ -79,6 +79,8 @@
 .landing-page .btn:active { box-shadow: var(--nm-inset); transform: translateY(1px); }
 .landing-page .btn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--l-accent); }
 .landing-page .btn-lg { font-size: 1rem; padding: 1.05rem 2.2rem; box-shadow: var(--nm-raise); }
+.landing-page .btn-primary { color: var(--accent-dk); box-shadow: var(--nm-raise); font-weight: 700; }
+.landing-page .btn-primary:hover { color: var(--l-accent); }
 .landing-page :focus-visible { outline: 2px solid var(--accent-dk); outline-offset: 3px; border-radius: 6px; }
 
 .landing-page .hero { padding-top: clamp(3rem, 7vw, 6rem); padding-bottom: var(--section-y); }
@@ -169,6 +171,11 @@
 .landing-page .lesson-card h3 { margin: 1.2rem 0 0.55rem; font-size: 1.3rem; }
 .landing-page .lesson-card p { color: var(--muted); line-height: 1.6; }
 .landing-page .lesson-go { margin-top: auto; padding-top: 1.1rem; display: inline-flex; align-items: center; gap: 0.3rem; color: var(--l-accent); font-weight: 700; }
+/* Locked lessons: dimmed, no hover lift, and the "go" line becomes a muted gate. */
+.landing-page .lesson-card.locked { cursor: not-allowed; opacity: 0.62; }
+.landing-page .lesson-card.locked:hover { transform: none; border-color: var(--line); box-shadow: 0 12px 30px rgba(40, 34, 27, 0.07); }
+.landing-page .lesson-status.locked { color: var(--faint); }
+.landing-page .lesson-go.locked { color: var(--muted); font-weight: 600; }
 .landing-page .tutorial-runner {
   display: grid; grid-template-columns: minmax(0, auto) minmax(250px, 360px);
   align-items: start; justify-content: center; gap: clamp(1.25rem, 4vw, 3rem);
@@ -189,6 +196,8 @@
   background: color-mix(in srgb, var(--l-accent) 13%, transparent); color: var(--l-accent);
   font-size: 0.72rem; font-weight: 800;
 }
+.landing-page .tutorial-done-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.landing-page .tutorial-done-actions .btn { flex: 1 1 auto; justify-content: center; }
 .landing-page .tutorial-feedback { display: flex; align-items: flex-start; gap: 0.55rem; padding: 0.8rem; border-radius: 12px; font-size: 0.9rem; line-height: 1.45; }
 .landing-page .tutorial-feedback.hint { background: #f6eed8; color: #725a1f; }
 .landing-page .tutorial-feedback.success { background: #e5f2eb; color: #30634a; }
@@ -437,7 +446,13 @@
   letter-spacing: 0.04em; color: var(--l-ink); font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 0 color-mix(in srgb, var(--l-light) 80%, transparent);
 }
-.landing-page .analysis-summary { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.landing-page .analysis-summary { display: flex; flex-direction: column; gap: 0.7rem; }
+.landing-page .analysis-tallies { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+/* The critic's one-line verdict on the whole game. */
+.landing-page .analysis-verdict {
+  margin: 0; font-family: 'Fraunces', serif; font-style: italic;
+  font-size: 0.98rem; line-height: 1.45; color: var(--l-ink);
+}
 .landing-page .summary-side {
   flex: 1 1 0; min-width: 7rem; display: flex; align-items: center; justify-content: space-between;
   gap: 0.6rem; background: var(--bg); border-radius: var(--r-sm); box-shadow: var(--nm-inset);
@@ -448,8 +463,20 @@
 .landing-page .summary-counts em { font-style: normal; }
 .landing-page .best-from-here { font-size: 0.9rem; color: var(--faint); margin: 0; }
 .landing-page .best-from-here b { color: var(--accent-dk); }
-.landing-page .best-line { font-size: 0.9rem; color: var(--faint); margin: 0 0 0.6rem; }
-.landing-page .best-line b { color: var(--accent-dk); }
+/* The fun-critic line under the move heading. Tinted by move quality; a left
+   rule in the matching hue ties the prose to the badge above it. */
+.landing-page .move-commentary {
+  font-size: 0.94rem; line-height: 1.5; margin: 0 0 0.6rem;
+  color: var(--l-body); padding-left: 0.7rem;
+  border-left: 2px solid color-mix(in srgb, var(--l-light) 60%, transparent);
+}
+.landing-page .move-commentary.q-best { border-left-color: var(--q-good); }
+.landing-page .move-commentary.q-good { border-left-color: var(--q-good); }
+.landing-page .move-commentary.q-inaccuracy { border-left-color: var(--q-inaccuracy); }
+.landing-page .move-commentary.q-mistake { border-left-color: var(--q-mistake); }
+.landing-page .move-commentary.q-blunder { border-left-color: var(--q-blunder); }
+.landing-page .move-commentary.q-forced { border-left-color: color-mix(in srgb, var(--faint) 50%, transparent); }
+.landing-page .commentary-cost { color: var(--faint); font-variant-numeric: tabular-nums; }
 /* Quality colour tokens, shared by the per-move marks, the summary and badge. */
 .landing-page .q-good { color: var(--q-good); }
 .landing-page .q-inaccuracy { color: var(--q-inaccuracy); }

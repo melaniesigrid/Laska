@@ -57,6 +57,18 @@ const TRACKS: Record<
   },
 };
 
+/** Every track's lessons, ordered, for locking + next-lesson navigation. */
+const ALL_TRACK_LESSONS: Lesson[][] = [OPENING_LESSONS, STRATEGY_LESSONS, BASHNI_LESSONS];
+
+/** The next lesson after `id` within its own track, or undefined if it's the last. */
+function nextLessonAfter(id: string): Lesson | undefined {
+  for (const arr of ALL_TRACK_LESSONS) {
+    const i = arr.findIndex((l) => l.id === id);
+    if (i !== -1) return arr[i + 1];
+  }
+  return undefined;
+}
+
 /**
  * The strategy-lessons surface: a picker over the engine-validated lessons in
  * `lessons.ts`, each run through `TutorialBoard`. A variant toggle switches
@@ -185,37 +197,62 @@ export function LessonsPage({
         <div className="wrap">
           {active ? (
             <PieceThemeContext.Provider value={pieceTheme}>
-              <TutorialBoard lesson={active} onComplete={() => handleComplete(active.id)} />
+              {(() => {
+                const next = nextLessonAfter(active.id);
+                return (
+                  <TutorialBoard
+                    lesson={active}
+                    onComplete={() => handleComplete(active.id)}
+                    {...(next
+                      ? { onNext: () => setActiveId(next.id), nextTitle: next.title }
+                      : {})}
+                  />
+                );
+              })()}
             </PieceThemeContext.Provider>
           ) : (
             <div className="lesson-grid">
-              {lessons.map((lesson) => {
+              {lessons.map((lesson, i) => {
                 const isDone = !!completed[lesson.id];
+                // A lesson unlocks once the previous one in the track is done;
+                // the first lesson is always open.
+                const prev = lessons[i - 1];
+                const locked = i > 0 && !completed[prev!.id];
                 return (
                   <button
                     key={lesson.id}
-                    className={`lesson-card${isDone ? ' done' : ''}`}
+                    className={`lesson-card${isDone ? ' done' : ''}${locked ? ' locked' : ''}`}
                     onClick={() => setActiveId(lesson.id)}
+                    disabled={locked}
+                    aria-disabled={locked}
                   >
                     <div className="lesson-card-head">
                       <span className="lesson-ref">{lesson.strategyRef}</span>
-                      <span className={`lesson-status${isDone ? ' done' : ''}`}>
+                      <span
+                        className={`lesson-status${isDone ? ' done' : ''}${locked ? ' locked' : ''}`}
+                      >
                         {isDone ? (
                           <>
                             <CheckCircle2 size={14} /> Done
                           </>
-                        ) : (
+                        ) : locked ? (
                           <>
-                            <Lock size={13} /> {DIFFICULTY_WORD[lesson.difficulty] ?? 'Lesson'}
+                            <Lock size={13} /> Locked
                           </>
+                        ) : (
+                          DIFFICULTY_WORD[lesson.difficulty] ?? 'Lesson'
                         )}
                       </span>
                     </div>
                     <h3>{lesson.title}</h3>
                     <p>{lesson.intro}</p>
-                    <span className="lesson-go">
-                      {isDone ? 'Replay' : 'Start'} <ChevronRight size={15} />
-                    </span>
+                    {locked ? (
+                      <span className="lesson-go locked">Finish the previous lesson first</span>
+                    ) : (
+                      <span className="lesson-go">
+                        {isDone ? 'Replay' : 'Start'} <ChevronRight size={15} />
+                      </span>
+                    )}
                   </button>
                 );
               })}
