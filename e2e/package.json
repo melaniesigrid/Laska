@@ -6,7 +6,7 @@
   "description": "Playwright end-to-end tests for Laska's auth and online-play flows against an in-memory server.",
   "scripts": {
     "test": "playwright test",
-    "test:headed": "playwright test --headed",
+    "test:headed": "playwright test --headed --workers=1",
     "test:ui": "playwright test --ui",
     "report": "playwright show-report",
     "install:browsers": "playwright install chromium"
