@@ -330,9 +330,18 @@ function Insignia({
   const main = white ? 'rgba(106,86,63,0.9)' : 'rgba(0,0,0,0.42)';
   const off = r * 0.06;
 
-  // Only generals are marked (an engraved star); soldiers are a plain coin —
-  // matching the web's Heirloom theme (../../web/src/pieceTheme.tsx).
-  if (!officer) return null;
+  // Generals wear an engraved star; soldiers a single engraved dot — matching
+  // the web's Heirloom theme (../../web/src/pieceTheme.tsx).
+  if (!officer) {
+    const dotR = r * 0.16;
+    return (
+      <G>
+        <Circle cx={cx - off} cy={cy - off} r={dotR} fill={bevelDark} />
+        <Circle cx={cx + off} cy={cy + off} r={dotR} fill={bevelLight} />
+        <Circle cx={cx} cy={cy} r={dotR} fill={main} />
+      </G>
+    );
+  }
   const size = r * 0.56;
   return (
     <G>
