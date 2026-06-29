@@ -104,6 +104,74 @@ test('guest can be created and later linked to a real account, keeping the same 
   assert.equal(ok.user.id, guest.user.id);
 });
 
+test('new accounts expose null cosmetics in the public payload', async () => {
+  const svc = service();
+  const { user } = await svc.registerWithEmail('cos@b.com', 'password123', 'cosmetic');
+  assert.equal(user.selectedMascotTint, null);
+  assert.equal(user.selectedPieceTheme, null);
+  assert.equal(user.selectedBoardTheme, null);
+  const guest = await svc.createGuest();
+  assert.equal(guest.user.selectedBoardTheme, null);
+});
+
+test('setCosmetics validates, persists, and round-trips through the auth payload', async () => {
+  const svc = service();
+  const { user } = await svc.registerWithEmail('set@b.com', 'password123', 'setter');
+  const updated = await svc.setCosmetics(user.id, {
+    selectedMascotTint: 'mint',
+    selectedPieceTheme: 'lineage',
+    selectedBoardTheme: 'twilight',
+  });
+  assert.equal(updated.selectedMascotTint, 'mint');
+  assert.equal(updated.selectedPieceTheme, 'lineage');
+  assert.equal(updated.selectedBoardTheme, 'twilight');
+
+  // Persisted: a fresh login reflects the saved cosmetics.
+  const relogin = await svc.login('set@b.com', 'password123');
+  assert.equal(relogin.user.selectedMascotTint, 'mint');
+  assert.equal(relogin.user.selectedPieceTheme, 'lineage');
+  assert.equal(relogin.user.selectedBoardTheme, 'twilight');
+});
+
+test('setCosmetics supports partial patch and explicit null clear', async () => {
+  const svc = service();
+  const { user } = await svc.registerWithEmail('patch@b.com', 'password123', 'patcher');
+  await svc.setCosmetics(user.id, { selectedMascotTint: 'sky', selectedPieceTheme: 'dots' });
+  const onlyOne = await svc.setCosmetics(user.id, { selectedMascotTint: 'grape' });
+  assert.equal(onlyOne.selectedMascotTint, 'grape');
+  assert.equal(onlyOne.selectedPieceTheme, 'dots', 'omitted field unchanged');
+  const cleared = await svc.setCosmetics(user.id, { selectedMascotTint: null });
+  assert.equal(cleared.selectedMascotTint, null);
+});
+
+test('setCosmetics rejects values outside the allow-lists (server-authoritative)', async () => {
+  const svc = service();
+  const { user } = await svc.registerWithEmail('bad@b.com', 'password123', 'badactor');
+  for (const bad of [
+    { selectedMascotTint: 'neon' },
+    { selectedPieceTheme: 'regiment' }, // not a valid piece theme
+    { selectedBoardTheme: 'rainbow' },
+    { selectedMascotTint: 42 },
+    { selectedBoardTheme: { evil: true } },
+  ]) {
+    await assert.rejects(
+      () => svc.setCosmetics(user.id, bad),
+      (e: unknown) => e instanceof AuthError && e.code === 'invalid-cosmetic',
+    );
+  }
+  // A rejected write persists nothing.
+  const fresh = await svc.login('bad@b.com', 'password123');
+  assert.equal(fresh.user.selectedMascotTint, null);
+});
+
+test('setCosmetics rejects an unknown user', async () => {
+  const svc = service();
+  await assert.rejects(
+    () => svc.setCosmetics('nobody', { selectedMascotTint: 'coral' }),
+    (e: unknown) => e instanceof AuthError && e.code === 'not-found',
+  );
+});
+
 test('refresh exchanges a refresh token for new tokens; access token cannot refresh', async () => {
   const svc = service();
   const { tokens } = await svc.registerWithEmail('r@b.com', 'password123', 'refresher');

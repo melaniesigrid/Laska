@@ -17,6 +17,7 @@ import {
   Check,
   Library,
   Lightbulb,
+  CircleUserRound,
 } from 'lucide-react';
 import {
   createInitialState,
@@ -73,7 +74,13 @@ import {
   type PieceTheme,
 } from './pieceTheme.tsx';
 import { track, trackAppOpen, type MatchMode } from './analytics/index.ts';
-import { DotMascot } from './mascots.tsx';
+import { DotMascot, type MascotTint } from './mascots.tsx';
+import { ProfilePage, type BoardThemeOption } from './ProfilePage.tsx';
+import {
+  getSelectedMascotTint,
+  setSelectedMascotTint,
+  reconcileCosmetics,
+} from './cosmetics.ts';
 
 type Mode = 'hotseat' | 'ai';
 
@@ -115,6 +122,9 @@ const THEME_LABEL: Record<ThemeName, string> = {
   twilight: 'Twilight',
   confetti: 'Confetti',
 };
+
+/** Board palettes offered in the profile picker (id + label), from THEME_LABEL. */
+const BOARD_THEME_OPTIONS: BoardThemeOption[] = THEMES.map((id) => ({ id, label: THEME_LABEL[id] }));
 
 function readStoredTheme(): ThemeName {
   try {
@@ -200,6 +210,7 @@ export function App() {
     | 'mygames'
     | 'watch'
     | 'featured'
+    | 'profile'
   >('landing');
   const [replayGameId, setReplayGameId] = useState<string | undefined>(undefined);
   const [watchId, setWatchId] = useState<string | undefined>(undefined);
@@ -211,7 +222,18 @@ export function App() {
   const [appMode, setAppMode] = useState<'local' | 'online'>('local');
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
+  const [mascotTint, setMascotTint] = useState<MascotTint>(getSelectedMascotTint);
   const online = useOnline();
+
+  // Reconcile cosmetics whenever the signed-in user resolves (login / restore):
+  // server value wins, else the locally-stored pick, else the default. Writes the
+  // mascot tint back to storage so the rest of the app reads a consistent value.
+  useEffect(() => {
+    const { mascotTint: mt, pieceTheme: pt, boardTheme: bt } = reconcileCosmetics(online.user);
+    setMascotTint(mt);
+    if (pt) setPieceTheme(pt);
+    if (bt && THEMES.includes(bt as ThemeName)) setTheme(bt as ThemeName);
+  }, [online.user]);
 
   // Funnel: fire the app-open event(s) exactly once per page load (acquisition /
   // D1-D7 retention signal). Empty deps + StrictMode double-invokes in dev only;
@@ -242,6 +264,24 @@ export function App() {
   const cycleTheme = () => setTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]!);
   const cyclePieceTheme = () =>
     setPieceTheme(PIECE_THEMES[(PIECE_THEMES.indexOf(pieceTheme) + 1) % PIECE_THEMES.length]!);
+
+  // Cosmetic setters from the profile: apply locally first (the theme/piece
+  // effects already persist to localStorage), then persist to the server when
+  // signed in. The mascot tint has no existing effect, so write it here.
+  const chooseMascot = (tint: MascotTint) => {
+    setMascotTint(tint);
+    setSelectedMascotTint(tint);
+    void online.saveCosmetics({ selectedMascotTint: tint });
+  };
+  const choosePieceTheme = (t: PieceTheme) => {
+    setPieceTheme(t);
+    void online.saveCosmetics({ selectedPieceTheme: t });
+  };
+  const chooseBoardTheme = (t: string) => {
+    if (!THEMES.includes(t as ThemeName)) return;
+    setTheme(t as ThemeName);
+    void online.saveCosmetics({ selectedBoardTheme: t });
+  };
 
   const goReplay = (id?: string) => {
     setReplayGameId(id);
@@ -373,6 +413,32 @@ export function App() {
       <MyGamesPage onBack={() => setView('landing')} onWatch={goWatch} onPlay={() => setView('game')} />
     );
   }
+  if (view === 'profile') {
+    const u = online.user;
+    return (
+      <ProfilePage
+        player={{
+          username: u?.username ?? 'You',
+          rating: u?.rating ?? 0,
+          ratedGames: u?.ratedGames ?? 0,
+          isGuest: u?.isGuest ?? false,
+          signedIn: u != null,
+        }}
+        onBack={() => setView('landing')}
+        onSignIn={() => {
+          setAppMode('online');
+          setView('game');
+        }}
+        mascotTint={mascotTint}
+        onMascotTint={chooseMascot}
+        pieceTheme={pieceTheme}
+        onPieceTheme={choosePieceTheme}
+        boardTheme={theme}
+        boardThemeOptions={BOARD_THEME_OPTIONS}
+        onBoardTheme={chooseBoardTheme}
+      />
+    );
+  }
   if (view === 'watch' && watchId) {
     return (
       <SavedGameReplay
@@ -425,6 +491,9 @@ export function App() {
           </button>
           <button className="btn" onClick={() => setView('mygames')} aria-label="Your saved games">
             <Library size={16} /> My games
+          </button>
+          <button className="btn" onClick={() => setView('profile')} aria-label="Your profile">
+            <CircleUserRound size={16} /> Profile
           </button>
         </div>
       </header>

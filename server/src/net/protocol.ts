@@ -56,6 +56,11 @@ export interface RatingChangeDTO {
 }
 
 export type ServerMessage =
+  // `auth.ok` is deliberately a thin live-session ack. Account state — including
+  // cosmetic preferences (selectedMascotTint / selectedPieceTheme /
+  // selectedBoardTheme) — travels over REST in the `PublicUser` payload
+  // (register / login / guest / link / GET /me), and is written via
+  // `PATCH /me/cosmetics`. See auth/service.ts (PublicUser, setCosmetics).
   | { type: 'auth.ok'; userId: string; username: string; rating: number }
   | { type: 'queue.joined' }
   | { type: 'queue.left' }

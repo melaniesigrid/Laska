@@ -10,6 +10,7 @@
  */
 import { DatabaseSync } from 'node:sqlite';
 import type {
+  CosmeticsPatch,
   LeaderboardEntry,
   MatchRecord,
   Repository,
@@ -19,16 +20,19 @@ import type {
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
-  id              TEXT PRIMARY KEY,
-  username        TEXT NOT NULL,
-  username_lower  TEXT NOT NULL UNIQUE,
-  email           TEXT UNIQUE,
-  password_hash   TEXT,
-  is_guest        INTEGER NOT NULL,
-  email_verified  INTEGER NOT NULL,
-  rating          INTEGER NOT NULL,
-  rated_games     INTEGER NOT NULL,
-  created_at      INTEGER NOT NULL
+  id                   TEXT PRIMARY KEY,
+  username             TEXT NOT NULL,
+  username_lower       TEXT NOT NULL UNIQUE,
+  email                TEXT UNIQUE,
+  password_hash        TEXT,
+  is_guest             INTEGER NOT NULL,
+  email_verified       INTEGER NOT NULL,
+  rating               INTEGER NOT NULL,
+  rated_games          INTEGER NOT NULL,
+  created_at           INTEGER NOT NULL,
+  selected_mascot_tint TEXT,
+  selected_piece_theme TEXT,
+  selected_board_theme TEXT
 );
 
 CREATE TABLE IF NOT EXISTS matches (
@@ -52,6 +56,18 @@ CREATE INDEX IF NOT EXISTS idx_matches_black ON matches(black_id, ended_at DESC)
 CREATE INDEX IF NOT EXISTS idx_users_rating ON users(rating DESC);
 `;
 
+/**
+ * Forward migrations for databases created by an earlier schema. Each entry
+ * adds a column only if the table doesn't already have it, so reopening a
+ * deployed DB upgrades it in place without data loss. (SQLite has no
+ * `ADD COLUMN IF NOT EXISTS`, hence the table_info probe.)
+ */
+const USER_COLUMN_MIGRATIONS: { column: string; ddl: string }[] = [
+  { column: 'selected_mascot_tint', ddl: 'ALTER TABLE users ADD COLUMN selected_mascot_tint TEXT' },
+  { column: 'selected_piece_theme', ddl: 'ALTER TABLE users ADD COLUMN selected_piece_theme TEXT' },
+  { column: 'selected_board_theme', ddl: 'ALTER TABLE users ADD COLUMN selected_board_theme TEXT' },
+];
+
 interface UserRow {
   id: string;
   username: string;
@@ -63,6 +79,9 @@ interface UserRow {
   rating: number;
   rated_games: number;
   created_at: number;
+  selected_mascot_tint: string | null;
+  selected_piece_theme: string | null;
+  selected_board_theme: string | null;
 }
 
 interface MatchRow {
@@ -92,6 +111,9 @@ function rowToUser(r: UserRow): User {
     rating: r.rating,
     ratedGames: r.rated_games,
     createdAt: r.created_at,
+    selectedMascotTint: r.selected_mascot_tint,
+    selectedPieceTheme: r.selected_piece_theme,
+    selectedBoardTheme: r.selected_board_theme,
   };
 }
 
@@ -132,6 +154,9 @@ const USER_COLUMNS: Record<keyof User, string> = {
   rating: 'rating',
   ratedGames: 'rated_games',
   createdAt: 'created_at',
+  selectedMascotTint: 'selected_mascot_tint',
+  selectedPieceTheme: 'selected_piece_theme',
+  selectedBoardTheme: 'selected_board_theme',
 };
 
 function toDbValue(key: keyof User, value: unknown): string | number | null {
@@ -148,6 +173,17 @@ export class SqliteRepository implements Repository {
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec('PRAGMA foreign_keys = ON;');
     this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  /** Bring an older on-disk schema up to date (add columns if missing). */
+  private migrate(): void {
+    const cols = new Set(
+      (this.db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name),
+    );
+    for (const { column, ddl } of USER_COLUMN_MIGRATIONS) {
+      if (!cols.has(column)) this.db.exec(ddl);
+    }
   }
 
   async close(): Promise<void> {
@@ -159,8 +195,9 @@ export class SqliteRepository implements Repository {
       this.db
         .prepare(
           `INSERT INTO users
-            (id, username, username_lower, email, password_hash, is_guest, email_verified, rating, rated_games, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (id, username, username_lower, email, password_hash, is_guest, email_verified, rating, rated_games, created_at,
+             selected_mascot_tint, selected_piece_theme, selected_board_theme)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           user.id,
@@ -173,6 +210,9 @@ export class SqliteRepository implements Repository {
           user.rating,
           user.ratedGames,
           user.createdAt,
+          user.selectedMascotTint,
+          user.selectedPieceTheme,
+          user.selectedBoardTheme,
         );
     } catch (e) {
       mapConstraint(e);
@@ -222,6 +262,32 @@ export class SqliteRepository implements Repository {
       if ((e as Error).message === 'No such user') throw e;
       mapConstraint(e);
     }
+  }
+
+  async updateUserCosmetics(id: string, cosmetics: CosmeticsPatch): Promise<void> {
+    const sets: string[] = [];
+    const values: (string | null)[] = [];
+    if (cosmetics.selectedMascotTint !== undefined) {
+      sets.push('selected_mascot_tint = ?');
+      values.push(cosmetics.selectedMascotTint);
+    }
+    if (cosmetics.selectedPieceTheme !== undefined) {
+      sets.push('selected_piece_theme = ?');
+      values.push(cosmetics.selectedPieceTheme);
+    }
+    if (cosmetics.selectedBoardTheme !== undefined) {
+      sets.push('selected_board_theme = ?');
+      values.push(cosmetics.selectedBoardTheme);
+    }
+    if (sets.length === 0) {
+      // Nothing to change, but still verify the user exists for parity.
+      const exists = this.db.prepare('SELECT 1 FROM users WHERE id = ?').get(id);
+      if (!exists) throw new Error('No such user');
+      return;
+    }
+    values.push(id);
+    const res = this.db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+    if (res.changes === 0) throw new Error('No such user');
   }
 
   async saveMatch(record: MatchRecord): Promise<void> {

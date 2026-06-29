@@ -9,7 +9,7 @@ import {
   type PlayerColor,
 } from '../../src/index.ts';
 import type { ServerMessage, MoveDTO, ClockDTO } from '../../server/src/net/protocol.ts';
-import { LaskaClient, type ConnStatus, type PublicUser, ApiError } from './net/client.ts';
+import { LaskaClient, type ConnStatus, type PublicUser, type CosmeticsPatch, ApiError } from './net/client.ts';
 import { track } from './analytics/index.ts';
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://localhost:8080';
@@ -235,6 +235,21 @@ export function useOnline() {
       }),
     [client, withError],
   );
+  /** Persist cosmetic choices to the server (only when logged in) and adopt the
+   *  refreshed user. Best-effort: the caller has already applied the choice
+   *  locally/optimistically, so a network failure just leaves the local pick. */
+  const saveCosmetics = useCallback(
+    async (patch: CosmeticsPatch) => {
+      if (!client.tokens) return;
+      try {
+        setUser(await client.setCosmetics(patch));
+      } catch {
+        /* keep the optimistic local choice; will retry on the next change */
+      }
+    },
+    [client],
+  );
+
   const logout = useCallback(() => {
     client.logout();
     setUser(null);
@@ -315,6 +330,7 @@ export function useOnline() {
     login,
     guest,
     logout,
+    saveCosmetics,
     joinQueue,
     leaveQueue,
     submitMove,

@@ -20,6 +20,18 @@ export interface PublicUser {
   emailVerified: boolean;
   rating: number;
   ratedGames: number;
+  /** Chosen cosmetics (server allow-listed). Null until the player picks one. */
+  selectedMascotTint: string | null;
+  selectedPieceTheme: string | null;
+  selectedBoardTheme: string | null;
+}
+
+/** The cosmetics a player can change from their profile; all optional so a single
+ *  field can be patched without re-sending the others. */
+export interface CosmeticsPatch {
+  selectedMascotTint?: string;
+  selectedPieceTheme?: string;
+  selectedBoardTheme?: string;
 }
 
 export type ConnStatus = 'disconnected' | 'connecting' | 'connected';
@@ -164,6 +176,18 @@ export class LaskaClient {
 
   async leaderboard(limit = 50): Promise<{ leaderboard: { userId: string; username: string; rating: number; ratedGames: number }[] }> {
     return this.req(`/leaderboard?limit=${limit}`);
+  }
+
+  /** Persist the player's cosmetic choices and adopt the returned user. Mirrors
+   *  the auth `adopt` pattern, but only the user changes (tokens are untouched). */
+  async setCosmetics(patch: CosmeticsPatch): Promise<PublicUser> {
+    const { user } = await this.req<{ user: PublicUser }>('/me/cosmetics', {
+      method: 'PATCH',
+      body: patch,
+      auth: true,
+    });
+    this.user = user;
+    return user;
   }
 
   logout(): void {

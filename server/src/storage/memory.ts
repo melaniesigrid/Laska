@@ -5,6 +5,7 @@
  * the async interface.
  */
 import type {
+  CosmeticsPatch,
   LeaderboardEntry,
   MatchRecord,
   Repository,
@@ -73,6 +74,16 @@ export class InMemoryRepository implements Repository {
       this.usernameIndex.set(newKey, id);
     }
     this.users.set(id, { ...existing, ...patch });
+  }
+
+  async updateUserCosmetics(id: string, cosmetics: CosmeticsPatch): Promise<void> {
+    const existing = this.users.get(id);
+    if (!existing) throw new Error('No such user');
+    const next = { ...existing };
+    if (cosmetics.selectedMascotTint !== undefined) next.selectedMascotTint = cosmetics.selectedMascotTint;
+    if (cosmetics.selectedPieceTheme !== undefined) next.selectedPieceTheme = cosmetics.selectedPieceTheme;
+    if (cosmetics.selectedBoardTheme !== undefined) next.selectedBoardTheme = cosmetics.selectedBoardTheme;
+    this.users.set(id, next);
   }
 
   async saveMatch(record: MatchRecord): Promise<void> {

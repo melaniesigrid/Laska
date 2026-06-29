@@ -10,6 +10,7 @@
  *   POST /auth/refresh    {refreshToken}
  *   POST /auth/link       (Bearer guest access) {email, password, username}
  *   GET  /me              (Bearer access)
+ *   PATCH /me/cosmetics   (Bearer access) {selectedMascotTint?, selectedPieceTheme?, selectedBoardTheme?}
  *   GET  /leaderboard?limit=
  *   GET  /matches/mine?limit=   (Bearer access)
  */
@@ -44,7 +45,7 @@ function json(res: ServerResponse, status: number, body: unknown): void {
     'content-length': Buffer.byteLength(payload),
     'access-control-allow-origin': '*',
     'access-control-allow-headers': 'authorization, content-type',
-    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS',
   });
   res.end(payload);
 }
@@ -158,6 +159,18 @@ export function createHttpHandler(deps: Deps) {
         if (!token) return json(res, 401, { error: 'missing-token' });
         const { user } = await auth.authenticate(token);
         return json(res, 200, { user: toPublicUser(user) });
+      }
+      if (method === 'PATCH' && path === '/me/cosmetics') {
+        const token = bearer(req);
+        if (!token) return json(res, 401, { error: 'missing-token' });
+        const { user } = await auth.authenticate(token);
+        const b = (await readJson(req)) as {
+          selectedMascotTint?: unknown;
+          selectedPieceTheme?: unknown;
+          selectedBoardTheme?: unknown;
+        };
+        const updated = await auth.setCosmetics(user.id, b);
+        return json(res, 200, { user: updated });
       }
       if (method === 'GET' && path === '/matches/mine') {
         const token = bearer(req);

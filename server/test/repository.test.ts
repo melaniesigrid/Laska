@@ -18,6 +18,9 @@ function makeUser(over: Partial<User> = {}): User {
     rating: over.rating ?? 1200,
     ratedGames: over.ratedGames ?? 0,
     createdAt: over.createdAt ?? 1000,
+    selectedMascotTint: over.selectedMascotTint !== undefined ? over.selectedMascotTint : null,
+    selectedPieceTheme: over.selectedPieceTheme !== undefined ? over.selectedPieceTheme : null,
+    selectedBoardTheme: over.selectedBoardTheme !== undefined ? over.selectedBoardTheme : null,
   };
 }
 
@@ -107,6 +110,45 @@ for (const backend of backends) {
     assert.equal(u?.isGuest, false);
     assert.equal(u?.email, 'real@x.com');
     assert.equal((await repo.getUserByEmail('real@x.com'))?.id, 'g1');
+  });
+
+  test(`[${backend.name}] new users default to null cosmetics`, async () => {
+    const repo = backend.make();
+    await repo.createUser(makeUser());
+    const u = await repo.getUserById('u1');
+    assert.equal(u?.selectedMascotTint, null);
+    assert.equal(u?.selectedPieceTheme, null);
+    assert.equal(u?.selectedBoardTheme, null);
+  });
+
+  test(`[${backend.name}] updateUserCosmetics sets, partially patches, and clears`, async () => {
+    const repo = backend.make();
+    await repo.createUser(makeUser());
+    await repo.updateUserCosmetics('u1', {
+      selectedMascotTint: 'mint',
+      selectedPieceTheme: 'lineage',
+      selectedBoardTheme: 'twilight',
+    });
+    let u = await repo.getUserById('u1');
+    assert.equal(u?.selectedMascotTint, 'mint');
+    assert.equal(u?.selectedPieceTheme, 'lineage');
+    assert.equal(u?.selectedBoardTheme, 'twilight');
+
+    // Partial patch only touches provided fields.
+    await repo.updateUserCosmetics('u1', { selectedMascotTint: 'sky' });
+    u = await repo.getUserById('u1');
+    assert.equal(u?.selectedMascotTint, 'sky');
+    assert.equal(u?.selectedPieceTheme, 'lineage', 'omitted field unchanged');
+
+    // Explicit null clears back to default.
+    await repo.updateUserCosmetics('u1', { selectedBoardTheme: null });
+    u = await repo.getUserById('u1');
+    assert.equal(u?.selectedBoardTheme, null);
+  });
+
+  test(`[${backend.name}] updateUserCosmetics rejects an unknown user`, async () => {
+    const repo = backend.make();
+    await assert.rejects(() => repo.updateUserCosmetics('ghost', { selectedMascotTint: 'coral' }), /No such user/);
   });
 
   test(`[${backend.name}] save and fetch matches; history is newest-first and limited`, async () => {
