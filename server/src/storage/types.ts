@@ -16,6 +16,14 @@ export interface User {
   /** scrypt hash, or null for guests / social-only accounts. */
   passwordHash: string | null;
   isGuest: boolean;
+  /**
+   * True for the server's built-in computer opponents (one per difficulty tier).
+   * Bots are NOT real competitors: they are excluded from the leaderboard and
+   * from "real player" stat counts, never enter the human matchmaking queue, and
+   * their rating/RD/volatility are PINNED (never updated by finalize) so each
+   * tier stays a fixed rating yardstick. Defaults to false for everyone else.
+   */
+  isBot: boolean;
   emailVerified: boolean;
   /** Glicko-2 rating (Elo-scale display value). See rating/glicko2.ts. */
   rating: number;
@@ -74,13 +82,16 @@ export interface PlatformStats {
   /** Epoch ms the snapshot was computed (the `now` passed to platformStats). */
   generatedAt: number;
   users: {
+    /** Real accounts only (guests + registered). Excludes built-in bot accounts. */
     total: number;
-    /** Non-guest accounts (real signups). */
+    /** Non-guest, non-bot accounts (real signups). */
     registered: number;
     /** Anonymous guest accounts. */
     guests: number;
     /** Accounts with a verified email. */
     verified: number;
+    /** Built-in computer-opponent accounts (one per difficulty tier). Not competitors. */
+    bots: number;
   };
   /** Distinct users active within each rolling window (see activity-signal note below). */
   active: { d1: number; d7: number; d30: number };

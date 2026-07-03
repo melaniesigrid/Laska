@@ -57,6 +57,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const nodeId = config.nodeId;
     const cluster = await createCluster(config.cluster, nodeId);
     const { http, gameServer, wss } = buildServer(config, repo, cluster);
+    // Seed the built-in computer opponents (one ranked bot per difficulty tier)
+    // before accepting connections, so a `match.startBot` always has an opponent.
+    await gameServer.seedBots();
     gameServer.start();
     http.listen(config.port, () => {
       console.log(`Laska server listening on http://localhost:${config.port}`);

@@ -14,6 +14,7 @@ function makeUser(over: Partial<User> = {}): User {
     email: over.email !== undefined ? over.email : 'alice@x.com',
     passwordHash: over.passwordHash ?? 'scrypt$x',
     isGuest: over.isGuest ?? false,
+    isBot: over.isBot ?? false,
     emailVerified: over.emailVerified ?? false,
     rating: over.rating ?? 1200,
     ratingDeviation: over.ratingDeviation ?? 350,
@@ -203,7 +204,7 @@ for (const backend of backends) {
     const s = await repo.platformStats(now);
 
     assert.equal(s.generatedAt, now);
-    assert.deepEqual(s.users, { total: 4, registered: 2, guests: 2, verified: 1 });
+    assert.deepEqual(s.users, { total: 4, registered: 2, guests: 2, verified: 1, bots: 0 });
     // Active = DISTINCT match participants (both colors) by endedAt window.
     // d1: {uv,uu}=2; d7: +{g1}=3; d30: +{g2}=4.
     assert.deepEqual(s.active, { d1: 2, d7: 3, d30: 4 });
@@ -225,6 +226,38 @@ for (const backend of backends) {
     // g2 (created 40d ago) is outside the window -> not counted anywhere here.
     const totalInChart = s.signupsByDay.reduce((n, e) => n + e.count, 0);
     assert.equal(totalInChart, 3);
+  });
+
+  // Bot accounts are not competitors: a bot with rated games must NOT appear on
+  // the leaderboard, and must be counted as a bot (not a real player) in stats.
+  test(`[${backend.name}] bots are excluded from leaderboard and real-player stats`, async () => {
+    const repo = await backend.make();
+    await repo.createUser(
+      makeUser({ id: 'human', username: 'Human', email: 'h@x.com', rating: 1300, ratedGames: 5 }),
+    );
+    await repo.createUser(
+      makeUser({
+        id: 'bot:expert',
+        username: 'Computer (Expert)',
+        email: null,
+        isBot: true,
+        rating: 1800,
+        ratedGames: 5,
+      }),
+    );
+
+    const board = await repo.topByRating(50);
+    assert.deepEqual(
+      board.map((e) => e.userId),
+      ['human'],
+      'leaderboard contains the human only, never the higher-rated bot',
+    );
+
+    const s = await repo.platformStats(Date.now());
+    assert.equal(s.users.bots, 1, 'the bot is counted as a bot');
+    assert.equal(s.users.total, 1, 'real-player total excludes the bot');
+    assert.equal(s.users.registered, 1, 'the bot is not counted as a registered player');
+    await repo.close?.();
   });
 
   // Some backends (SQLite) hold a file/handle; close if supported.

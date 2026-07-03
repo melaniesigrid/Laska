@@ -123,9 +123,11 @@ export class MatchManager {
       });
 
       // (a) Inflate each player's RD for time idle since their last ranked game,
-      // so a long-absent player's rating can move appropriately on return.
+      // so a long-absent player's rating can move appropriately on return. A bot
+      // is a fixed yardstick: its RD is NEVER inflated — it always faces the
+      // opponent at its pinned, confident rating.
       const whiteRd =
-        white.lastRatedAt !== null
+        !white.isBot && white.lastRatedAt !== null
           ? inflateDeviation(
               { rating: white.rating, ratingDeviation: white.ratingDeviation, volatility: white.volatility },
               endedAt - white.lastRatedAt,
@@ -133,7 +135,7 @@ export class MatchManager {
             )
           : white.ratingDeviation;
       const blackRd =
-        black.lastRatedAt !== null
+        !black.isBot && black.lastRatedAt !== null
           ? inflateDeviation(
               { rating: black.rating, ratingDeviation: black.ratingDeviation, volatility: black.volatility },
               endedAt - black.lastRatedAt,
@@ -141,7 +143,8 @@ export class MatchManager {
             )
           : black.ratingDeviation;
 
-      // (b) Single-game Glicko-2 update for both players (same input states).
+      // (b) Single-game Glicko-2 update for both players (same input states). The
+      // bot's pinned rating + low RD are the opponent input that moves the human.
       const next = bothPlayers(
         { rating: white.rating, ratingDeviation: whiteRd, volatility: white.volatility },
         { rating: black.rating, ratingDeviation: blackRd, volatility: black.volatility },
@@ -151,36 +154,51 @@ export class MatchManager {
 
       whiteBefore = white.rating;
       blackBefore = black.rating;
-      whiteAfter = next.white.rating;
-      blackAfter = next.black.rating;
+      // A bot's rating is PINNED: report (and persist) no change for it, even
+      // though bothPlayers computed a hypothetical new value. The human's update
+      // is unaffected — it already used the bot's fixed rating/RD as input above.
+      whiteAfter = white.isBot ? whiteBefore : next.white.rating;
+      blackAfter = black.isBot ? blackBefore : next.black.rating;
 
-      // (c) Persist new rating/RD/volatility, bump ratedGames, stamp lastRatedAt.
-      await this.repo.updateUser(white.id, {
-        rating: next.white.rating,
-        ratingDeviation: next.white.ratingDeviation,
-        volatility: next.white.volatility,
-        ratedGames: white.ratedGames + 1,
-        lastRatedAt: endedAt,
-      });
-      await this.repo.updateUser(black.id, {
-        rating: next.black.rating,
-        ratingDeviation: next.black.ratingDeviation,
-        volatility: next.black.volatility,
-        ratedGames: black.ratedGames + 1,
-        lastRatedAt: endedAt,
-      });
+      // (c) Persist new rating/RD/volatility, bump ratedGames, stamp lastRatedAt —
+      // but ONLY for real players. A bot's row is left exactly as seeded so each
+      // tier stays a fixed rating yardstick (rating, RD, volatility, ratedGames,
+      // lastRatedAt all untouched), and it never drifts game over game.
+      if (!white.isBot) {
+        await this.repo.updateUser(white.id, {
+          rating: next.white.rating,
+          ratingDeviation: next.white.ratingDeviation,
+          volatility: next.white.volatility,
+          ratedGames: white.ratedGames + 1,
+          lastRatedAt: endedAt,
+        });
+      }
+      if (!black.isBot) {
+        await this.repo.updateUser(black.id, {
+          rating: next.black.rating,
+          ratingDeviation: next.black.ratingDeviation,
+          volatility: next.black.volatility,
+          ratedGames: black.ratedGames + 1,
+          lastRatedAt: endedAt,
+        });
+      }
 
-      // Rank AFTER, from the new state (ratedGames already incremented).
-      const whiteRankAfter = rankFor({
-        rating: next.white.rating,
-        ratingDeviation: next.white.ratingDeviation,
-        ratedGames: white.ratedGames + 1,
-      });
-      const blackRankAfter = rankFor({
-        rating: next.black.rating,
-        ratingDeviation: next.black.ratingDeviation,
-        ratedGames: black.ratedGames + 1,
-      });
+      // Rank AFTER. For a real player, from the new state (ratedGames already
+      // incremented). For a bot, identical to BEFORE — its standing never moves.
+      const whiteRankAfter = white.isBot
+        ? whiteRankBefore
+        : rankFor({
+            rating: next.white.rating,
+            ratingDeviation: next.white.ratingDeviation,
+            ratedGames: white.ratedGames + 1,
+          });
+      const blackRankAfter = black.isBot
+        ? blackRankBefore
+        : rankFor({
+            rating: next.black.rating,
+            ratingDeviation: next.black.ratingDeviation,
+            ratedGames: black.ratedGames + 1,
+          });
 
       ratingChange = {
         white: {

@@ -22,6 +22,7 @@ function withRatingDefaults(user: User): User {
     ratingDeviation: user.ratingDeviation ?? DEFAULT_RD,
     volatility: user.volatility ?? DEFAULT_VOLATILITY,
     lastRatedAt: user.lastRatedAt ?? null,
+    isBot: user.isBot ?? false,
   };
 }
 
@@ -117,7 +118,7 @@ export class InMemoryRepository implements Repository {
 
   async topByRating(limit: number): Promise<LeaderboardEntry[]> {
     return [...this.users.values()]
-      .filter((u) => !u.isGuest && u.ratedGames > 0)
+      .filter((u) => !u.isGuest && !u.isBot && u.ratedGames > 0)
       .sort((a, b) => b.rating - a.rating)
       .slice(0, limit)
       .map((u) => ({
@@ -141,6 +142,7 @@ export class InMemoryRepository implements Repository {
     let registered = 0;
     let guests = 0;
     let verified = 0;
+    let bots = 0;
     let new24h = 0;
     let new7d = 0;
     let new30d = 0;
@@ -149,6 +151,12 @@ export class InMemoryRepository implements Repository {
     const dayCounts = new Map<string, number>();
 
     for (const u of this.users.values()) {
+      // Built-in bot accounts are not real competitors: count them separately
+      // and exclude them from every "real player" metric below.
+      if (u.isBot) {
+        bots++;
+        continue;
+      }
       total++;
       if (u.isGuest) guests++;
       else registered++;
@@ -195,7 +203,7 @@ export class InMemoryRepository implements Repository {
 
     return {
       generatedAt: now,
-      users: { total, registered, guests, verified },
+      users: { total, registered, guests, verified, bots },
       active: { d1: active1.size, d7: active7.size, d30: active30.size },
       newUsers: { last24h: new24h, last7d: new7d, last30d: new30d },
       signupsByDay: fillSignupDays(days, dayCounts),

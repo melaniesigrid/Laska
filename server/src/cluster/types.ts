@@ -43,6 +43,12 @@ export type MatchAction =
   // ---- social ----
   | { type: 'chat'; matchId: string; userId: string; text: string }
   | { type: 'emote'; matchId: string; userId: string; emote: EmoteId }
+  /** Ephemeral typing relay: the owning node forwards a `typing` message to the
+   *  opponent only. Never persisted, never echoed to the sender. */
+  | { type: 'typing'; matchId: string; userId: string; typing: boolean }
+  /** A player's live-connection state in a match changed. Routed to the owning
+   *  node so it can derive the opponent (via the Match) and notify only them. */
+  | { type: 'presence'; matchId: string; userId: string; online: boolean }
   | { type: 'rematchOffer'; matchId: string; userId: string }
   | { type: 'rematchDecline'; matchId: string; userId: string };
 

@@ -123,11 +123,37 @@ export function BashniRulesPage({
           <h1 style={{ fontSize: 'clamp(2.4rem,6vw,4.4rem)', margin: '0.6rem 0 0' }}>
             Rules of <em className="serif">Bashni.</em>
           </h1>
+          <p
+            lang="ru"
+            className="serif"
+            style={{
+              fontSize: 'clamp(1.6rem,4vw,2.6rem)',
+              margin: '0.5rem 0 0',
+              color: 'var(--l-accent)',
+              letterSpacing: '0.02em',
+            }}
+          >
+            Башни{' '}
+            <span
+              style={{
+                fontSize: '0.5em',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                opacity: 0.65,
+                fontFamily: 'inherit',
+                fontStyle: 'normal',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              · báshni · “towers”
+            </span>
+          </p>
           <p className="lede" style={{ maxWidth: '48ch' }}>
-            <em className="serif">Bashni</em> — Russian for <em className="serif">“towers”</em> — is the
-            stacking draughts game Emanuel Lasker reshaped into Lasca. Same idea: you never remove a man,
-            you bury him. But it is played on the full 8×8 draughts board, captures run in every
-            direction, and a crowned man becomes a long-range flying king.
+            <em className="serif">Bashni</em> (<span lang="ru" className="serif">Башни</span>) — Russian
+            for <em className="serif">“towers”</em> — is the stacking draughts game Emanuel Lasker
+            reshaped into Lasca. Same idea: you never remove a man, you bury him. But it is played on the
+            full 8×8 draughts board, captures run in every direction, and a crowned man becomes a
+            long-range flying king.
           </p>
           <p className="since" style={{ marginTop: '1rem' }}>
             The ancestor of Lasca — the game Lasker started from.
@@ -153,6 +179,96 @@ export function BashniRulesPage({
               known today. Bashni is the root; the rules here are its faithful form, so you can feel
               exactly what Lasker started from.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* documented history */}
+      <section style={{ paddingBlock: 'clamp(2rem,5vw,3.5rem)' }}>
+        <div className="wrap" style={{ maxWidth: '820px' }}>
+          <div className="reveal">
+            <p className="eyebrow">The Russian record</p>
+            <h2 className="lead-h2" style={{ maxWidth: '22ch' }}>
+              A game with a paper trail.
+            </h2>
+            <p className="section-intro" style={{ maxWidth: 'none' }}>
+              The towers game has been written about in Russia since the 1870s. Its first known
+              description is <em className="serif">“Башни или туры”</em> — “Towers, or tours” — an article
+              in Valerian Viskovatov’s <em className="serif">Collection of Games for Family and School</em>
+              {' '}(St Petersburg, 1875), which already treats it as an established pastime. Its great
+              champion was the games historian <b>Davyd Sargin</b>, who wrote on it from 1885 — in the
+              journal <em className="serif">Радуга</em> (“Rainbow”) — through his 1915 study{' '}
+              <em className="serif">The Antiquity of Games of Draughts and Chess</em>. Sargin called it{' '}
+              <em className="serif">“the most fortunate modification of the game of draughts,”</em> and
+              warned that its positions can be extraordinarily hard to calculate exactly — the buried
+              prisoners make every column a small puzzle. It has even been described as the one board game
+              the Russian people themselves invented.
+            </p>
+            <p className="section-intro" style={{ maxWidth: 'none', marginTop: '1.2rem' }}>
+              Emanuel Lasker met the game on his chess tournament visits to Moscow and St Petersburg in the
+              late nineteenth century — by some accounts staying in Sargin’s own house — and in 1911
+              reshaped it into <em className="serif">Lasca</em>.
+            </p>
+          </div>
+          <div className="terms reveal" style={{ marginTop: 'clamp(1.6rem,3vw,2.2rem)' }}>
+            <Term term="1875">
+              Viskovatov prints <em className="serif">“Башни или туры”</em> — the first written description
+              of the towers game.
+            </Term>
+            <Term term="1885 – 1915">
+              Sargin documents and defends it, from the journal <em className="serif">Радуга</em> to his
+              1915 history of draughts and chess.
+            </Term>
+            <Term term="1911">
+              Lasker publishes <em className="serif">Lasca</em>, his 7×7 refinement of the Russian towers
+              game.
+            </Term>
+            <Term term="1995">
+              A St Petersburg column-draughts club is founded and runs annual championships, keeping the
+              живая (living) tradition going.
+            </Term>
+          </div>
+        </div>
+      </section>
+
+      {/* say it in Russian */}
+      <section style={{ paddingBlock: 'clamp(2rem,5vw,3.5rem)' }}>
+        <div className="wrap" style={{ maxWidth: '820px' }}>
+          <div className="reveal">
+            <p className="eyebrow">Say it in Russian</p>
+            <h2 className="lead-h2" style={{ maxWidth: '22ch' }}>
+              The towers vocabulary.
+            </h2>
+            <p className="section-intro" style={{ maxWidth: 'none' }}>
+              The terms come straight from the Russian literature — useful if you ever read the old
+              manuals, and a window into how the game thinks of itself.
+            </p>
+          </div>
+          <div className="terms reveal">
+            <Term term="Башни · bashni">
+              <b>“Towers.”</b> The everyday name of the game, and of the stacks themselves. The formal name
+              is <em className="serif">столбовые шашки</em> (<span lang="ru">stolbovýe sháshki</span>) —{' '}
+              <b>column draughts</b>.
+            </Term>
+            <Term term="Простая · prostáya">
+              A <b>plain man</b> — the un-promoted soldier. It moves a step forward but takes prisoners in
+              any direction.
+            </Term>
+            <Term term="Дамка · dámka">
+              The <b>king</b> (literally “the lady,” as in cards). A crowned column that flies the full
+              diagonal and strikes at range.
+            </Term>
+            <Term term="Бой · boy">
+              The <b>capture</b> — the “fight.” It is compulsory: if you can take, you must.
+            </Term>
+            <Term term="Плен · plen">
+              <b>Captivity.</b> The men buried beneath a column are <em className="serif">prisoners</em> —
+              freed, and switched to their captor’s side, only when the man above them is itself taken.
+            </Term>
+            <Term term="Турецкий удар · the Turkish strike">
+              A classic draughts rule of the family: in a multi-jump you may never leap the same enemy
+              twice. (In this app, prisoners are buried the instant they are jumped.)
+            </Term>
           </div>
         </div>
       </section>

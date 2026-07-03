@@ -5,7 +5,14 @@
  * cannot drift), auto-refreshes the access token, and transparently reconnects
  * the socket, re-authenticating and resyncing any in-progress match.
  */
-import type { ClientMessage, ServerMessage, RankDTO } from '../../../server/src/net/protocol.ts';
+import type {
+  ClientMessage,
+  ServerMessage,
+  RankDTO,
+  BotDifficulty,
+  BotColorPreference,
+} from '../../../server/src/net/protocol.ts';
+import type { VariantId } from '../../../src/index.ts';
 
 export interface AuthTokens {
   accessToken: string;
@@ -257,6 +264,19 @@ export class LaskaClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
     }
+  }
+
+  /**
+   * Start a RANKED match against the server's built-in computer opponent. The bot
+   * runs server-side; the result feeds the SAME Glicko-2 leaderboard as human play.
+   * On success the server replies with the normal `match.start` (opponent is the
+   * tier's "Computer (…)" account), so it flows through the existing match path.
+   * `color` is the HUMAN's side preference; `variant` absent means Laska.
+   */
+  startBotMatch(difficulty: BotDifficulty, color: BotColorPreference = 'random', variant?: VariantId): void {
+    const msg: ClientMessage = { type: 'match.startBot', difficulty, color };
+    if (variant && variant !== 'laska') msg.variant = variant;
+    this.send(msg);
   }
 
   disconnect(): void {

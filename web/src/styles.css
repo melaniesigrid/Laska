@@ -524,6 +524,24 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .connection-banner span { color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
 @keyframes reconnect-spin { to { transform: rotate(360deg); } }
 
+/* opponent-disconnected variant: same neumorphic weight as the self banner, but
+   a steady (non-spinning) danger-toned icon + a soft pulse to draw the eye. */
+.connection-banner.opponent-offline svg {
+  color: var(--danger); animation: opp-offline-pulse 1.8s ease-in-out infinite;
+}
+@keyframes opp-offline-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* presence dot on the opponent's clock name: green when live, danger when gone. */
+.presence-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--ink-soft); }
+.presence-dot.online { background: var(--win); }
+.presence-dot.offline { background: var(--danger); animation: opp-offline-pulse 1.8s ease-in-out infinite; }
+.clock.opponent-offline { opacity: 0.72; }
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-banner.opponent-offline svg,
+  .presence-dot.offline { animation: none; }
+}
+
 /* ---- in-match social: chat feed, emote bar, rematch ----------------------
    All sculpted from the shared --light/--dark shadows so the panel reads as
    one neumorphic surface with the clocks/status above it. */
@@ -537,6 +555,24 @@ input[type='radio'] { accent-color: var(--cobalt); }
   box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
 }
 .chat-empty { color: var(--ink-soft); font-size: 12px; font-style: italic; text-align: center; margin: auto 0; }
+
+/* unobtrusive "opponent is typing…" row at the foot of the feed */
+.chat-typing { display: flex; align-items: center; gap: 8px; align-self: flex-start; padding: 2px 2px; }
+.chat-typing-text { font-size: 11px; font-style: italic; color: var(--ink-soft); letter-spacing: 0.01em; }
+.chat-typing-dots { display: inline-flex; align-items: flex-end; gap: 3px; }
+.chat-typing-dots span {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--cobalt);
+  opacity: 0.55; animation: chat-typing-bounce 1.2s ease-in-out infinite;
+}
+.chat-typing-dots span:nth-child(2) { animation-delay: 0.18s; }
+.chat-typing-dots span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes chat-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-typing-dots span { animation: none; opacity: 0.7; }
+}
 
 .chat-line { display: flex; flex-direction: column; gap: 3px; max-width: 85%; }
 .chat-line.mine { align-self: flex-end; align-items: flex-end; }
@@ -638,6 +674,149 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .capture-cancel { align-self: flex-start; color: var(--ink-soft); font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
 .searching { font-size: 12px; color: var(--ink-soft); font-style: italic; }
 .foot { font-size: 11px; color: var(--ink-soft); letter-spacing: 0.06em; opacity: 0.7; text-align: center; }
+
+/* ---- online lobby: quick / play-a-friend / watch -------------------------
+   All surfaces sculpted from the shared --light/--dark shadows so the lobby
+   reads as one neumorphic panel. */
+.lobby-modes { display: flex; width: 100%; }
+.lobby-modes button { flex: 1 1 0; justify-content: center; padding: 9px 8px; }
+
+/* "Play a friend" — create form + open-invite card + join-by-code */
+.friend-panel { display: flex; flex-direction: column; gap: 14px; }
+.invite-field { display: flex; flex-direction: column; gap: 7px; }
+.invite-field-label { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); }
+.invite-field .segment { display: flex; width: 100%; }
+.invite-field .segment button { flex: 1 1 0; justify-content: center; padding: 8px 6px; }
+.color-choice button { flex: 1 1 0; justify-content: center; }
+.invite-ranked { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--btn-ink); cursor: pointer; }
+.invite-ranked input { accent-color: var(--cobalt); width: 16px; height: 16px; flex: 0 0 auto; }
+
+/* ranked vs-computer value-prop: a recessed note reminding the player this match
+   moves their rating (unlike the offline Local-tab computer game). */
+.bot-ranked-note {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 11px 13px; border-radius: 14px; background: var(--pedestal);
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+  font-size: 12px; line-height: 1.45; color: var(--ink-soft);
+}
+.bot-ranked-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--cobalt); }
+.bot-ranked-note b { color: var(--btn-ink); }
+
+/* the live-invite card: recessed plate holding the shareable link + waiting state */
+.invite-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 16px;
+  border-radius: 16px; background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+}
+.invite-eyebrow { display: flex; align-items: center; gap: 7px; font-family: var(--font-display); font-size: 13px; color: var(--ink); }
+.invite-eyebrow svg { color: var(--cobalt); }
+.invite-link-row { display: flex; align-items: center; gap: 9px; }
+.invite-link {
+  flex: 1 1 auto; min-width: 0; font-family: var(--font-body); font-size: 12px; color: var(--btn-ink);
+  background: var(--plate); border: 0; border-radius: 11px; padding: 9px 12px;
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+}
+.invite-link:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+.invite-copy {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-body); font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--cobalt); background: var(--pedestal); border: 0; border-radius: 11px; padding: 9px 13px; cursor: pointer;
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease;
+}
+.invite-copy:active { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); transform: translateY(1px); }
+.invite-code { font-size: 12px; color: var(--ink-soft); }
+.invite-code b { color: var(--btn-ink); font-variant-numeric: tabular-nums; letter-spacing: 0.08em; }
+.invite-meta { display: flex; flex-wrap: wrap; gap: 7px; }
+.invite-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-soft);
+  padding: 5px 9px; border-radius: 9px; background: var(--pedestal);
+  box-shadow: 3px 3px 6px var(--dark), -3px -3px 6px var(--light);
+}
+.invite-chip.ranked { color: var(--cobalt); }
+.invite-chip svg { flex: 0 0 auto; }
+.invite-waiting { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px 0; }
+
+/* "Watch live" — list of ongoing games */
+.watch-panel { display: flex; flex-direction: column; gap: 12px; }
+.watch-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.watch-count { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.watch-refresh {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-body); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--btn-ink); background: var(--pedestal); border: 0; border-radius: 11px; padding: 8px 13px; cursor: pointer;
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease, color 0.14s ease;
+}
+.watch-refresh:hover { color: var(--cobalt); }
+.watch-refresh:active { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); transform: translateY(1px); }
+.watch-refresh:disabled { opacity: 0.45; cursor: default; }
+.watch-empty { font-size: 12px; color: var(--ink-soft); font-style: italic; text-align: center; padding: 14px 0; }
+.spectate-list { display: flex; flex-direction: column; gap: 9px; }
+.spectate-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  text-align: left; border: 0; cursor: pointer;
+  padding: 11px 13px; border-radius: 14px; background: var(--pedestal); color: var(--btn-ink);
+  box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease;
+}
+.spectate-row:hover { transform: translateY(-1px); }
+.spectate-row:active { box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light); transform: translateY(1px); }
+.spectate-row:disabled { opacity: 0.5; cursor: default; transform: none; }
+.spectate-side { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.spectate-name { font-size: 12.5px; font-weight: 600; }
+.spectate-rating { font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.spectate-vs { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.spectate-tags { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.spectate-moves { font-size: 10px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+/* spectator banner above the read-only board */
+.spectate-banner {
+  display: flex; align-items: center; gap: 9px; padding: 11px 14px;
+  border-radius: 14px; color: var(--btn-ink); background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+  font-size: 12.5px;
+}
+.spectate-banner svg { flex: 0 0 auto; color: var(--cobalt); }
+.spectate-banner b { color: var(--ink); }
+
+/* ---- floating emote reactions over the board ----------------------------
+   A lucide icon rises + fades; `--lane` (0..1) scatters them horizontally,
+   animation-delay staggers a burst. Pointer-events off so play is unaffected. */
+.reaction-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.reaction {
+  position: absolute; bottom: 8%;
+  left: calc(12% + var(--lane, 0.5) * 72%);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 50%;
+  color: var(--cobalt); background: var(--pedestal);
+  box-shadow: 4px 4px 9px var(--dark), -4px -4px 9px var(--light);
+  opacity: 0; transform: translate(-50%, 6%) scale(0.6);
+  animation: reaction-float 1.8s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+.reaction.theirs { color: color-mix(in srgb, var(--rose) 80%, var(--cobalt)); }
+@keyframes reaction-float {
+  0%   { opacity: 0; transform: translate(-50%, 6%) scale(0.6); }
+  15%  { opacity: 1; transform: translate(-50%, 0%) scale(1.05); }
+  30%  { transform: translateY(-8%) scale(1); }
+  100% { opacity: 0; transform: translateY(-150%) scale(0.92); }
+}
+
+/* a brief glow pulse on the sender's name/clock when their emote lands */
+.clock.emote-pulse { animation: emote-pulse 0.85s ease-out; }
+@keyframes emote-pulse {
+  0%   { box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light); }
+  35%  { box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light), inset 0 0 0 2px color-mix(in srgb, var(--cobalt) 55%, transparent); }
+  100% { box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction { animation-duration: 1.4s; }
+  .reaction { animation-name: reaction-fade; }
+  @keyframes reaction-fade { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+  .clock.emote-pulse { animation: none; }
+}
 
 /* Tablet band (561–959px): the labelled chrome no longer fits one nowrap row,
    so let the actions wrap to the right instead of overflowing. Desktop (≥960px)
