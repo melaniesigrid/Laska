@@ -123,7 +123,7 @@ Reference docs (point, don't duplicate): `DESIGN.md` (visual/UI source of truth 
 - **Web change:** from `web/` → `npx tsc --noEmit` → run `npm run dev` and verify the affected screen (no web unit tests exist).
 - **Server change:** from `server/` → `npm run typecheck` → `npm test`.
 - A rules change must additionally keep `web/` typecheck/build green (it imports `games.ts`, which replays Lasker's games).
-- Do not commit or push unless explicitly asked.
+- Commit often: on a feature branch, commit each coherent, green (typecheck + tests) change as you go — no need to ask first. Never commit directly to `main` (branch first), and push only when asked.
 
 ---
 
