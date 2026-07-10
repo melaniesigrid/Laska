@@ -340,6 +340,8 @@
 
 .landing-page .lasker-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: clamp(2.5rem, 5vw, 4.5rem); align-items: start; }
 .landing-page .portrait { background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise); aspect-ratio: 4/5; max-width: 380px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.4rem; position: sticky; top: 100px; }
+.landing-page .medallion-stack { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+.landing-page .medallion-crown { color: var(--l-ink); opacity: 0.85; filter: drop-shadow(0 1px 0 var(--light)); }
 .landing-page .medallion { width: 128px; height: 128px; border-radius: 50%; background: var(--bg); box-shadow: var(--nm-inset-deep); display: grid; place-items: center; font-family: 'Fraunces', serif; font-weight: 600; font-size: 2.6rem; color: var(--l-ink); letter-spacing: 0.02em; }
 .landing-page .portrait-photo { width: 180px; height: 180px; border-radius: 50%; object-fit: cover; object-position: 50% 22%; background: var(--bg); box-shadow: var(--nm-raise); padding: 7px; }
 .landing-page .portrait .name { font-family: 'Fraunces', serif; font-size: 1.45rem; color: var(--l-ink); }
