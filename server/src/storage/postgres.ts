@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   email            TEXT UNIQUE,
   password_hash    TEXT,
   is_guest         BOOLEAN NOT NULL,
+  is_bot           BOOLEAN NOT NULL DEFAULT false,
   email_verified   BOOLEAN NOT NULL,
   rating           INTEGER NOT NULL,
   rating_deviation DOUBLE PRECISION NOT NULL DEFAULT 350,
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_deviation DOUBLE PRECISION NOT NULL DEFAULT 350;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS volatility DOUBLE PRECISION NOT NULL DEFAULT 0.06;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_rated_at BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_bot BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS matches (
   id                   TEXT PRIMARY KEY,
@@ -57,6 +59,10 @@ CREATE TABLE IF NOT EXISTS matches (
   ended_at             BIGINT NOT NULL
 );
 
+-- Idempotent migration for match tables created before per-variant support
+-- (predating Bashni). Without it, saving a finished match fails on the missing column.
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS variant TEXT NOT NULL DEFAULT 'laska';
+
 CREATE INDEX IF NOT EXISTS idx_matches_white ON matches(white_id, ended_at DESC);
 CREATE INDEX IF NOT EXISTS idx_matches_black ON matches(black_id, ended_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_rating ON users(rating DESC) WHERE is_guest = false;
@@ -68,6 +74,7 @@ interface UserRow {
   email: string | null;
   password_hash: string | null;
   is_guest: boolean;
+  is_bot: boolean;
   email_verified: boolean;
   rating: number;
   rating_deviation: number;
@@ -101,6 +108,7 @@ function rowToUser(r: UserRow): User {
     email: r.email,
     passwordHash: r.password_hash,
     isGuest: r.is_guest,
+    isBot: r.is_bot,
     emailVerified: r.email_verified,
     rating: r.rating,
     ratingDeviation: Number(r.rating_deviation),
@@ -148,6 +156,7 @@ const USER_COLUMNS: Partial<Record<keyof User, string>> = {
   email: 'email',
   passwordHash: 'password_hash',
   isGuest: 'is_guest',
+  isBot: 'is_bot',
   emailVerified: 'email_verified',
   rating: 'rating',
   ratingDeviation: 'rating_deviation',
@@ -177,9 +186,9 @@ export class PostgresRepository implements Repository {
     try {
       await this.pool.query(
         `INSERT INTO users
-          (id, username, username_lower, email, password_hash, is_guest, email_verified,
+          (id, username, username_lower, email, password_hash, is_guest, is_bot, email_verified,
            rating, rating_deviation, volatility, rated_games, last_rated_at, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
           user.id,
           user.username,
@@ -187,6 +196,7 @@ export class PostgresRepository implements Repository {
           user.email ? user.email.toLowerCase() : null,
           user.passwordHash,
           user.isGuest,
+          user.isBot,
           user.emailVerified,
           user.rating,
           user.ratingDeviation,
@@ -294,7 +304,7 @@ export class PostgresRepository implements Repository {
     }>(
       `SELECT id, username, rating, rating_deviation, rated_games
        FROM users
-       WHERE is_guest = false AND rated_games > 0
+       WHERE is_guest = false AND is_bot = false AND rated_games > 0
        ORDER BY rating DESC
        LIMIT $1`,
       [limit],
@@ -317,23 +327,27 @@ export class PostgresRepository implements Repository {
     const { d1, d7, d30 } = windows(now);
 
     // COUNT/SUM come back as strings from pg; Number() them on the way out.
+    // Real players only (NOT is_bot) for every count; bots tallied separately so
+    // they never inflate "real player" metrics.
     const userAgg = await this.pool.query<{
       total: string;
       registered: string;
       guests: string;
       verified: string;
+      bots: string;
       new24h: string;
       new7d: string;
       new30d: string;
     }>(
       `SELECT
-         COUNT(*)                                                  AS total,
-         COUNT(*) FILTER (WHERE is_guest = false)                  AS registered,
-         COUNT(*) FILTER (WHERE is_guest = true)                   AS guests,
-         COUNT(*) FILTER (WHERE email_verified = true)             AS verified,
-         COUNT(*) FILTER (WHERE created_at >= $1)                  AS new24h,
-         COUNT(*) FILTER (WHERE created_at >= $2)                  AS new7d,
-         COUNT(*) FILTER (WHERE created_at >= $3)                  AS new30d
+         COUNT(*) FILTER (WHERE is_bot = false)                    AS total,
+         COUNT(*) FILTER (WHERE is_bot = false AND is_guest = false) AS registered,
+         COUNT(*) FILTER (WHERE is_bot = false AND is_guest = true)  AS guests,
+         COUNT(*) FILTER (WHERE is_bot = false AND email_verified = true) AS verified,
+         COUNT(*) FILTER (WHERE is_bot = true)                     AS bots,
+         COUNT(*) FILTER (WHERE is_bot = false AND created_at >= $1) AS new24h,
+         COUNT(*) FILTER (WHERE is_bot = false AND created_at >= $2) AS new7d,
+         COUNT(*) FILTER (WHERE is_bot = false AND created_at >= $3) AS new30d
        FROM users`,
       [d1, d7, d30],
     );
@@ -377,7 +391,7 @@ export class PostgresRepository implements Repository {
     // gap-fill missing days with 0.
     const { days, sinceMs } = signupDayWindow(now);
     const signups = await this.pool.query<{ created_at: string }>(
-      'SELECT created_at FROM users WHERE created_at >= $1',
+      'SELECT created_at FROM users WHERE is_bot = false AND created_at >= $1',
       [sinceMs],
     );
     const dayCounts = new Map<string, number>();
@@ -393,6 +407,7 @@ export class PostgresRepository implements Repository {
         registered: Number(ua.registered),
         guests: Number(ua.guests),
         verified: Number(ua.verified),
+        bots: Number(ua.bots),
       },
       active: { d1: Number(act.d1), d7: Number(act.d7), d30: Number(act.d30) },
       newUsers: {

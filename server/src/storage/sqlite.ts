@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   email            TEXT UNIQUE,
   password_hash    TEXT,
   is_guest         INTEGER NOT NULL,
+  is_bot           INTEGER NOT NULL DEFAULT 0,
   email_verified   INTEGER NOT NULL,
   rating           INTEGER NOT NULL,
   rating_deviation REAL NOT NULL DEFAULT 350,
@@ -67,6 +68,7 @@ interface UserRow {
   email: string | null;
   password_hash: string | null;
   is_guest: number;
+  is_bot: number;
   email_verified: number;
   rating: number;
   rating_deviation: number;
@@ -100,6 +102,7 @@ function rowToUser(r: UserRow): User {
     email: r.email,
     passwordHash: r.password_hash,
     isGuest: r.is_guest === 1,
+    isBot: r.is_bot === 1,
     emailVerified: r.email_verified === 1,
     rating: r.rating,
     ratingDeviation: r.rating_deviation,
@@ -144,6 +147,7 @@ const USER_COLUMNS: Record<keyof User, string> = {
   email: 'email',
   passwordHash: 'password_hash',
   isGuest: 'is_guest',
+  isBot: 'is_bot',
   emailVerified: 'email_verified',
   rating: 'rating',
   ratingDeviation: 'rating_deviation',
@@ -154,16 +158,16 @@ const USER_COLUMNS: Record<keyof User, string> = {
 };
 
 function toDbValue(key: keyof User, value: unknown): string | number | null {
-  if (key === 'isGuest' || key === 'emailVerified') return value ? 1 : 0;
+  if (key === 'isGuest' || key === 'isBot' || key === 'emailVerified') return value ? 1 : 0;
   if (key === 'email') return value ? String(value).toLowerCase() : null;
   return value as string | number | null;
 }
 
-/** Add a column to the users table if a pre-existing DB is missing it. */
-function ensureColumn(db: DatabaseSync, column: string, ddl: string): void {
-  const cols = db.prepare('PRAGMA table_info(users)').all() as unknown as { name: string }[];
+/** Add a column to a table if a pre-existing DB is missing it. */
+function ensureColumn(db: DatabaseSync, table: string, column: string, ddl: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[];
   if (!cols.some((c) => c.name === column)) {
-    db.exec(`ALTER TABLE users ADD COLUMN ${ddl}`);
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
   }
 }
 
@@ -176,9 +180,15 @@ export class SqliteRepository implements Repository {
     this.db.exec('PRAGMA foreign_keys = ON;');
     this.db.exec(SCHEMA);
     // Idempotent migration for DBs created before the Glicko-2 columns existed.
-    ensureColumn(this.db, 'rating_deviation', `rating_deviation REAL NOT NULL DEFAULT ${DEFAULT_RD}`);
-    ensureColumn(this.db, 'volatility', `volatility REAL NOT NULL DEFAULT ${DEFAULT_VOLATILITY}`);
-    ensureColumn(this.db, 'last_rated_at', 'last_rated_at INTEGER');
+    ensureColumn(this.db, 'users', 'rating_deviation', `rating_deviation REAL NOT NULL DEFAULT ${DEFAULT_RD}`);
+    ensureColumn(this.db, 'users', 'volatility', `volatility REAL NOT NULL DEFAULT ${DEFAULT_VOLATILITY}`);
+    ensureColumn(this.db, 'users', 'last_rated_at', 'last_rated_at INTEGER');
+    // Idempotent migration for DBs created before the bot flag existed.
+    ensureColumn(this.db, 'users', 'is_bot', 'is_bot INTEGER NOT NULL DEFAULT 0');
+    // Idempotent migration for DBs created before the per-variant column existed
+    // (matches predating Bashni support). Without this, saving any finished match
+    // throws "table matches has no column named variant".
+    ensureColumn(this.db, 'matches', 'variant', `variant TEXT NOT NULL DEFAULT 'laska'`);
   }
 
   async close(): Promise<void> {
@@ -190,9 +200,9 @@ export class SqliteRepository implements Repository {
       this.db
         .prepare(
           `INSERT INTO users
-            (id, username, username_lower, email, password_hash, is_guest, email_verified,
+            (id, username, username_lower, email, password_hash, is_guest, is_bot, email_verified,
              rating, rating_deviation, volatility, rated_games, last_rated_at, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           user.id,
@@ -201,6 +211,7 @@ export class SqliteRepository implements Repository {
           user.email ? user.email.toLowerCase() : null,
           user.passwordHash,
           user.isGuest ? 1 : 0,
+          user.isBot ? 1 : 0,
           user.emailVerified ? 1 : 0,
           user.rating,
           user.ratingDeviation,
@@ -308,7 +319,7 @@ export class SqliteRepository implements Repository {
       .prepare(
         `SELECT id, username, rating, rating_deviation, rated_games
          FROM users
-         WHERE is_guest = 0 AND rated_games > 0
+         WHERE is_guest = 0 AND is_bot = 0 AND rated_games > 0
          ORDER BY rating DESC
          LIMIT ?`,
       )
@@ -334,21 +345,25 @@ export class SqliteRepository implements Repository {
 
     const userAgg = this.db
       .prepare(
+        // Real players only (is_bot = 0) for every count below; bots are tallied
+        // separately so they never inflate "real player" metrics.
         `SELECT
-           COUNT(*)                                         AS total,
-           SUM(CASE WHEN is_guest = 0 THEN 1 ELSE 0 END)    AS registered,
-           SUM(CASE WHEN is_guest = 1 THEN 1 ELSE 0 END)    AS guests,
-           SUM(CASE WHEN email_verified = 1 THEN 1 ELSE 0 END) AS verified,
-           SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS new24h,
-           SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS new7d,
-           SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS new30d
+           SUM(CASE WHEN is_bot = 0 THEN 1 ELSE 0 END)      AS total,
+           SUM(CASE WHEN is_bot = 0 AND is_guest = 0 THEN 1 ELSE 0 END) AS registered,
+           SUM(CASE WHEN is_bot = 0 AND is_guest = 1 THEN 1 ELSE 0 END) AS guests,
+           SUM(CASE WHEN is_bot = 0 AND email_verified = 1 THEN 1 ELSE 0 END) AS verified,
+           SUM(CASE WHEN is_bot = 1 THEN 1 ELSE 0 END)      AS bots,
+           SUM(CASE WHEN is_bot = 0 AND created_at >= ? THEN 1 ELSE 0 END) AS new24h,
+           SUM(CASE WHEN is_bot = 0 AND created_at >= ? THEN 1 ELSE 0 END) AS new7d,
+           SUM(CASE WHEN is_bot = 0 AND created_at >= ? THEN 1 ELSE 0 END) AS new30d
          FROM users`,
       )
       .get(d1, d7, d30) as {
-      total: number;
+      total: number | null;
       registered: number | null;
       guests: number | null;
       verified: number | null;
+      bots: number | null;
       new24h: number | null;
       new7d: number | null;
       new30d: number | null;
@@ -391,7 +406,7 @@ export class SqliteRepository implements Repository {
     // gap-fill missing days with 0.
     const { days, sinceMs } = signupDayWindow(now);
     const signupRows = this.db
-      .prepare('SELECT created_at FROM users WHERE created_at >= ?')
+      .prepare('SELECT created_at FROM users WHERE is_bot = 0 AND created_at >= ?')
       .all(sinceMs) as unknown as { created_at: number }[];
     const dayCounts = new Map<string, number>();
     for (const r of signupRows) {
@@ -402,10 +417,11 @@ export class SqliteRepository implements Repository {
     return {
       generatedAt: now,
       users: {
-        total: userAgg.total,
+        total: userAgg.total ?? 0,
         registered: userAgg.registered ?? 0,
         guests: userAgg.guests ?? 0,
         verified: userAgg.verified ?? 0,
+        bots: userAgg.bots ?? 0,
       },
       active: { d1: activeFor(d1), d7: activeFor(d7), d30: activeFor(d30) },
       newUsers: {

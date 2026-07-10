@@ -433,7 +433,40 @@ const BASHNI_BIGGER_BOARD: RawLesson = {
 };
 
 // ---------------------------------------------------------------------------
-// Bashni 2 — Men strike backward
+// Bashni 2 — Take prisoners, build the tower
+// ---------------------------------------------------------------------------
+// The stacking heart of the game (Russian: плен, "captivity"). Nothing leaves
+// the board — each jumped man is buried at the BASE of the capturing column.
+// Chain two forward jumps in a single move and a three-high башня (tower) rises:
+// White man c3 takes d4 (→ e5), then keeps going and takes f6 (→ g7), ending as
+// a White soldier commanding two buried prisoners. Mandatory-continuation makes
+// the full chain c3xe5xg7 the only legal move, so the engine proves the point.
+
+const BASHNI_BUILD_TOWER: RawLesson = {
+  id: 'bashni-build-tower',
+  title: 'Take two — build the tower',
+  strategyRef: 'Bashni',
+  difficulty: 2,
+  intro:
+    'Nothing ever leaves the board: every man you jump is taken prisoner — the Russians call it плен, “captivity” — at the base of your column. Chain two jumps in one move and you raise a three-high tower: your soldier on top, two captives buried beneath.',
+  outro:
+    'That is the heart of the towers game (башни): captures stack instead of clearing. The deeper your column, the more prisoners it carries — and freeing them, by taking the man on top, is how the game swings back.',
+  // White man c3; Black men d4 and f6 up the diagonal; e5 and g7 empty, so the
+  // single forced capture chains c3xe5xg7, burying both beneath the White man.
+  position: 'W:9=Ws,13=Bs,22=Bs',
+  steps: [
+    {
+      prompt: 'Chain the jumps — tap c3, then e5, then g7.',
+      moves: ['c3xe5xg7'],
+      hint: 'Jump d4 onto e5, then keep going: from e5 leap f6 and land on g7. One move, two prisoners.',
+      successText: 'A three-high tower — your man commands two captives. Stacking, not clearing, is the whole idea of Bashni.',
+      highlight: ['d4', 'f6'],
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Bashni 3 — Men strike backward
 // ---------------------------------------------------------------------------
 // THE signature Bashni rule: an un-promoted man still only MOVES forward, but it
 // may CAPTURE in any direction — including straight back over its own shoulder.
@@ -445,7 +478,7 @@ const BASHNI_BACKWARD_CAPTURE: RawLesson = {
   id: 'bashni-backward-capture',
   title: 'Men strike backward',
   strategyRef: 'Bashni',
-  difficulty: 2,
+  difficulty: 3,
   intro:
     'In Laska a soldier only ever captures forward. Bashni men are different: they still march forward, but they CAPTURE in any direction — even behind them. An enemy has slipped in behind your man.',
   outro:
@@ -464,7 +497,7 @@ const BASHNI_BACKWARD_CAPTURE: RawLesson = {
 };
 
 // ---------------------------------------------------------------------------
-// Bashni 3 — The flying king
+// Bashni 4 — The flying king
 // ---------------------------------------------------------------------------
 // A crowned piece in Bashni is a Russian-rules FLYING king: it slides any
 // distance along an open diagonal, and to capture it may sit far from its
@@ -477,7 +510,7 @@ const BASHNI_FLYING_KING: RawLesson = {
   id: 'bashni-flying-king',
   title: 'The flying king',
   strategyRef: 'Bashni',
-  difficulty: 3,
+  difficulty: 4,
   intro:
     'Laska crowns a single-step officer. Bashni crowns a FLYING king: it slides as far as it likes down an open diagonal, and captures from a distance — landing on any empty square past its victim.',
   outro:
@@ -496,7 +529,7 @@ const BASHNI_FLYING_KING: RawLesson = {
 };
 
 // ---------------------------------------------------------------------------
-// Bashni 4 — Crown and keep going
+// Bashni 5 — Crown and keep going
 // ---------------------------------------------------------------------------
 // In Laska, reaching the back rank ENDS the move (even mid-chain). Bashni does
 // the opposite: a man that promotes mid-capture becomes a king at once and MUST
@@ -508,7 +541,7 @@ const BASHNI_PROMOTE_CONTINUES: RawLesson = {
   id: 'bashni-promote-continues',
   title: 'Crown and keep going',
   strategyRef: 'Bashni',
-  difficulty: 4,
+  difficulty: 5,
   intro:
     'In Laska, touching the back rank ends your move on the spot. Bashni is the opposite: a man that crowns in the middle of a capture becomes a king instantly — and keeps capturing as a flying king.',
   outro:
@@ -553,6 +586,7 @@ export const STRATEGY_LESSONS: Lesson[] = [
  */
 export const BASHNI_LESSONS: Lesson[] = [
   BASHNI_BIGGER_BOARD,
+  BASHNI_BUILD_TOWER,
   BASHNI_BACKWARD_CAPTURE,
   BASHNI_FLYING_KING,
   BASHNI_PROMOTE_CONTINUES,

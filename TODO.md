@@ -150,6 +150,17 @@ ownership, and cross-node message routing:
 - **Quests/missions**, well-timed (non-spammy) push notifications.
 - Social: friend challenges, **shareable replays** (we already persist full move
   lists), spectating, clubs/teams.
+  - ⏳ **"Play a friend" private invite link** (`#/play/<code>` / `#/join/<code>`) —
+    deferred out of the analytics-dashboard PR (`growth/user-analytics-dashboard`),
+    where an `App.tsx` deep-link effect calling `online.requestPendingJoin(code)`
+    was removed because the supporting subsystem doesn't exist on that branch. To
+    ship it needs the full **challenge/invite** path: a `challenge.create` /
+    `challenge.join` pair in `server/src/net/protocol.ts`, server handlers +
+    code-keyed pending-challenge state in `gameServer.ts`/matchmaking, and the
+    `useOnline` machinery (`createChallenge`/`joinChallenge`/`requestPendingJoin`
+    with a `pendingJoinCode` that auto-fires once connected + authed). A reference
+    implementation already exists on `feature/analysis-commentary-voices` — port
+    from there. Own PR; out of scope for any analytics work.
   - ✅ **In-match social shipped** (`a675da1`): server-authoritative chat
     (280-char cap, sanitized, shared rate limiter), closed-list emotes,
     draw-decline, and a **60s post-game rematch** (swapped colors, same settings)

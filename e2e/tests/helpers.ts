@@ -56,9 +56,9 @@ export async function loginViaUi(page: Page, email: string, password: string): P
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
-/** The lobby "Signed in as <name>" status — only present once authenticated. */
+/** The authenticated lobby identity card (username + rating) — only present once signed in. */
 export function lobbyStatus(page: Page): Locator {
-  return page.locator('.panel .status', { hasText: 'Signed in as' });
+  return page.locator('.lobby-identity');
 }
 
 /** The auth error banner (`.status.draw`). */

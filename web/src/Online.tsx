@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   RefreshCw,
   Send,
@@ -10,11 +10,24 @@ import {
   Flame,
   Frown,
   Hourglass,
+  Swords,
+  UserPlus,
+  Eye,
+  Link as LinkIcon,
+  Copy,
+  Check,
+  Clock,
+  Trophy,
+  ArrowLeft,
+  WifiOff,
+  Bot,
   type LucideIcon,
 } from 'lucide-react';
 import {
   VARIANTS,
   LASKA,
+  DIFFICULTY_ORDER,
+  DIFFICULTY_DEPTH,
   beginCaptureChain,
   nextHopTargets,
   advanceCaptureChain,
@@ -22,11 +35,21 @@ import {
   matchLegalMove,
   type Board,
   type CaptureChain,
+  type Difficulty,
   type GameState,
   type Move,
   type PlayerColor,
+  type VariantId,
 } from '../../src/index.ts';
-import { EMOTES, CHAT_MAX_LEN, type EmoteId, type RankDTO } from '../../server/src/net/protocol.ts';
+import {
+  EMOTES,
+  CHAT_MAX_LEN,
+  type EmoteId,
+  type RankDTO,
+  type ChallengeColor,
+  type BotColorPreference,
+  type SpectatorGameDTO,
+} from '../../server/src/net/protocol.ts';
 import { BoardView } from './Board.tsx';
 import { useOnline, type ChatEntry, type RatingChangeSide } from './useOnline.ts';
 import { RankBadge } from './RankBadge.tsx';
@@ -60,6 +83,44 @@ function fmtClock(ms: number): string {
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
+
+/** Time-control presets offered for a private invite (the host picks one). */
+const TIME_PRESETS: { id: string; label: string; initialMs: number; incrementMs: number }[] = [
+  { id: 'blitz5', label: '5 min', initialMs: 5 * 60_000, incrementMs: 0 },
+  { id: 'blitz53', label: '5 + 3', initialMs: 5 * 60_000, incrementMs: 3_000 },
+  { id: 'rapid10', label: '10 min', initialMs: 10 * 60_000, incrementMs: 0 },
+];
+
+/** Short label for an arbitrary time control (e.g. "5 + 3", or "10 min"). */
+function fmtTimeControl(tc: { initialMs: number; incrementMs: number }): string {
+  const mins = Math.round(tc.initialMs / 60_000);
+  const inc = Math.round(tc.incrementMs / 1000);
+  return inc > 0 ? `${mins} + ${inc}` : `${mins} min`;
+}
+
+/** Extract a challenge code from a raw code OR a pasted full invite link
+ *  (`…/#/play/<code>` or `…/#/join/<code>`). Falls back to the trimmed input. */
+export function extractChallengeCode(input: string): string {
+  const trimmed = input.trim();
+  const m = trimmed.match(/(?:#\/(?:play|join)\/)([^/?#\s]+)/i);
+  if (m && m[1]) return m[1];
+  // A bare "play/CODE" or "join/CODE" fragment without the hash.
+  const m2 = trimmed.match(/(?:^|\/)(?:play|join)\/([^/?#\s]+)/i);
+  if (m2 && m2[1]) return m2[1];
+  return trimmed;
+}
+
+const VARIANT_LABEL: Record<VariantId, string> = { laska: 'Laska', bashni: 'Bashni' };
+
+/** Human-friendly tier labels for the ranked-bot difficulty selector. */
+const DIFFICULTY_LABEL: Record<Difficulty, string> = {
+  beginner: 'Beginner',
+  easy: 'Easy',
+  intermediate: 'Intermediate',
+  medium: 'Medium',
+  hard: 'Hard',
+  expert: 'Expert',
+};
 
 function AuthPanel({ online }: { online: ReturnType<typeof useOnline> }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -107,8 +168,344 @@ function AuthPanel({ online }: { online: ReturnType<typeof useOnline> }) {
   );
 }
 
+type LobbyMode = 'quick' | 'computer' | 'friend' | 'watch';
+
+/** The top-level lobby modes, as a segmented control. */
+function LobbyModeBar({ mode, setMode }: { mode: LobbyMode; setMode: (m: LobbyMode) => void }) {
+  return (
+    <div className="segment lobby-modes" role="tablist" aria-label="Lobby mode">
+      <button role="tab" aria-selected={mode === 'quick'} className={mode === 'quick' ? 'active' : ''} onClick={() => setMode('quick')}>
+        <Swords size={15} /> Quick match
+      </button>
+      <button role="tab" aria-selected={mode === 'computer'} className={mode === 'computer' ? 'active' : ''} onClick={() => setMode('computer')}>
+        <Bot size={15} /> Computer
+      </button>
+      <button role="tab" aria-selected={mode === 'friend'} className={mode === 'friend' ? 'active' : ''} onClick={() => setMode('friend')}>
+        <UserPlus size={15} /> Play a friend
+      </button>
+      <button role="tab" aria-selected={mode === 'watch'} className={mode === 'watch' ? 'active' : ''} onClick={() => setMode('watch')}>
+        <Eye size={15} /> Watch live
+      </button>
+    </div>
+  );
+}
+
+/** Quick-match (ranked queue) — the existing Laska/Bashni queue, plus the search
+ *  state with its Cancel. */
+function QuickMatchPanel({ online }: { online: ReturnType<typeof useOnline> }) {
+  if (online.phase === 'queued') {
+    return (
+      <div className="buttons" style={{ flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}>
+        <DotMascot tint="sky" mood="idle" size={72} />
+        <span className="searching">Searching for an opponent near your rating…</span>
+        <button onClick={() => online.leaveQueue()}>Cancel</button>
+      </div>
+    );
+  }
+  return (
+    <div className="buttons">
+      <button onClick={() => online.joinQueue('laska')} disabled={online.status !== 'connected'}>
+        Play Laska (ranked)
+      </button>
+      <button onClick={() => online.joinQueue('bashni')} disabled={online.status !== 'connected'}>
+        Play Bashni (ranked)
+      </button>
+    </div>
+  );
+}
+
+/** "Play the Computer (Ranked)": pick a difficulty tier + your color, then start a
+ *  match against the server's bot. Unlike the offline Local-tab computer game, this
+ *  runs server-side and is RANKED — it moves your rating on the same leaderboard as
+ *  human play. The match begins instantly via the normal match.start path. */
+function ComputerPanel({ online }: { online: ReturnType<typeof useOnline> }) {
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [color, setColor] = useState<BotColorPreference>('random');
+  const [variant, setVariant] = useState<VariantId>('laska');
+  const connected = online.status === 'connected';
+
+  const colorOpts: { id: BotColorPreference; label: string }[] = [
+    { id: 'W', label: 'White' },
+    { id: 'B', label: 'Black' },
+    { id: 'random', label: 'Random' },
+  ];
+
+  return (
+    <div className="friend-panel">
+      <fieldset className="controls">
+        <legend>Play the Computer</legend>
+        <div className="bot-ranked-note">
+          <Trophy size={14} aria-hidden="true" />
+          <span>
+            <b>Ranked.</b> The computer plays on the server — this match counts toward your rating and
+            rank, just like a human game.
+          </span>
+        </div>
+        <div className="invite-field">
+          <span className="invite-field-label">Game</span>
+          <div className="segment" role="group" aria-label="Variant">
+            <button className={variant === 'laska' ? 'active' : ''} onClick={() => setVariant('laska')}>Laska</button>
+            <button className={variant === 'bashni' ? 'active' : ''} onClick={() => setVariant('bashni')}>Bashni</button>
+          </div>
+        </div>
+        <div className="invite-field">
+          <span className="invite-field-label">Difficulty</span>
+          <select
+            className="neu-select"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+            aria-label="Computer difficulty"
+          >
+            {DIFFICULTY_ORDER.map((d) => (
+              <option key={d} value={d}>
+                {DIFFICULTY_LABEL[d]} · {DIFFICULTY_DEPTH[d]} ahead
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="invite-field">
+          <span className="invite-field-label">Your color</span>
+          <div className="segment color-choice" role="group" aria-label="Your color">
+            {colorOpts.map((o) => (
+              <button key={o.id} className={color === o.id ? 'active' : ''} aria-pressed={color === o.id} onClick={() => setColor(o.id)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="buttons">
+          <button onClick={() => online.startBotMatch(difficulty, color, variant)} disabled={!connected}>
+            <Bot size={15} aria-hidden="true" /> Play Computer ({DIFFICULTY_LABEL[difficulty]})
+          </button>
+        </div>
+      </fieldset>
+    </div>
+  );
+}
+
+/** Segmented White / Black / Random color pick for the invite host. */
+function ColorChoice({ value, onChange }: { value: ChallengeColor; onChange: (c: ChallengeColor) => void }) {
+  const opts: { id: ChallengeColor; label: string }[] = [
+    { id: 'W', label: 'White' },
+    { id: 'B', label: 'Black' },
+    { id: 'random', label: 'Random' },
+  ];
+  return (
+    <div className="segment color-choice" role="group" aria-label="Your color">
+      {opts.map((o) => (
+        <button key={o.id} className={value === o.id ? 'active' : ''} aria-pressed={value === o.id} onClick={() => onChange(o.id)}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** "Play a friend": create an invite (variant/time/color/ranked) and share the
+ *  link, or join one by code/link. Once a challenge is open it shows the
+ *  shareable link + waiting state + cancel. */
+function FriendPanel({ online }: { online: ReturnType<typeof useOnline> }) {
+  const [variant, setVariant] = useState<VariantId>('laska');
+  const [presetId, setPresetId] = useState<string>(TIME_PRESETS[1]!.id);
+  const [color, setColor] = useState<ChallengeColor>('random');
+  const [ranked, setRanked] = useState(true);
+  const [joinInput, setJoinInput] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const challenge = online.challenge;
+  const connected = online.status === 'connected';
+
+  const inviteUrl = challenge ? `${window.location.origin}/#/play/${challenge.code}` : '';
+
+  const copyLink = () => {
+    if (!inviteUrl) return;
+    void navigator.clipboard?.writeText(inviteUrl).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1600);
+      },
+      () => {
+        /* clipboard blocked — the link is still selectable on screen */
+      },
+    );
+  };
+
+  const create = () => {
+    const preset = TIME_PRESETS.find((p) => p.id === presetId) ?? TIME_PRESETS[1]!;
+    online.createChallenge({
+      variant,
+      color,
+      ranked,
+      timeControl: { initialMs: preset.initialMs, incrementMs: preset.incrementMs },
+    });
+  };
+
+  // ---- an invite is open: show the shareable link + waiting state ----
+  if (challenge) {
+    return (
+      <div className="friend-panel">
+        <div className="invite-card">
+          <div className="invite-eyebrow">
+            <LinkIcon size={14} aria-hidden="true" /> Your invite is live
+          </div>
+          <div className="invite-link-row">
+            <input className="invite-link" readOnly value={inviteUrl} aria-label="Invite link" onFocus={(e) => e.currentTarget.select()} />
+            <button className="invite-copy" onClick={copyLink} aria-label="Copy invite link">
+              {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <div className="invite-code">
+            Code <b>{challenge.code}</b>
+          </div>
+          <div className="invite-meta">
+            <span className="invite-chip">{VARIANT_LABEL[challenge.variant]}</span>
+            <span className="invite-chip"><Clock size={12} aria-hidden="true" /> {fmtTimeControl(challenge.timeControl)}</span>
+            <span className="invite-chip">{challenge.color === 'random' ? 'Random side' : `You: ${challenge.color === 'W' ? 'White' : 'Black'}`}</span>
+            {challenge.ranked && <span className="invite-chip ranked"><Trophy size={12} aria-hidden="true" /> Ranked</span>}
+          </div>
+          <div className="invite-waiting">
+            <DotMascot tint="sky" mood="idle" size={56} />
+            <span className="searching">Waiting for your friend to join…</span>
+          </div>
+          <div className="buttons">
+            <button className="secondary" onClick={() => online.cancelChallenge()}>
+              Cancel invite
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- no open invite: the create form + join-by-code ----
+  return (
+    <div className="friend-panel">
+      <fieldset className="controls">
+        <legend>Create an invite</legend>
+        <div className="invite-field">
+          <span className="invite-field-label">Game</span>
+          <div className="segment" role="group" aria-label="Variant">
+            <button className={variant === 'laska' ? 'active' : ''} onClick={() => setVariant('laska')}>Laska</button>
+            <button className={variant === 'bashni' ? 'active' : ''} onClick={() => setVariant('bashni')}>Bashni</button>
+          </div>
+        </div>
+        <div className="invite-field">
+          <span className="invite-field-label">Time</span>
+          <div className="segment" role="group" aria-label="Time control">
+            {TIME_PRESETS.map((p) => (
+              <button key={p.id} className={presetId === p.id ? 'active' : ''} onClick={() => setPresetId(p.id)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="invite-field">
+          <span className="invite-field-label">Your color</span>
+          <ColorChoice value={color} onChange={setColor} />
+        </div>
+        <label className="invite-ranked">
+          <input type="checkbox" checked={ranked} onChange={(e) => setRanked(e.target.checked)} />
+          <span>Ranked — this game counts toward your rating.</span>
+        </label>
+        <div className="buttons">
+          <button onClick={create} disabled={!connected}>
+            <LinkIcon size={15} aria-hidden="true" /> Create invite
+          </button>
+        </div>
+      </fieldset>
+
+      <fieldset className="controls">
+        <legend>Join by code</legend>
+        <label>
+          <input
+            value={joinInput}
+            onChange={(e) => setJoinInput(e.target.value)}
+            placeholder="Paste a code or invite link"
+            aria-label="Invite code or link"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                online.joinChallenge(extractChallengeCode(joinInput));
+              }
+            }}
+          />
+        </label>
+        <div className="buttons">
+          <button onClick={() => online.joinChallenge(extractChallengeCode(joinInput))} disabled={!connected || !joinInput.trim()}>
+            <UserPlus size={15} aria-hidden="true" /> Join game
+          </button>
+        </div>
+      </fieldset>
+    </div>
+  );
+}
+
+/** One row in the spectate list: white vs black with rank/rating + variant chip. */
+function SpectateRow({ game, onWatch, disabled }: { game: SpectatorGameDTO; onWatch: () => void; disabled: boolean }) {
+  return (
+    <button className="spectate-row" onClick={onWatch} disabled={disabled}>
+      <span className="spectate-side">
+        <RankBadge rank={game.white.rank} size="sm" showLabel={false} />
+        <span className="spectate-name">{game.white.username}</span>
+        <span className="spectate-rating">{game.white.rating}</span>
+      </span>
+      <span className="spectate-vs">vs</span>
+      <span className="spectate-side">
+        <RankBadge rank={game.black.rank} size="sm" showLabel={false} />
+        <span className="spectate-name">{game.black.username}</span>
+        <span className="spectate-rating">{game.black.rating}</span>
+      </span>
+      <span className="spectate-tags">
+        <span className="invite-chip">{VARIANT_LABEL[game.variant]}</span>
+        {game.ranked && <span className="invite-chip ranked"><Trophy size={12} aria-hidden="true" /></span>}
+        <span className="spectate-moves">{game.moveCount} moves</span>
+      </span>
+    </button>
+  );
+}
+
+/** "Watch live": the ongoing-games list with a Refresh; rows enter the read-only
+ *  spectator board. Auto-lists on mount. */
+function WatchPanel({ online }: { online: ReturnType<typeof useOnline> }) {
+  const connected = online.status === 'connected';
+  const { listSpectate } = online;
+  // Refresh the list when this tab opens (and the socket is up).
+  useEffect(() => {
+    if (connected) listSpectate();
+  }, [connected, listSpectate]);
+
+  return (
+    <div className="watch-panel">
+      <div className="watch-head">
+        <span className="watch-count">{online.spectateList.length} live {online.spectateList.length === 1 ? 'game' : 'games'}</span>
+        <button className="watch-refresh" onClick={() => online.listSpectate()} disabled={!connected} aria-label="Refresh live games">
+          <RefreshCw size={15} aria-hidden="true" /> Refresh
+        </button>
+      </div>
+      {online.spectateList.length === 0 ? (
+        <p className="watch-empty">No live games right now. Check back, or start one yourself.</p>
+      ) : (
+        <div className="spectate-list">
+          {online.spectateList.map((g) => (
+            <SpectateRow key={g.matchId} game={g} disabled={!connected} onWatch={() => online.watchGame(g.matchId)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Lobby({ online }: { online: ReturnType<typeof useOnline> }) {
   const u = online.user!;
+  // Queuing forces the Quick-match tab so the search state is always visible.
+  const [mode, setMode] = useState<LobbyMode>('quick');
+  // An open invite belongs to the "Play a friend" tab — surface it.
+  useEffect(() => {
+    if (online.challenge) setMode('friend');
+  }, [online.challenge]);
+  const effectiveMode: LobbyMode = online.phase === 'queued' ? 'quick' : mode;
+
   return (
     <div className="panel">
       <div className="lobby-identity">
@@ -121,29 +518,97 @@ function Lobby({ online }: { online: ReturnType<typeof useOnline> }) {
           </span>
         </div>
       </div>
-      {online.phase === 'idle' && (
-        <div className="buttons">
-          <button onClick={() => online.joinQueue('laska')} disabled={online.status !== 'connected'}>
-            Play Laska (ranked)
-          </button>
-          <button onClick={() => online.joinQueue('bashni')} disabled={online.status !== 'connected'}>
-            Play Bashni (ranked)
-          </button>
-        </div>
-      )}
-      {online.phase === 'queued' && (
-        <div className="buttons" style={{ flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}>
-          <DotMascot tint="sky" mood="idle" size={72} />
-          <span className="searching">Searching for an opponent near your rating…</span>
-          <button onClick={() => online.leaveQueue()}>Cancel</button>
-        </div>
-      )}
+
+      {online.phase !== 'queued' && <LobbyModeBar mode={effectiveMode} setMode={setMode} />}
+
+      {effectiveMode === 'quick' && <QuickMatchPanel online={online} />}
+      {effectiveMode === 'computer' && <ComputerPanel online={online} />}
+      {effectiveMode === 'friend' && <FriendPanel online={online} />}
+      {effectiveMode === 'watch' && <WatchPanel online={online} />}
+
       <div className="buttons">
         <button className="secondary" onClick={() => online.logout()}>
           Sign out
         </button>
       </div>
       {online.error && <div className="status draw">{online.error}</div>}
+    </div>
+  );
+}
+
+/** Read-only spectator board: both clocks tick, a banner names the players, and
+ *  Leave returns to the lobby. No move/chat controls. */
+function SpectatePanel({ online }: { online: ReturnType<typeof useOnline> }) {
+  const spec = online.spectating!;
+  const gs = online.spectateState;
+  const clock = online.spectateClock;
+  const end = online.spectateEnd;
+  const variant = VARIANTS[spec.variant] ?? LASKA;
+
+  const toMove = gs?.toMove ?? 'W';
+  let statusLine: string;
+  if (end) {
+    statusLine =
+      end.winner == null
+        ? `Draw — ${end.reason.replace(/-/g, ' ')}.`
+        : `${end.winner === 'W' ? spec.white.username : spec.black.username} won — ${end.reason.replace(/-/g, ' ')}.`;
+  } else {
+    statusLine = `${toMove === 'W' ? spec.white.username : spec.black.username} (${COLOR_NAME[toMove]}) to move…`;
+  }
+
+  return (
+    <div className="online-match">
+      <BoardView
+        board={gs ? gs.board : []}
+        dim={variant.boardDim}
+        rcToSquare={variant.rcToSquare}
+        selected={null}
+        movable={new Set()}
+        destinations={new Set()}
+        onSquareClick={() => {}}
+        activeColor={gs?.toMove}
+        interactive={false}
+      />
+
+      <aside className="panel">
+        <div className="spectate-banner" role="status">
+          <Eye size={16} aria-hidden="true" />
+          <span>
+            Spectating — <b>{spec.white.username}</b> vs <b>{spec.black.username}</b>
+          </span>
+        </div>
+
+        <div className="clocks">
+          <div className={`clock ${!end && clock?.running === 'B' ? 'active' : ''}`}>
+            <span className="clock-name">
+              <RankBadge rank={spec.black.rank} size="sm" showLabel={false} />
+              {spec.black.username} ({COLOR_NAME.B}) · {spec.black.rating}
+            </span>
+            <span className="clock-time">{fmtClock(clock ? clock.blackMs : 0)}</span>
+          </div>
+          <div className={`clock ${!end && clock?.running === 'W' ? 'active' : ''}`}>
+            <span className="clock-name">
+              <RankBadge rank={spec.white.rank} size="sm" showLabel={false} />
+              {spec.white.username} ({COLOR_NAME.W}) · {spec.white.rating}
+            </span>
+            <span className="clock-time">{fmtClock(clock ? clock.whiteMs : 0)}</span>
+          </div>
+        </div>
+
+        <div className={`status ${end ? (end.winner == null ? 'draw' : 'win') : ''}`} role="status" aria-live="polite">
+          {statusLine}
+        </div>
+
+        <div className="buttons">
+          <button className="secondary" onClick={() => online.stopSpectate()}>
+            <ArrowLeft size={15} aria-hidden="true" /> Leave
+          </button>
+        </div>
+
+        <div className="conn-note">
+          <span className={`dot ${online.status}`} /> {online.status}
+        </div>
+      </aside>
     </div>
   );
 }
@@ -199,19 +664,42 @@ function ChatLine({ entry }: { entry: ChatEntry }) {
   );
 }
 
+/** Unobtrusive "opponent is typing…" line at the foot of the chat feed. The
+ *  three pulsing dots are pure CSS (no emoji, no icon) and respect
+ *  prefers-reduced-motion via the keyframe in styles.css. */
+function TypingIndicator({ name }: { name?: string }) {
+  return (
+    <div className="chat-typing" role="status" aria-live="polite">
+      <span className="chat-typing-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+      <span className="chat-typing-text">{name ?? 'Opponent'} is typing…</span>
+    </div>
+  );
+}
+
 /** In-match social panel: scrollable feed (auto-scrolls to latest) + composer.
  *  Shown both during and after a match (players want to say "gg"). Marks chat
  *  read on mount and whenever new lines land while it's on screen. */
-function ChatPanel({ online, disabled }: { online: ReturnType<typeof useOnline>; disabled: boolean }) {
+function ChatPanel({ online, disabled }: { online: ReturnType<typeof useOnline> ; disabled: boolean }) {
   const [draft, setDraft] = useState('');
   const feedRef = useRef<HTMLDivElement | null>(null);
-  const { chatLog, unreadChat, markChatRead } = online;
+  const { chatLog, unreadChat, markChatRead, opponentTyping, sendTyping } = online;
+  // Whether we've sent an un-cleared `typing:true` (so we know to send `false`).
+  const typingActiveRef = useRef(false);
+  // Throttles `typing:true` to ~once / 1.5s; stop-timer sends `false` ~2s idle.
+  const lastTrueAtRef = useRef(0);
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const endedOrOver = online.phase === 'ended' || !!online.end;
 
-  // Auto-scroll to the latest line on every new message.
+  // Auto-scroll to the latest line on every new message — and when the opponent
+  // typing indicator appears (so it isn't hidden below the fold).
   useEffect(() => {
     const el = feedRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [chatLog.length]);
+  }, [chatLog.length, opponentTyping]);
 
   // The panel is always visible while shown, so clear the unread badge whenever
   // it's non-zero (e.g. a line arrives while the player is looking at it).
@@ -219,9 +707,44 @@ function ChatPanel({ online, disabled }: { online: ReturnType<typeof useOnline>;
     if (unreadChat > 0) markChatRead();
   }, [unreadChat, markChatRead]);
 
+  // Immediately tell the opponent we've stopped typing, cancelling the idle timer.
+  const stopTyping = () => {
+    if (stopTimerRef.current) {
+      clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
+    if (typingActiveRef.current) {
+      typingActiveRef.current = false;
+      lastTrueAtRef.current = 0;
+      sendTyping(false);
+    }
+  };
+
+  // Called on each keystroke: emits a throttled `typing:true` and (re)arms the
+  // ~2s idle timer that fires `typing:false` once the player pauses.
+  const noteTyping = () => {
+    if (disabled || endedOrOver) return;
+    const now = Date.now();
+    if (!typingActiveRef.current || now - lastTrueAtRef.current >= 1500) {
+      typingActiveRef.current = true;
+      lastTrueAtRef.current = now;
+      sendTyping(true);
+    }
+    if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    stopTimerRef.current = setTimeout(stopTyping, 2000);
+  };
+
+  // Make sure we never leave a dangling `typing:true` when the panel unmounts.
+  useEffect(() => {
+    return () => {
+      if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    };
+  }, []);
+
   const submit = () => {
     online.sendChat(draft);
     setDraft('');
+    stopTyping();
   };
 
   const remaining = CHAT_MAX_LEN - draft.length;
@@ -230,11 +753,12 @@ function ChatPanel({ online, disabled }: { online: ReturnType<typeof useOnline>;
   return (
     <div className="chat-panel">
       <div className="chat-feed" ref={feedRef}>
-        {chatLog.length === 0 ? (
+        {chatLog.length === 0 && !opponentTyping ? (
           <p className="chat-empty">Say hello, or send an emote below.</p>
         ) : (
           chatLog.map((entry) => <ChatLine key={entry.id} entry={entry} />)
         )}
+        {opponentTyping && !endedOrOver && <TypingIndicator name={online.match?.opponent.username} />}
       </div>
       <EmoteBar online={online} disabled={disabled} />
       <div className="chat-composer">
@@ -244,7 +768,14 @@ function ChatPanel({ online, disabled }: { online: ReturnType<typeof useOnline>;
           maxLength={CHAT_MAX_LEN}
           placeholder="Message…"
           aria-label="Chat message"
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setDraft(next);
+            // Emptying the input (or clearing it) is an explicit "stopped typing".
+            if (next.trim()) noteTyping();
+            else stopTyping();
+          }}
+          onBlur={stopTyping}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -338,6 +869,87 @@ function RankResult({ side }: { side: RatingChangeSide }) {
   );
 }
 
+/** One in-flight floating reaction: a lucide icon rising + fading over the board.
+ *  `lane` (0..1) scatters them horizontally; `delay` staggers a burst. */
+interface Reaction {
+  key: number;
+  emote: EmoteId;
+  mine: boolean;
+  lane: number;
+  delay: number;
+}
+
+/** Watches the chat feed for new emote lines and spawns a floating reaction for
+ *  each. CSS-only motion (rise + fade), staggered when several land together.
+ *  Returns the overlay node (rendered inside the board stage) + the most recent
+ *  emote's sender color, so the caller can pulse that side's name/clock. */
+function useReactions(chatLog: ChatEntry[]): { overlay: ReactNode; pulseColor: PlayerColor | null } {
+  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [pulseColor, setPulseColor] = useState<PlayerColor | null>(null);
+  // The last emote-entry id we've already turned into a reaction.
+  const lastSeenRef = useRef<string | null>(null);
+  const seqRef = useRef(0);
+  const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const emotes = chatLog.filter((e) => e.kind === 'emote' && e.emote);
+    if (emotes.length === 0) return;
+    // Find emote entries newer than the last one we've animated.
+    let startIdx = 0;
+    if (lastSeenRef.current) {
+      const i = emotes.findIndex((e) => e.id === lastSeenRef.current);
+      startIdx = i >= 0 ? i + 1 : 0;
+    }
+    const fresh = emotes.slice(startIdx);
+    if (fresh.length === 0) return;
+    lastSeenRef.current = emotes[emotes.length - 1]!.id;
+
+    const spawned: Reaction[] = fresh.map((e, i) => ({
+      key: seqRef.current++,
+      emote: e.emote!,
+      mine: e.mine,
+      lane: Math.random(),
+      delay: i * 110,
+    }));
+    setReactions((cur) => [...cur, ...spawned]);
+    // Pulse the most recent sender's side.
+    setPulseColor(fresh[fresh.length - 1]!.fromColor);
+    if (pulseTimer.current) clearTimeout(pulseTimer.current);
+    pulseTimer.current = setTimeout(() => setPulseColor(null), 900);
+
+    // Reap each reaction after its animation completes (~1.8s + delay).
+    const keys = spawned.map((r) => r.key);
+    const reap = setTimeout(() => {
+      setReactions((cur) => cur.filter((r) => !keys.includes(r.key)));
+    }, 2200);
+    return () => clearTimeout(reap);
+  }, [chatLog]);
+
+  useEffect(() => () => {
+    if (pulseTimer.current) clearTimeout(pulseTimer.current);
+  }, []);
+
+  const overlay =
+    reactions.length === 0 ? null : (
+      <div className="reaction-layer" aria-hidden="true">
+        {reactions.map((r) => {
+          const Icon = EMOTE_ICON[r.emote];
+          return (
+            <span
+              key={r.key}
+              className={`reaction ${r.mine ? 'mine' : 'theirs'}`}
+              style={{ ['--lane' as string]: r.lane, animationDelay: `${r.delay}ms` }}
+            >
+              <Icon size={26} aria-hidden="true" />
+            </span>
+          );
+        })}
+      </div>
+    );
+
+  return { overlay, pulseColor };
+}
+
 export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }) {
   const [selected, setSelected] = useState<number | null>(null);
   // A multi-jump the local player is performing one leap at a time.
@@ -351,6 +963,9 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
   const match = online.match;
   const gs = online.gameState;
   const legal = online.legalMoves;
+
+  // Floating emote reactions over the board + which side to pulse.
+  const { overlay: reactionOverlay, pulseColor } = useReactions(online.chatLog);
 
   const movable = useMemo(() => new Set(legal.map((m) => m.from)), [legal]);
 
@@ -448,6 +1063,7 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
   }, [lastMove, myColorOpt]);
 
   if (!online.user) return <AuthPanel online={online} />;
+  if (online.spectating) return <SpectatePanel online={online} />;
   if (!match || online.phase === 'idle' || online.phase === 'queued') return <Lobby online={online} />;
 
   // Resolve tapping `sq` as the next leap of the active chain.
@@ -531,6 +1147,7 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
         captureTargets={captureTargets}
         flipped={myColor === 'B'}
         interactive={online.myTurn && !end && online.status === 'connected'}
+        overlay={reactionOverlay}
       />
 
       <aside className="panel">
@@ -544,13 +1161,28 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
           </div>
         )}
 
+        {!online.opponentOnline && !end && (
+          <div className="connection-banner opponent-offline" role="status" aria-live="polite">
+            <WifiOff size={17} aria-hidden="true" />
+            <div>
+              <strong>{match.opponent.username} disconnected</strong>
+              <span>Waiting for them to reconnect… the clock keeps running.</span>
+            </div>
+          </div>
+        )}
+
         <div className="clocks">
           <div
             className={`clock ${clock?.running === oppColor ? 'active' : ''}${
               clock?.running === oppColor && oppClockMs < 10000 ? ' low' : ''
-            }`}
+            }${pulseColor === oppColor ? ' emote-pulse' : ''}${!online.opponentOnline ? ' opponent-offline' : ''}`}
           >
             <span className="clock-name">
+              <span
+                className={`presence-dot ${online.opponentOnline ? 'online' : 'offline'}`}
+                aria-hidden="true"
+                title={online.opponentOnline ? 'Online' : 'Disconnected'}
+              />
               <RankBadge rank={match.opponent.rank} size="sm" showLabel={false} />
               {match.opponent.username} ({COLOR_NAME[oppColor]}) · {match.opponent.rating}
             </span>
@@ -559,7 +1191,7 @@ export function OnlinePanel({ online }: { online: ReturnType<typeof useOnline> }
           <div
             className={`clock ${clock?.running === myColor ? 'active' : ''}${
               clock?.running === myColor && myClockMs < 10000 ? ' low' : ''
-            }`}
+            }${pulseColor === myColor ? ' emote-pulse' : ''}`}
           >
             <span className="clock-name">
               <RankBadge rank={online.user.rank} size="sm" showLabel={false} />

@@ -162,6 +162,15 @@ export class Match {
   }
 
   /**
+   * The authoritative engine GameState, for the server-side bot driver to feed
+   * `chooseMove`. Read-only by contract — callers must not mutate it; the engine
+   * is functional (applyMove returns a new state) so this is only ever read.
+   */
+  gameState(): GameState {
+    return this.state;
+  }
+
+  /**
    * Detect a flag-fall for the side to move. Call from a timer in the net layer.
    * Returns the end info if time ran out, else null.
    */

@@ -100,6 +100,9 @@ board, the legend swatches, and the landing self-play demo, so they never drift.
   counting two dots; this is the headline win, not just a skin.
 - **Lineage** — soldier: a **shield** · general: a **crown**. Nods to Lasker's
   world-champion chess lineage (the heritage wedge).
+- **Crown** — soldier: one engraved pip · general: a **crown**. The royal mark
+  for the crowned king — echoes Bashni's *дамка* (the promoted piece). Reads like
+  Heirloom but trades the star for a crown.
 - **Dots** — the original 1-dot / 2-dot minimal set, kept for accessibility.
 - **Deboss recipe (neumorphic):** the mark is *not* a contrasting icon sitting on
   the coin. It is filled in the coin's own tone, a step darker
@@ -124,6 +127,12 @@ board, the legend swatches, and the landing self-play demo, so they never drift.
 - **Status** pill: recessed, Fraunces, with a Lucide state icon (turn / win / draw).
 - **Selects** (`.neu-select`) and panel inputs: recessed inset.
 - **Legend**: soldier/officer coin swatches with pip dots.
+- **RankBadge** (`RankBadge.tsx`): neumorphic rank insignia sculpted from `--light`/`--dark`
+  on `--plate`. Climb tier (Recruit→Colonel) = shield plaque; mastery tier = a
+  star cluster (1–9), echoing the Heirloom general star. Provisional ranks render
+  muted + desaturated with a `?` suffix. `lg` size shows a `progress` bar.
+- **Leaderboard** (`LeaderboardPage.tsx`): neumorphic ranked table, top-3 podium,
+  current-user row highlighted; reached via a Trophy button in the landing + game topbars.
 
 ## Decisions Log
 | Date | Decision | Rationale |
@@ -142,3 +151,4 @@ board, the legend swatches, and the landing self-play demo, so they never drift.
 | 2026-06-23 | Added Navy as the sixth palette | Founder direction: a navy board/background with blue and red armies and a gold general star; the board remains one continuous neumorphic material. |
 | 2026-06-22 | Added a Historic-Game replay viewer; shipped Moscow 1996 only, engine-verified | Founder provided three lasca.org game scores. Replay drives the real engine off the recorded score. Moscow 1996 validates end-to-end; the 1976 and Lasker-1911 scores diverge mid-game under our capture rules (likely transcription) — held back rather than ship an unverifiable replay. |
 | 2026-06-22 | Dropped the `.disc.top::before` inner ring on top coins; removed the **Regiment** piece theme (chevron soldier + medal general) | Founder: minimalistic look, dislikes chevrons. Themes now Heirloom/Lineage/Dots; a stored `regiment` falls back to Heirloom via `readStoredPieceTheme`. |
+| 2026-06-29 | Player ranking system: Glicko-2 hidden rating + a Go-structured **military rank ladder** (Recruit→Colonel climb, then General ★1–★9). RankBadge + Leaderboard surfaces. | Competitive play / tournaments need confidence-aware ratings (RD) for fair seeding + smurf detection; ranks give the climb a face. One rank = 100 pts ≈ Go's one-stone gap. **OPEN:** climb-tier badge uses chevron stripes — revisit against the "dislikes chevrons" call above. |

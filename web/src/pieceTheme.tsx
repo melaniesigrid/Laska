@@ -10,13 +10,14 @@ import type { Rank } from '../../src/index.ts';
  * instead of two dots — far easier for a first-timer to parse at a glance than
  * counting pips. Themes are cosmetic only: they never change the rules.
  */
-export type PieceTheme = 'heirloom' | 'lineage' | 'dots';
+export type PieceTheme = 'heirloom' | 'lineage' | 'crown' | 'dots';
 
-export const PIECE_THEMES: PieceTheme[] = ['heirloom', 'lineage', 'dots'];
+export const PIECE_THEMES: PieceTheme[] = ['heirloom', 'lineage', 'crown', 'dots'];
 
 export const PIECE_THEME_LABEL: Record<PieceTheme, string> = {
   heirloom: 'Heirloom',
   lineage: 'Lineage',
+  crown: 'Crown',
   dots: 'Dots',
 };
 
@@ -24,6 +25,7 @@ export const PIECE_THEME_LABEL: Record<PieceTheme, string> = {
 export const PIECE_THEME_BLURB: Record<PieceTheme, string> = {
   heirloom: 'Engraved star for generals',
   lineage: 'Shield and crown — Lasker’s chess lineage',
+  crown: 'A crown for the king — Bashni’s дамка',
   dots: 'One dot soldier, two dots general',
 };
 
@@ -59,6 +61,14 @@ export function Insignia({ theme, rank }: { theme: PieceTheme; rank: Rank }) {
         <Crown className="insignia ins-officer" fill="currentColor" {...ICON} aria-hidden="true" />
       ) : (
         <Shield className="insignia ins-soldier" fill="currentColor" {...ICON} aria-hidden="true" />
+      );
+    case 'crown':
+      // A royal crown for the crowned king (the Bashni дамка); a single engraved
+      // dot for the un-promoted man, so rank reads at a glance.
+      return officer ? (
+        <Crown className="insignia ins-officer" fill="currentColor" {...ICON} aria-hidden="true" />
+      ) : (
+        <Pips n={1} />
       );
     case 'heirloom':
     default:
