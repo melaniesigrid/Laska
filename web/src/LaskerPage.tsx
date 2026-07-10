@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Crown } from 'lucide-react';
 import './landing.css';
 
 /**
@@ -57,14 +57,10 @@ export function LaskerPage({
         <div className="wrap">
           <div className="lasker-grid" style={{ alignItems: 'center' }}>
             <div className="portrait reveal" style={{ position: 'static' }}>
-              <img
-                className="portrait-photo"
-                src="/young-emanuel-lasker.png"
-                alt="Emanuel Lasker as a young man"
-                width={180}
-                height={180}
-                loading="eager"
-              />
+              <div className="medallion-stack">
+                <Crown className="medallion-crown" size={34} strokeWidth={1.5} aria-hidden="true" />
+                <div className="medallion">EL</div>
+              </div>
               <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <span className="name">Emanuel Lasker</span>
                 <span className="years">1868 — 1941</span>
