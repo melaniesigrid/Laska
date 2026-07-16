@@ -1,6 +1,6 @@
 <div align="center">
 
-# Laska
+# Laska (BETA)
 
 ### The stacking draughts — invented by a world chess champion in 1911
 
