@@ -139,6 +139,8 @@ export function useOnline() {
   const [unreadChat, setUnreadChat] = useState(0);
   // A monotonic id source for chat entries (the wire carries no per-line id).
   const chatSeqRef = useRef(0);
+  // Monotonic counter so only the newest cosmetics save may commit its response.
+  const cosmeticsSeqRef = useRef(0);
   // ---- ephemeral presence/typing (per-match, never persisted) ----
   // Whether the opponent is mid-composing a chat line. Auto-cleared on a safety
   // timeout in case a `typing:false` is dropped, and when their line arrives.
@@ -495,8 +497,15 @@ export function useOnline() {
   const saveCosmetics = useCallback(
     async (patch: CosmeticsPatch) => {
       if (!client.tokens) return;
+      // Sequence saves: a colour picker gets tapped faster than the round-trip,
+      // and setUser() feeds the response back into App's [user] reconcile effect.
+      // Without this, a slow earlier PATCH landing after a newer one would
+      // re-apply the older colour and rewrite localStorage to it (UI snaps back,
+      // local disagrees with the account). Only the latest request may commit.
+      const seq = ++cosmeticsSeqRef.current;
       try {
-        setUser(await client.setCosmetics(patch));
+        const updated = await client.setCosmetics(patch);
+        if (seq === cosmeticsSeqRef.current) setUser(updated);
       } catch (e) {
         // Keep the optimistic local choice — a network blip shouldn't yank the
         // player's pick out from under them; the next change retries. But do NOT
