@@ -10,6 +10,8 @@
  * is even. Those 25 squares are indexed 0..24, row-major (see board.ts).
  */
 
+import type { Variant } from './variant.ts';
+
 /** The two players. White ('W') moves first, per Lasker's rules. */
 export type PlayerColor = 'W' | 'B';
 
@@ -74,4 +76,11 @@ export interface GameState {
    * keyed by `encodePosition`. Used for the threefold-repetition draw rule.
    */
   positionCounts: Record<string, number>;
+  /**
+   * The variant (ruleset + geometry) this state plays under. ABSENT means Laska —
+   * read it through `variantOf(state)` so legacy states (and hand-built test
+   * positions) keep behaving exactly as Laska. `createInitialState(variant)` sets
+   * it and `applyMove` propagates it.
+   */
+  variant?: Variant;
 }

@@ -1,7 +1,9 @@
 import type { Board, Column, PlayerColor } from '../../src/index.ts';
 import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { LayoutGroup, motion } from 'motion/react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
+import { useCoords } from './coordsPref.ts';
 
 /** One-shot reward feedback fired on the landing square of the last move:
  *  `tuckCount` bottom coins slide up under the cap (prisoners just taken), and
@@ -29,6 +31,11 @@ interface BoardViewProps {
   highlight?: Set<number>;
   /** Rotate the board 180° so Black's home side is nearest the viewer. */
   flipped?: boolean;
+  /** Draw file letters (a–g) along the bottom edge and rank numbers (1–7) down
+   *  the left edge. Labels read off board geometry, so they stay correct when
+   *  `flipped`. Omit to follow the global `useCoords()` preference (the topbar
+   *  toggle); pass an explicit boolean only to force labels on/off for a surface. */
+  showCoordinates?: boolean;
   /**
    * Optional stable identity per square (parallel to `board`). When supplied, a
    * column carries its id from one square to the next across a move, so Motion's
@@ -38,6 +45,15 @@ interface BoardViewProps {
   colIds?: (string | null)[];
   /** Reward feedback for the just-played move (tuck prisoners / promotion pop). */
   moveFx?: MoveFx | null;
+  /** Optional transient overlay rendered inside the (relative) `.stage` — used
+   *  for board-anchored flourishes like the multi-capture combo badge. */
+  overlay?: ReactNode;
+  /** When provided, a change to this value (and the first mount) plays a one-shot
+   *  staggered "deal-in" entrance for the pieces. Omit on static surfaces
+   *  (replay/online) where a deal would be wrong. */
+  dealKey?: number;
+  /** Square to shake briefly (an invalid click) — a quick "no" wiggle. */
+  shakeSquare?: number | null;
 }
 
 const COLOR_WORD: Record<PlayerColor, string> = { W: 'White', B: 'Black' };
@@ -127,6 +143,11 @@ function ColumnView({
             tuck={i < tuckCount}
             pop={isTop && pop}
           >
+            {isTop && pop && (
+              // A celebratory accent ring blooms outward as the coin is crowned
+              // (CSS-only, removed under reduced-motion — see .promo-ring).
+              <span className="promo-ring" aria-hidden="true" />
+            )}
             {isTop &&
               (pop ? (
                 // The crowning: emboss the new general's star in as the coin pops.
@@ -193,8 +214,22 @@ export function BoardView(props: BoardViewProps) {
   const {
     board, dim, rcToSquare, selected, movable, destinations,
     onSquareClick, interactive, mustCapture = false, captureTargets = EMPTY,
-    highlight = EMPTY, flipped = false, colIds, moveFx,
+    highlight = EMPTY, flipped = false, colIds, moveFx, overlay, dealKey, shakeSquare,
   } = props;
+  // No explicit prop → follow the global toggle; an explicit boolean wins.
+  const coordsPref = useCoords();
+  const showCoordinates = props.showCoordinates ?? coordsPref;
+
+  // One-shot staggered entrance: deal on first mount and on each dealKey change
+  // (new game / variant / mode switch). Surfaces that omit dealKey never deal.
+  const [dealing, setDealing] = useState(dealKey !== undefined);
+  useEffect(() => {
+    if (dealKey === undefined) return;
+    setDealing(true);
+    const t = setTimeout(() => setDealing(false), 950);
+    return () => clearTimeout(t);
+  }, [dealKey]);
+  let dealIdx = 0;
 
   const cells = [];
   // Default: White's home (board row 0) sits nearest the viewer. For Black,
@@ -215,6 +250,7 @@ export function BoardView(props: BoardViewProps) {
       if (destinations.has(sq)) classes.push('drop-target');
       if (captureTargets.has(sq)) classes.push('capture');
       if (interactive && movable.has(sq)) classes.push(mustCapture ? 'movable forced' : 'movable');
+      if (shakeSquare === sq) classes.push('shake');
 
       cells.push(
         <button
@@ -222,6 +258,9 @@ export function BoardView(props: BoardViewProps) {
           type="button"
           className={classes.join(' ')}
           data-square={sq}
+          // Stagger index for the deal-in entrance, assigned in render order to
+          // occupied squares only (the `.column` descendant reads it).
+          style={column ? ({ '--deal-i': dealIdx++ } as CSSProperties) : undefined}
           onClick={() => onSquareClick(sq)}
           disabled={!interactive}
           aria-label={
@@ -244,20 +283,45 @@ export function BoardView(props: BoardViewProps) {
     }
   }
 
+  // Coordinate gutters: rank numbers down the left edge (top→bottom display
+  // order) and file letters across the bottom. Both derive from board geometry,
+  // so a flip relabels them (a1 sits under whichever corner faces the viewer).
+  const rankLabels = showCoordinates
+    ? Array.from({ length: dim }, (_, r) => (flipped ? r : dim - 1 - r) + 1)
+    : null;
+  const fileLabels = showCoordinates
+    ? Array.from({ length: dim }, (_, c) => String.fromCharCode(97 + (flipped ? dim - 1 - c : c)))
+    : null;
+
   return (
     <div className="stage">
       <div className="board">
         <LayoutGroup>
           <div
-            className="field"
+            className={`field${showCoordinates ? ' with-coords' : ''}${dealing ? ' dealing' : ''}`}
             role="grid"
-            aria-label={`Laska board, 7 by 7, ${flipped ? 'Black' : 'White'} perspective`}
+            aria-label={`Board, ${dim} by ${dim}, ${flipped ? 'Black' : 'White'} perspective`}
             data-perspective={flipped ? 'black' : 'white'}
+            style={{
+              gridTemplateColumns: `repeat(${dim}, var(--sq))`,
+              gridTemplateRows: `repeat(${dim}, var(--sq))`,
+            }}
           >
             {cells}
+            {showCoordinates && (
+              <>
+                <div className="coord-ranks" aria-hidden="true" style={{ height: `calc(${dim} * var(--sq))` }}>
+                  {rankLabels!.map((n, i) => <span key={i}>{n}</span>)}
+                </div>
+                <div className="coord-files" aria-hidden="true" style={{ width: `calc(${dim} * var(--sq))` }}>
+                  {fileLabels!.map((f, i) => <span key={i}>{f}</span>)}
+                </div>
+              </>
+            )}
           </div>
         </LayoutGroup>
       </div>
+      {overlay}
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { ArrowLeft, Play, FileText } from 'lucide-react';
+import { ArrowLeft, Play, FileText, Layers } from 'lucide-react';
 import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
 import { OPENINGS, FIRST_MOVES, OPENING_SOURCES } from './openings.ts';
+import { useCoords } from './coordsPref.ts';
 import './landing.css';
 
 /**
@@ -14,9 +15,15 @@ import './landing.css';
 /** The board with Lasker's 1–25 square numbering (square N ↔ engine index N−1),
  *  drawn White-at-the-bottom exactly as the game board displays it. */
 function NumberedBoard() {
+  // The a–g / 1–7 edge gutter follows the same global toggle as the play boards;
+  // it complements Lasker's in-cell 1–25 numbering rather than replacing it.
+  const showCoords = useCoords();
   const cells = [];
   for (let displayRow = 0; displayRow < BOARD_DIM; displayRow++) {
     const boardRow = BOARD_DIM - 1 - displayRow;
+    if (showCoords) {
+      cells.push(<div key={`rank-${displayRow}`} className="bd-coord bd-rank" aria-hidden="true">{boardRow + 1}</div>);
+    }
     for (let col = 0; col < BOARD_DIM; col++) {
       const sq = RC_TO_SQUARE[boardRow * BOARD_DIM + col]!;
       if (sq === -1) {
@@ -32,7 +39,18 @@ function NumberedBoard() {
       );
     }
   }
-  return <div className="numbered-board" role="img" aria-label="Laska board, squares numbered 1 to 25; White starts on 1–11, Black on 15–25, the centre 12–14 empty.">{cells}</div>;
+  if (showCoords) {
+    // Bottom file row: an empty corner under the rank column, then a–g.
+    cells.push(<div key="corner" className="bd-coord" aria-hidden="true" />);
+    for (let col = 0; col < BOARD_DIM; col++) {
+      cells.push(
+        <div key={`file-${col}`} className="bd-coord bd-file" aria-hidden="true">
+          {String.fromCharCode(97 + col)}
+        </div>,
+      );
+    }
+  }
+  return <div className={`numbered-board${showCoords ? ' with-coords' : ''}`} role="img" aria-label="Laska board, squares numbered 1 to 25; White starts on 1–11, Black on 15–25, the centre 12–14 empty.">{cells}</div>;
 }
 
 function Term({ term, children }: { term: string; children: React.ReactNode }) {
@@ -48,10 +66,13 @@ export function BrochurePage({
   onBack,
   onPlay,
   onReplay,
+  onBashniRules,
 }: {
   onBack: () => void;
   onPlay: () => void;
   onReplay: (gameId?: string) => void;
+  /** Open the Bashni rules page (the towers game Lasca descends from). */
+  onBashniRules?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -94,7 +115,7 @@ export function BrochurePage({
             Rules of <em className="serif">Lasca.</em>
           </h1>
           <p className="lede" style={{ maxWidth: '46ch' }}>
-            The Great Military Game, invented by Dr. Emanuel Lasker. This is the complete ruleset —
+            The Great Strategy Game, invented by Dr. Emanuel Lasker. This is the complete ruleset —
             taken from his original 1911 booklet and reconciled with the engine you play here, so the
             rules stay consistent everywhere.
           </p>
@@ -466,6 +487,35 @@ export function BrochurePage({
           </div>
         </div>
       </section>
+
+      {/* the ancestor: Bashni */}
+      {onBashniRules && (
+        <section style={{ paddingBlock: 'clamp(2rem,5vw,3.5rem)' }}>
+          <div className="wrap" style={{ maxWidth: '760px' }}>
+            <div className="reveal card note" style={{ padding: 'clamp(1.8rem,4vw,2.6rem)' }}>
+              <p className="eyebrow">Where Lasca came from</p>
+              <h3 style={{ fontSize: '1.4rem', margin: '0.5rem 0 0.8rem' }}>
+                Bashni — the Russian towers game.
+              </h3>
+              <p>
+                Lasker built Lasca from <em className="serif">bashni</em>, the Russian “towers” draughts
+                in which a captured man is buried, not removed. Bashni keeps the full 8×8 board, lets men
+                capture in every direction, and crowns long-range flying kings. It’s the same stacking
+                idea you’ve just read — in the larger, older form Lasker started from, and you can play it
+                here too.
+              </p>
+              <div className="hero-actions" style={{ marginTop: '1.4rem' }}>
+                <button className="btn" onClick={onBashniRules}>
+                  <Layers size={15} /> Read the Bashni rules
+                </button>
+                <button className="btn" onClick={() => onReplay('bashni-engine-demo')}>
+                  <Play size={15} /> Watch the engine play Bashni
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* closing */}
       <section className="closing">

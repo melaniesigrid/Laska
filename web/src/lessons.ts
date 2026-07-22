@@ -29,8 +29,9 @@ import {
   decodePosition,
   legalMoves,
   applyMove,
-  RC_TO_SQUARE,
-  SQUARE_TO_RC,
+  LASKA,
+  BASHNI,
+  type Variant,
   type GameState,
   type Move,
 } from '../../src/index.ts';
@@ -38,27 +39,35 @@ import {
 // ---------------------------------------------------------------------------
 // Coordinate helpers (algebraic <-> engine square index)
 // ---------------------------------------------------------------------------
+//
+// All helpers are variant-aware: Laska is 7x7 (squares 0..24, files a–g / ranks
+// 1–7), Bashni is 8x8 (squares 0..31, files a–h / ranks 1–8). The algebraic
+// notation is identical in form; only the board dimension differs, so every
+// helper resolves squares through the variant's own `rcToSquare` table rather
+// than a hardcoded Laska constant.
 
-/** Algebraic square (e.g. "c3") → engine square index 0..24. */
-function sq(alg: string): number {
+/** Algebraic square (e.g. "c3") → engine square index, against `v`'s geometry. */
+function sq(alg: string, v: Variant): number {
   const col = alg.charCodeAt(0) - 97; // 'a' -> 0
-  const row = Number(alg[1]) - 1; // '1' -> 0
-  const idx = RC_TO_SQUARE[row * 7 + col];
-  if (idx == null || idx === -1) throw new Error(`bad square "${alg}"`);
+  const row = Number(alg.slice(1)) - 1; // '1' -> 0
+  const idx = v.rcToSquare[row * v.boardDim + col];
+  if (idx == null || idx === -1) throw new Error(`bad ${v.id} square "${alg}"`);
   return idx;
 }
 
-/** Engine square index → algebraic (e.g. 8 → "c3"). For display/debug. */
-export function squareToAlg(idx: number): string {
-  const rc = SQUARE_TO_RC[idx];
-  if (!rc) throw new Error(`bad square index ${idx}`);
+/** Engine square index → algebraic (e.g. 8 → "c3") for `v`. For display/debug. */
+export function squareToAlg(idx: number, v: Variant = LASKA): string {
+  const rc = v.squareToRc[idx];
+  if (!rc) throw new Error(`bad ${v.id} square index ${idx}`);
   return String.fromCharCode(97 + rc.col) + (rc.row + 1);
 }
 
-/** Decode a FEN-like position string into a full, playable `GameState`. */
-function stateFrom(position: string): GameState {
-  const { board, toMove } = decodePosition(position);
-  return { board, toMove, plyNoProgress: 0, positionCounts: {} };
+/** Decode a FEN-like position string into a full, playable `GameState` for `v`.
+ *  The decoded `variant` is carried onto the state so `legalMoves`/`applyMove`
+ *  apply the right ruleset (Bashni backward captures, flying kings, …). */
+function stateFrom(position: string, v: Variant): GameState {
+  const { board, toMove, variant } = decodePosition(position, v);
+  return { board, toMove, variant, plyNoProgress: 0, positionCounts: {} };
 }
 
 /**
@@ -67,10 +76,10 @@ function stateFrom(position: string): GameState {
  * final landing ("a1xc3"); the unique/longest legal move with that origin and
  * destination is taken. Throws if no legal move matches.
  */
-function resolveMove(state: GameState, notation: string): Move {
+function resolveMove(state: GameState, notation: string, v: Variant): Move {
   const tok = notation.trim();
   const sep = tok.includes('x') ? 'x' : '-';
-  const sqs = tok.split(sep).map(sq);
+  const sqs = tok.split(sep).map((a) => sq(a, v));
   const from = sqs[0]!;
   const to = sqs[sqs.length - 1]!;
   const moves = legalMoves(state);
@@ -89,8 +98,8 @@ function resolveMove(state: GameState, notation: string): Move {
     .sort((a, b) => b.path.length - a.path.length);
   if (byFromTo[0]) return byFromTo[0];
   throw new Error(
-    `lesson move "${notation}" (from ${squareToAlg(from)} to ${squareToAlg(to)}) is not legal; ` +
-      `legal moves: ${moves.map((m) => squareToAlg(m.from) + '->' + m.path.map(squareToAlg).join('x')).join(', ')}`,
+    `lesson move "${notation}" (from ${squareToAlg(from, v)} to ${squareToAlg(to, v)}) is not legal; ` +
+      `legal moves: ${moves.map((m) => squareToAlg(m.from, v) + '->' + m.path.map((p) => squareToAlg(p, v)).join('x')).join(', ')}`,
   );
 }
 
@@ -164,6 +173,8 @@ export interface Lesson {
   difficulty: number;
   intro: string;
   outro: string;
+  /** The variant this lesson plays under (geometry + ruleset). */
+  variant: Variant;
   /** states[0] = start; states[k] = position after step k. length = steps+1. */
   states: GameState[];
   steps: LessonStep[];
@@ -173,8 +184,8 @@ export interface Lesson {
 // Builder — validates the whole lesson against the engine at import time.
 // ---------------------------------------------------------------------------
 
-function buildLesson(raw: RawLesson): Lesson {
-  let state = stateFrom(raw.position);
+function buildLesson(raw: RawLesson, v: Variant = LASKA): Lesson {
+  let state = stateFrom(raw.position, v);
   const states: GameState[] = [state];
   const steps: LessonStep[] = raw.steps.map((rs, i) => {
     const actor: StepActor = rs.actor ?? 'learner';
@@ -186,11 +197,11 @@ function buildLesson(raw: RawLesson): Lesson {
       throw new Error(
         `lesson "${raw.id}" step ${i}: opponent reply "${rs.moves[0]}" is presented as forced, ` +
           `but ${legal.length} legal moves exist: ` +
-          legal.map((m) => squareToAlg(m.from) + '->' + m.path.map(squareToAlg).join('x')).join(', '),
+          legal.map((m) => squareToAlg(m.from, v) + '->' + m.path.map((p) => squareToAlg(p, v)).join('x')).join(', '),
       );
     }
 
-    const expectedMoves = rs.moves.map((n) => resolveMove(state, n));
+    const expectedMoves = rs.moves.map((n) => resolveMove(state, n, v));
 
     // Glow = every from/to of the accepted moves + any authored extra squares.
     const glow = new Set<number>();
@@ -198,7 +209,7 @@ function buildLesson(raw: RawLesson): Lesson {
       glow.add(m.from);
       glow.add(m.to);
     }
-    for (const h of rs.highlight ?? []) glow.add(sq(h));
+    for (const h of rs.highlight ?? []) glow.add(sq(h, v));
 
     const built: LessonStep = {
       actor,
@@ -224,6 +235,7 @@ function buildLesson(raw: RawLesson): Lesson {
     difficulty: raw.difficulty,
     intro: raw.intro,
     outro: raw.outro,
+    variant: v,
     states,
     steps,
   };
@@ -379,6 +391,177 @@ const LESSON_ATTACK_OVER_DEFENCE: RawLesson = {
   ],
 };
 
+// ===========================================================================
+// BASHNI TRACK — the Russian "towers" draughts Laska descends from.
+// ===========================================================================
+// Bashni shares Laska's stacking (a captured commander is buried at the bottom
+// of the capturing column) but changes three things these lessons teach, each
+// over the real engine on the 8x8 board (files a–h, ranks 1–8):
+//   (1) men capture BACKWARD as well as forward (they still only MOVE forward);
+//   (2) a crowned piece is a FLYING king — it slides any distance and captures
+//       at range, landing on any empty square beyond the victim;
+//   (3) a man that promotes mid-capture becomes a king at once and keeps going.
+// Every position below decodes against BASHNI and every scripted move is in the
+// Bashni `legalMoves`, validated at import time by `buildLesson(raw, BASHNI)`.
+
+// ---------------------------------------------------------------------------
+// Bashni 1 — The bigger board
+// ---------------------------------------------------------------------------
+// Orientation: Bashni is 8x8 (32 dark squares) with 12 men a side, vs Laska's
+// 7x7. The capture itself is the familiar forward jump, so the only new thing
+// to absorb here is the size — one gated jump on the larger board.
+
+const BASHNI_BIGGER_BOARD: RawLesson = {
+  id: 'bashni-bigger-board',
+  title: 'A bigger board',
+  strategyRef: 'Bashni',
+  difficulty: 1,
+  intro:
+    'Bashni is where Laska comes from: the same stacking idea on a larger 8×8 board, twelve men a side. Start with a jump you already know — forward, over an enemy, onto the empty square beyond.',
+  outro:
+    'Same prisoner-stacking heart, more room to use it. Everything else you learn here is what makes Bashni its own game.',
+  // White man c3; lone Black man d4; e5 empty beyond.
+  position: 'W:9=Ws,13=Bs',
+  steps: [
+    {
+      prompt: 'Jump forward — tap c3, then e5.',
+      moves: ['c3xe5'],
+      hint: 'Leap the enemy diagonally ahead and land on the empty square beyond it.',
+      successText: 'Captured. It rides beneath you — just like Laska, on a wider board.',
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Bashni 2 — Take prisoners, build the tower
+// ---------------------------------------------------------------------------
+// The stacking heart of the game (Russian: плен, "captivity"). Nothing leaves
+// the board — each jumped man is buried at the BASE of the capturing column.
+// Chain two forward jumps in a single move and a three-high башня (tower) rises:
+// White man c3 takes d4 (→ e5), then keeps going and takes f6 (→ g7), ending as
+// a White soldier commanding two buried prisoners. Mandatory-continuation makes
+// the full chain c3xe5xg7 the only legal move, so the engine proves the point.
+
+const BASHNI_BUILD_TOWER: RawLesson = {
+  id: 'bashni-build-tower',
+  title: 'Take two — build the tower',
+  strategyRef: 'Bashni',
+  difficulty: 2,
+  intro:
+    'Nothing ever leaves the board: every man you jump is taken prisoner — the Russians call it плен, “captivity” — at the base of your column. Chain two jumps in one move and you raise a three-high tower: your soldier on top, two captives buried beneath.',
+  outro:
+    'That is the heart of the towers game (башни): captures stack instead of clearing. The deeper your column, the more prisoners it carries — and freeing them, by taking the man on top, is how the game swings back.',
+  // White man c3; Black men d4 and f6 up the diagonal; e5 and g7 empty, so the
+  // single forced capture chains c3xe5xg7, burying both beneath the White man.
+  position: 'W:9=Ws,13=Bs,22=Bs',
+  steps: [
+    {
+      prompt: 'Chain the jumps — tap c3, then e5, then g7.',
+      moves: ['c3xe5xg7'],
+      hint: 'Jump d4 onto e5, then keep going: from e5 leap f6 and land on g7. One move, two prisoners.',
+      successText: 'A three-high tower — your man commands two captives. Stacking, not clearing, is the whole idea of Bashni.',
+      highlight: ['d4', 'f6'],
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Bashni 3 — Men strike backward
+// ---------------------------------------------------------------------------
+// THE signature Bashni rule: an un-promoted man still only MOVES forward, but it
+// may CAPTURE in any direction — including straight back over its own shoulder.
+// White man on e5 with a Black man diagonally BEHIND it (d4) and c3 empty: the
+// only legal move is the backward capture e5xc3 (mandatory-capture makes it the
+// single legal move, so the engine itself proves the point).
+
+const BASHNI_BACKWARD_CAPTURE: RawLesson = {
+  id: 'bashni-backward-capture',
+  title: 'Men strike backward',
+  strategyRef: 'Bashni',
+  difficulty: 3,
+  intro:
+    'In Laska a soldier only ever captures forward. Bashni men are different: they still march forward, but they CAPTURE in any direction — even behind them. An enemy has slipped in behind your man.',
+  outro:
+    'A Bashni man has no blind spot for capturing. Soldiers move forward, but they take prisoners both ways — never assume your back rank is safe.',
+  // White man e5; Black man behind it at d4; c3 empty beyond (backward).
+  position: 'W:18=Ws,13=Bs',
+  steps: [
+    {
+      prompt: 'Capture backward — tap e5, then c3.',
+      moves: ['e5xc3'],
+      hint: 'Your man moves forward only, but it captures any direction. Jump back over d4 onto c3.',
+      successText: 'Taken from behind. Bashni men strike both ways — only their quiet move is forward-only.',
+      highlight: ['d4'],
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Bashni 4 — The flying king
+// ---------------------------------------------------------------------------
+// A crowned piece in Bashni is a Russian-rules FLYING king: it slides any
+// distance along an open diagonal, and to capture it may sit far from its
+// victim and land on ANY empty square beyond it. White king on a1, a lone Black
+// man up the long diagonal at e5, the squares between empty — the king strikes
+// from range and may land on f6, g7, or h8. The lesson gates the showy landing
+// (a1xh8) to make the "land anywhere beyond" point land.
+
+const BASHNI_FLYING_KING: RawLesson = {
+  id: 'bashni-flying-king',
+  title: 'The flying king',
+  strategyRef: 'Bashni',
+  difficulty: 4,
+  intro:
+    'Laska crowns a single-step officer. Bashni crowns a FLYING king: it slides as far as it likes down an open diagonal, and captures from a distance — landing on any empty square past its victim.',
+  outro:
+    'A flying king rules a whole diagonal at once. It can strike from far away and choose where to land, which makes a single king worth far more than one square of reach.',
+  // White flying king a1; lone Black man far up the diagonal at e5; path clear.
+  position: 'W:0=Wo,18=Bs',
+  steps: [
+    {
+      prompt: 'Strike from range — tap a1, then h8.',
+      moves: ['a1xh8'],
+      hint: 'Your king covers the whole diagonal. Capture e5 from a distance and fly on to h8.',
+      successText: 'Captured from across the board, and you chose where to land. That reach is the flying king.',
+      highlight: ['e5'],
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Bashni 5 — Crown and keep going
+// ---------------------------------------------------------------------------
+// In Laska, reaching the back rank ENDS the move (even mid-chain). Bashni does
+// the opposite: a man that promotes mid-capture becomes a king at once and MUST
+// keep capturing as a flying king if it can. White man d6 jumps e7, lands on the
+// back-rank f8 (crowning), then immediately, as a flying king, sweeps back down
+// the long diagonal to take c5 and land on b4. One unbroken move: d6xf8xb4.
+
+const BASHNI_PROMOTE_CONTINUES: RawLesson = {
+  id: 'bashni-promote-continues',
+  title: 'Crown and keep going',
+  strategyRef: 'Bashni',
+  difficulty: 5,
+  intro:
+    'In Laska, touching the back rank ends your move on the spot. Bashni is the opposite: a man that crowns in the middle of a capture becomes a king instantly — and keeps capturing as a flying king.',
+  outro:
+    'Crown mid-jump and you do not stop — you fly on. One man turned into a king AND swept the diagonal in a single move: that compounding capture is pure Bashni.',
+  // White man d6; Black man e7 (jump → f8 crowns); Black man c5 down the long
+  // diagonal for the new king to continue onto b4.
+  position: 'W:21=Ws,26=Bs,17=Bs',
+  steps: [
+    {
+      prompt: 'Crown and continue — tap d6, then f8, then b4.',
+      // Full chain: d6 jumps e7 onto the back-rank f8 (promotes), then the new
+      // flying king continues over c5 to land on b4.
+      moves: ['d6xf8xb4'],
+      hint: 'Jump onto f8 to crown, then keep going — your new king flies down the diagonal over c5 to b4.',
+      successText: 'Promoted mid-jump and kept capturing. In Bashni the crown is a beginning, not an ending.',
+      highlight: ['f8', 'c5'],
+    },
+  ],
+};
+
 // ---------------------------------------------------------------------------
 // Exported, validated lessons (ordered by difficulty).
 // ---------------------------------------------------------------------------
@@ -393,9 +576,23 @@ export const STRATEGY_LESSONS: Lesson[] = [
   LESSON_GUARD_WEAK_COLUMN,
   LESSON_ONE_HANDED_ATTACK,
   LESSON_ATTACK_OVER_DEFENCE,
-].map(buildLesson);
+].map((raw) => buildLesson(raw, LASKA));
 
-/** Look up a single lesson by id. */
+/**
+ * The Bashni track — what makes Bashni distinct from Laska, taught on the real
+ * 8x8 engine. Built & validated against BASHNI at import time; throws on load if
+ * any position or scripted move is illegal under Bashni rules. Ordered easiest →
+ * hardest: the bigger board, backward captures, the flying king, promote-and-go.
+ */
+export const BASHNI_LESSONS: Lesson[] = [
+  BASHNI_BIGGER_BOARD,
+  BASHNI_BUILD_TOWER,
+  BASHNI_BACKWARD_CAPTURE,
+  BASHNI_FLYING_KING,
+  BASHNI_PROMOTE_CONTINUES,
+].map((raw) => buildLesson(raw, BASHNI));
+
+/** Look up a single lesson by id across both variant tracks. */
 export function getLesson(id: string): Lesson | undefined {
-  return STRATEGY_LESSONS.find((l) => l.id === id);
+  return STRATEGY_LESSONS.find((l) => l.id === id) ?? BASHNI_LESSONS.find((l) => l.id === id);
 }

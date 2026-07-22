@@ -3,6 +3,7 @@ import {
   createInitialState,
   legalMoves,
   applyMove,
+  moveStepBoards,
   gameStatus,
   chooseMove,
   RC_TO_SQUARE,
@@ -11,7 +12,7 @@ import {
   type Move,
   type PlayerColor,
 } from '../../src/index.ts';
-import { Palette, Sparkles } from 'lucide-react';
+import { Palette, Sparkles, X, Trophy } from 'lucide-react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
 import { DotMascot } from './mascots.tsx';
 import './landing.css';
@@ -105,12 +106,36 @@ function DemoBoard({ onAnalyze }: { onAnalyze: DemoSnapshot }) {
         return;
       }
       const move = chooseMove(prev, { depth: 2, blunderRate: 0.18 });
-      if (move) {
-        movesRef.current.push(move);
+      if (!move) {
+        timer = setTimeout(step, 1250);
+        return;
+      }
+      movesRef.current.push(move);
+      const boards = moveStepBoards(prev, move);
+      if (boards.length <= 1) {
+        // Quiet move or single jump: one glide from origin to destination.
         lastMoveRef.current = { fromIdx: SQ_TO_IDX[move.from]!, toIdx: SQ_TO_IDX[move.to]! };
         setState(applyMove(prev, move));
+        timer = setTimeout(step, 1250);
+        return;
       }
-      timer = setTimeout(step, 1250);
+      // Multi-jump: slide one leap at a time so the chain reads as a sequence of
+      // hops, not a teleport — each frame buries that leap's prisoner.
+      let leapIdx = 0;
+      const leap = () => {
+        if (cancelled) return;
+        const from = leapIdx === 0 ? move.from : move.path[leapIdx - 1]!;
+        lastMoveRef.current = { fromIdx: SQ_TO_IDX[from]!, toIdx: SQ_TO_IDX[move.path[leapIdx]!]! };
+        if (leapIdx === boards.length - 1) {
+          setState(applyMove(prev, move)); // settle to the real end state
+          timer = setTimeout(step, 1250);
+        } else {
+          setState({ ...prev, board: boards[leapIdx]! }); // intermediate frame (board only)
+          leapIdx += 1;
+          timer = setTimeout(leap, 620);
+        }
+      };
+      leap();
     };
     timer = setTimeout(step, 900);
     return () => {
@@ -225,6 +250,7 @@ export function Landing({
   onAI,
   onBuild,
   onLessons,
+  onLeaderboard,
   themeLabel,
   onCycleTheme,
   onAnalyzeFeatured,
@@ -236,11 +262,30 @@ export function Landing({
   onAI: () => void;
   onBuild: () => void;
   onLessons: () => void;
+  onLeaderboard: () => void;
   themeLabel: string;
   onCycleTheme: () => void;
   onAnalyzeFeatured: DemoSnapshot;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // First-visit welcome: show a friendly one-time nudge toward the tutorial,
+  // remembered in localStorage so it never nags a returning player.
+  const [welcome, setWelcome] = useState(() => {
+    try {
+      return !localStorage.getItem('laska-welcomed');
+    } catch {
+      return false;
+    }
+  });
+  const dismissWelcome = () => {
+    setWelcome(false);
+    try {
+      localStorage.setItem('laska-welcomed', '1');
+    } catch {
+      /* ignore */
+    }
+  };
 
   // gentle scroll reveal, matching the original
   useEffect(() => {
@@ -280,7 +325,10 @@ export function Landing({
               aria-label={`Color theme: ${themeLabel}. Click to change.`}
               title="Change color theme"
             >
-              <Palette size={16} /> {themeLabel}
+              <Palette key={themeLabel} className="theme-spin" size={16} /> {themeLabel}
+            </button>
+            <button className="btn" onClick={onLeaderboard} title="Ranked leaderboard">
+              <Trophy size={16} /> Leaderboard
             </button>
             <button className="btn" onClick={onPlay}>
               <span className="dot" />
@@ -291,17 +339,22 @@ export function Landing({
       </header>
 
       <section className="hero">
+        <div className="hero-ambient" aria-hidden="true">
+          {Array.from({ length: 9 }, (_, i) => (
+            <span key={i} className="amb-dot" />
+          ))}
+        </div>
         <div className="wrap hero-grid">
           <div className="reveal">
-            <p className="eyebrow">The Great Military Game · 1911</p>
+            <p className="eyebrow">The Great Strategy Game · 1911</p>
             <h1>
               Capture builds.
               <br />
               <span className="light">Nothing is</span> <em className="serif">erased.</em>
             </h1>
             <p className="lede">
-              Laska is draughts reimagined by a world chess champion — where every piece you take is
-              carried beneath your own, and the board grows into towers.
+              Laska is the great strategy game reimagined by a world chess champion — where every
+              piece you take is carried beneath your own, and the board grows into towers.
             </p>
             <div className="hero-actions">
               <button className="btn btn-lg" onClick={onPlay}>
@@ -619,13 +672,44 @@ export function Landing({
             Las<span>k</span>a
           </span>
           <span className="fine">
-            The Great Military Game · after Emanuel Lasker, 1911 ·{' '}
+            The Great Strategy Game · after Emanuel Lasker, 1911 · Built by{' '}
+            <a href="https://northboundsoftwarestudio.com" target="_blank" rel="noopener">
+              Northbound Software Studio
+            </a>{' '}
+            ·{' '}
             <a href="https://github.com/melaniesigrid" target="_blank" rel="noopener noreferrer">
               © Melanie Baratto
             </a>
           </span>
         </div>
       </footer>
+
+      {welcome && (
+        <div className="welcome-toast" role="dialog" aria-label="Welcome to Laska">
+          <DotMascot color="var(--l-accent)" mood="idle" size={56} label="Laska mascot" />
+          <div className="wt-body">
+            <strong>New to Laska?</strong>
+            <span>Learn the whole game in about a minute.</span>
+            <div className="wt-actions">
+              <button
+                className="wt-cta"
+                onClick={() => {
+                  dismissWelcome();
+                  onLessons();
+                }}
+              >
+                <Sparkles size={14} /> Start the tutorial
+              </button>
+              <button className="wt-later" onClick={dismissWelcome}>
+                Maybe later
+              </button>
+            </div>
+          </div>
+          <button className="wt-close" onClick={dismissWelcome} aria-label="Dismiss welcome">
+            <X size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

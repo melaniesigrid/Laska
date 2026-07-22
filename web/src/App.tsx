@@ -6,6 +6,7 @@ import {
   Cpu,
   Users,
   Gamepad2,
+  Layers,
   Globe,
   Palette,
   ArrowLeft,
@@ -18,6 +19,10 @@ import {
   Library,
   Lightbulb,
   CircleUserRound,
+  Grid3x3,
+  Volume2,
+  VolumeX,
+  MoreHorizontal,
 } from 'lucide-react';
 import {
   createInitialState,
@@ -30,10 +35,12 @@ import {
   gameStatus,
   opponent,
   type CaptureChain,
-  RC_TO_SQUARE,
-  BOARD_DIM,
   DIFFICULTY_DEPTH,
   DIFFICULTY_ORDER,
+  LASKA,
+  BASHNI,
+  type Variant,
+  type VariantId,
   type Board,
   type GameState,
   type GameOutcome,
@@ -51,6 +58,7 @@ import { ReplayPage } from './ReplayPage.tsx';
 import { buildLiveGame, type HistoricGame } from './games.ts';
 import { readShareCode, clearShareParam, gameFromCode } from './share.ts';
 import { BrochurePage } from './BrochurePage.tsx';
+import { BashniRulesPage } from './BashniRulesPage.tsx';
 import { AIPage } from './AIPage.tsx';
 import { BuildStoryPage } from './BuildStoryPage.tsx';
 import { MyGamesPage } from './MyGamesPage.tsx';
@@ -65,6 +73,9 @@ import {
   type NewGameInput,
 } from './savedGames.ts';
 import { LessonsPage } from './LessonsPage.tsx';
+import { OpeningsPage } from './OpeningsPage.tsx';
+import { LeaderboardPage } from './LeaderboardPage.tsx';
+import { AdminStatsPage } from './AdminStatsPage.tsx';
 import {
   PieceThemeContext,
   PIECE_THEMES,
@@ -73,8 +84,10 @@ import {
   usePieceTheme,
   type PieceTheme,
 } from './pieceTheme.tsx';
+import { useCoords, toggleCoords } from './coordsPref.ts';
 import { track, trackAppOpen, type MatchMode } from './analytics/index.ts';
-import { DotMascot, type MascotTint } from './mascots.tsx';
+import { DotMascot, WinConfetti, type MascotTint } from './mascots.tsx';
+import { sound } from './sound.ts';
 import { ProfilePage, type BoardThemeOption } from './ProfilePage.tsx';
 import {
   getSelectedMascotTint,
@@ -85,6 +98,27 @@ import { useStreak } from './useStreak.ts';
 import { StreakIndicator } from './StreakIndicator.tsx';
 
 type Mode = 'hotseat' | 'ai';
+
+/** Multi-capture badge wording by prisoner count; falls back to "N× combo!". */
+const COMBO_WORD: Record<number, string> = {
+  2: 'Double take!',
+  3: 'Triple take!',
+  4: 'Quadruple!',
+  5: 'Quintuple!!',
+};
+const comboLabel = (n: number) => COMBO_WORD[n] ?? `${n}× combo!`;
+
+/** A short tactile buzz on capture, where the device supports it (mobile).
+ *  Skipped under reduced-motion. `pattern` is a ms duration or a vibrate pattern. */
+function haptic(pattern: number | number[]) {
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  try {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    navigator.vibrate(pattern);
+  } catch {
+    /* ignore — vibration is best-effort */
+  }
+}
 
 const COLOR_NAME: Record<PlayerColor, string> = { W: 'White', B: 'Black' };
 
@@ -206,14 +240,20 @@ export function App() {
     | 'lasker'
     | 'replay'
     | 'brochure'
+    | 'bashni-rules'
     | 'ai'
     | 'build'
     | 'lessons'
+    | 'openings'
     | 'mygames'
     | 'watch'
     | 'featured'
     | 'profile'
-  >('landing');
+    | 'leaderboard'
+    | 'admin'
+    // The admin dashboard is reachable only by the URL hash (#/admin) — never
+    // linked from user-facing nav. Read once on mount so a direct link lands there.
+  >(() => (typeof window !== 'undefined' && window.location.hash === '#/admin' ? 'admin' : 'landing'));
   const [replayGameId, setReplayGameId] = useState<string | undefined>(undefined);
   const [watchId, setWatchId] = useState<string | undefined>(undefined);
   // The single-game replay viewer (engine self-play demo, or a shared link). The
@@ -225,6 +265,54 @@ export function App() {
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
   const [mascotTint, setMascotTint] = useState<MascotTint>(getSelectedMascotTint);
+  // Mobile-only overflow ("More") menu for the secondary top-bar chrome. On
+  // desktop the `.chrome` group is `display: contents` so these buttons flow
+  // inline and this flag is inert; below the breakpoint they collapse behind a
+  // single kebab toggle (see `.chrome-menu` in styles.css).
+  const [chromeOpen, setChromeOpen] = useState(false);
+  const chromeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!chromeOpen) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!chromeRef.current?.contains(e.target as Node)) setChromeOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setChromeOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [chromeOpen]);
+  // Sound is opt-in (off by default), persisted, and held by the sound module so
+  // any call site can play without prop-drilling. This state only drives the icon.
+  const [soundOn, setSoundOn] = useState(() => {
+    try {
+      return localStorage.getItem('laska-sound') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    sound.setEnabled(soundOn);
+  }, [soundOn]);
+  const toggleSound = () =>
+    setSoundOn((on) => {
+      const next = !on;
+      if (next) sound.unlock(); // this click is the gesture that unlocks audio
+      try {
+        localStorage.setItem('laska-sound', next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  const showCoords = useCoords();
+  // The local-game variant lives here so the page title can reflect it; LocalGame
+  // owns the actual game state and resets when the choice changes.
+  const [variant, setVariant] = useState<Variant>(() => loadVariant());
   const online = useOnline();
   // Daily-streak retention loop. Owned here at the root; `recordDailyAction` is
   // handed down to the finished-match funnel in LocalGame so a streak ticks once
@@ -246,6 +334,17 @@ export function App() {
   // resolveFirstSeen is per-session idempotent so the firstEver flag stays stable.
   useEffect(() => {
     trackAppOpen();
+  }, []);
+
+  // Internal admin dashboard: routed purely off the URL hash (#/admin) so it's
+  // reachable by direct link without ever appearing in the user-facing nav.
+  // Leaving the page (Back) clears the hash, which returns us to the landing.
+  useEffect(() => {
+    const sync = () => {
+      if (window.location.hash === '#/admin') setView('admin');
+    };
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
   }, []);
 
   useEffect(() => {
@@ -347,6 +446,7 @@ export function App() {
         onAI={() => setView('ai')}
         onBuild={() => setView('build')}
         onLessons={() => setView('lessons')}
+        onLeaderboard={() => setView('leaderboard')}
         themeLabel={THEME_LABEL[theme]}
         onCycleTheme={cycleTheme}
         onAnalyzeFeatured={analyzeFeatured}
@@ -370,6 +470,17 @@ export function App() {
       <LessonsPage
         onBack={() => setView('landing')}
         onPlay={() => setView('game')}
+        onStudyOpenings={() => setView('openings')}
+        pieceTheme={pieceTheme}
+      />
+    );
+  }
+  if (view === 'openings') {
+    return (
+      <OpeningsPage
+        onBack={() => setView('lessons')}
+        onPlay={() => setView('game')}
+        onLearn={() => setView('lessons')}
         pieceTheme={pieceTheme}
       />
     );
@@ -411,6 +522,41 @@ export function App() {
         onBack={() => setView('landing')}
         onPlay={() => setView('game')}
         onReplay={(id) => goReplay(id)}
+        onBashniRules={() => setView('bashni-rules')}
+      />
+    );
+  }
+  if (view === 'bashni-rules') {
+    return (
+      <BashniRulesPage
+        onBack={() => setView('landing')}
+        onPlay={() => setView('game')}
+        onReplay={(id) => goReplay(id)}
+      />
+    );
+  }
+  if (view === 'leaderboard') {
+    return (
+      <LeaderboardPage
+        onBack={() => setView('landing')}
+        onPlay={() => {
+          setAppMode('online');
+          setView('game');
+        }}
+        {...(online.user ? { currentUserId: online.user.id } : {})}
+      />
+    );
+  }
+  if (view === 'admin') {
+    return (
+      <AdminStatsPage
+        onBack={() => {
+          // Clear the hash so a refresh / share doesn't reopen the admin page.
+          if (window.location.hash === '#/admin') {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+          setView('landing');
+        }}
       />
     );
   }
@@ -493,34 +639,76 @@ export function App() {
               <Globe size={15} /> Online
             </button>
           </div>
-          <button className="btn" onClick={cycleTheme} aria-label={`Color theme: ${THEME_LABEL[theme]}. Click to change.`}>
-            <Palette size={16} /> {THEME_LABEL[theme]}
+          <div className={`chrome${chromeOpen ? ' open' : ''}`} ref={chromeRef}>
+          <button
+            className="btn icon-only chrome-toggle"
+            onClick={() => setChromeOpen((o) => !o)}
+            aria-expanded={chromeOpen}
+            aria-haspopup="menu"
+            aria-label="More options"
+            title="More options"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+          <div className="chrome-menu" role="menu">
+          <button className="btn" onClick={cycleTheme} title={`Color theme: ${THEME_LABEL[theme]}`} aria-label={`Color theme: ${THEME_LABEL[theme]}. Click to change.`}>
+            <Palette key={theme} className="theme-spin" size={16} /> <span className="btn-label">{THEME_LABEL[theme]}</span>
           </button>
           <button
             className="btn"
             onClick={cyclePieceTheme}
+            title={`Piece style: ${PIECE_THEME_LABEL[pieceTheme]}`}
             aria-label={`Piece style: ${PIECE_THEME_LABEL[pieceTheme]}. Click to change.`}
           >
-            <Star size={16} /> {PIECE_THEME_LABEL[pieceTheme]}
+            <Star size={16} /> <span className="btn-label">{PIECE_THEME_LABEL[pieceTheme]}</span>
           </button>
           <StreakIndicator state={streak.state} countedToday={streak.countedToday} />
-          <button className="btn" onClick={() => setView('mygames')} aria-label="Your saved games">
-            <Library size={16} /> My games
+          <button
+            className="btn"
+            onClick={toggleCoords}
+            aria-pressed={showCoords}
+            title={`Board coordinates ${showCoords ? 'on' : 'off'}`}
+            aria-label={`Board coordinates ${showCoords ? 'shown' : 'hidden'}. Click to ${showCoords ? 'hide' : 'show'}.`}
+          >
+            <Grid3x3 size={16} /> <span className="btn-label">Coords {showCoords ? 'on' : 'off'}</span>
           </button>
-          <button className="btn" onClick={() => setView('profile')} aria-label="Your profile">
-            <CircleUserRound size={16} /> Profile
+          <button
+            className="btn"
+            onClick={toggleSound}
+            aria-pressed={soundOn}
+            title={`Sound ${soundOn ? 'on' : 'off'}`}
+            aria-label={`Sound ${soundOn ? 'on' : 'off'}. Click to ${soundOn ? 'mute' : 'unmute'}.`}
+          >
+            {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />} <span className="btn-label">Sound {soundOn ? 'on' : 'off'}</span>
           </button>
+          <button className="btn" onClick={() => setView('mygames')} title="Your saved games" aria-label="Your saved games">
+            <Library size={16} /> <span className="btn-label">My games</span>
+          </button>
+          <button className="btn" onClick={() => setView('leaderboard')} title="Ranked leaderboard" aria-label="Ranked leaderboard">
+            <Trophy size={16} /> <span className="btn-label">Leaderboard</span>
+          </button>
+          <button className="btn" onClick={() => setView('profile')} title="Your profile" aria-label="Your profile">
+            <CircleUserRound size={16} /> <span className="btn-label">Profile</span>
+          </button>
+          </div>
+          </div>
         </div>
       </header>
 
       <div className="head">
-        <div className="eyebrow">Emanuel Lasker · 1911</div>
-        <div className="title">Laska</div>
-        <div className="sub">The stacking draughts</div>
+        <div className="eyebrow">
+          {variant.id === 'bashni' ? 'Russian towers draughts' : 'Emanuel Lasker · 1911'}
+        </div>
+        <div className="title">{variant.name}</div>
+        <div className="sub">
+          {variant.id === 'bashni' ? 'The towers game Laska grew from' : 'The stacking draughts'}
+        </div>
       </div>
 
       {appMode === 'local' ? (
         <LocalGame
+          variant={variant}
+          onVariantChange={setVariant}
           onLearnAI={() => setView('ai')}
           onOpenMyGames={() => setView('mygames')}
           onMatchFinished={streak.recordDailyAction}
@@ -539,17 +727,43 @@ export function App() {
   );
 }
 
+const VARIANT_KEY = 'laska-variant';
+const VARIANTS_BY_ID: Record<VariantId, Variant> = { laska: LASKA, bashni: BASHNI };
+
+/** The variant chosen last session, defaulting to Laska. */
+function loadVariant(): Variant {
+  try {
+    const id = localStorage.getItem(VARIANT_KEY) as VariantId | null;
+    if (id && VARIANTS_BY_ID[id]) return VARIANTS_BY_ID[id];
+  } catch {
+    /* localStorage unavailable — fall through to default */
+  }
+  return LASKA;
+}
+
+function saveVariant(v: Variant): void {
+  try {
+    localStorage.setItem(VARIANT_KEY, v.id);
+  } catch {
+    /* localStorage unavailable — preference simply isn't persisted */
+  }
+}
+
 function LocalGame({
+  variant,
+  onVariantChange,
   onLearnAI,
   onOpenMyGames,
   onMatchFinished,
 }: {
+  variant: Variant;
+  onVariantChange: (v: Variant) => void;
   onLearnAI: () => void;
   onOpenMyGames: () => void;
   /** Fired once per genuinely-finished local match (drives the daily streak). */
   onMatchFinished: () => void;
 }) {
-  const [state, setState] = useState<GameState>(() => createInitialState());
+  const [state, setState] = useState<GameState>(() => createInitialState(variant));
   const [mode, setMode] = useState<Mode>('ai');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [aiColor, setAiColor] = useState<PlayerColor>('B');
@@ -566,6 +780,37 @@ function LocalGame({
   const [thinking, setThinking] = useState(false);
   const [colIds, setColIds] = useState<(string | null)[]>(() => freshColumnIds(state.board));
   const [moveFx, setMoveFx] = useState<MoveFx | null>(null);
+  // A multi-capture flourish: the number of prisoners taken in one move (2+), with
+  // a monotonic id so each fresh combo remounts the badge and replays its pop.
+  const [combo, setCombo] = useState<{ n: number; id: number } | null>(null);
+  const comboSeq = useRef(0);
+  // Bumped whenever a fresh board is dealt (new game / variant / mode switch) so
+  // the board plays a one-shot staggered entrance. Starts at 0 → deals on first
+  // entry too. A monotonic light-sweep id replays when the piece insignia changes.
+  const [dealKey, setDealKey] = useState(0);
+  const [pieceSweep, setPieceSweep] = useState(0);
+  // Sweep a band of light across the board when the rank-insignia theme changes.
+  // Watches the context (changed by the top-bar Pieces button); skips first mount.
+  const insigniaTheme = usePieceTheme();
+  const lastInsignia = useRef(insigniaTheme);
+  useEffect(() => {
+    if (lastInsignia.current === insigniaTheme) return;
+    lastInsignia.current = insigniaTheme;
+    setPieceSweep((k) => k + 1);
+    const t = setTimeout(() => setPieceSweep(0), 800);
+    return () => clearTimeout(t);
+  }, [insigniaTheme]);
+  // The square to shake when a click can't be acted on (wrong piece / must-capture
+   // elsewhere) — a quick "no" wiggle. Cleared after the animation.
+  const [shakeSquare, setShakeSquare] = useState<number | null>(null);
+  const shakeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const triggerShake = useCallback((sq: number) => {
+    setShakeSquare(sq);
+    if (shakeTimer.current) clearTimeout(shakeTimer.current);
+    shakeTimer.current = setTimeout(() => setShakeSquare(null), 380);
+  }, []);
+  // Bumped on Undo so its icon spins counter-clockwise (a "rewind" tick).
+  const [undoNonce, setUndoNonce] = useState(0);
   const [resignedWinner, setResignedWinner] = useState<PlayerColor | null>(null);
   // A multi-jump in progress, shown one leap at a time. `stepBoard` overrides the
   // committed `state.board` while a chain plays out (the engine state only flips
@@ -612,6 +857,9 @@ function LocalGame({
       if (status.state === 'win') {
         outcome = mode === 'ai' ? (status.winner === aiColor ? 'loss' : 'win') : 'win';
       }
+      // Audio sting on the result (no-ops unless sound is enabled).
+      if (outcome === 'win') sound.win();
+      else sound.lose();
       track('match.finished', {
         mode: matchMode,
         outcome,
@@ -672,7 +920,23 @@ function LocalGame({
     setSelected(null);
     setCapture(null);
     setStepBoard(null);
+    // Reward a multi-jump: 2+ prisoners in a single move pop a combo badge.
+    if (move.captures.length >= 2) setCombo({ n: move.captures.length, id: ++comboSeq.current });
+    // A short haptic buzz on any capture (stronger pattern for a multi-jump).
+    if (move.isCapture) haptic(move.captures.length >= 2 ? [10, 32, 16] : 11);
+    // Audio feedback (no-ops unless the player enabled sound).
+    if (move.isCapture) sound.capture();
+    else sound.move();
+    if (move.promotion) sound.promote();
   }, []);
+
+  // The combo badge is a one-shot flourish — clear it after its animation so it
+  // doesn't linger; a fresh combo (new id) restarts this timer.
+  useEffect(() => {
+    if (!combo) return;
+    const t = setTimeout(() => setCombo(null), 1700);
+    return () => clearTimeout(t);
+  }, [combo]);
 
   /** Play `move` as a single glide from origin to destination — the path for
    *  quiet moves (captures glide one leap at a time, see below). */
@@ -854,6 +1118,9 @@ function LocalGame({
         setSelected((cur) => (cur === square ? null : square));
         return;
       }
+      // Clicked a square you can't act on. If it holds a piece (an opponent's, or
+      // one you can't move because a capture is forced elsewhere), shake it.
+      if (state.board[square]) triggerShake(square);
       setSelected(null);
     },
     [
@@ -871,13 +1138,16 @@ function LocalGame({
       mode,
       difficulty,
       aiColor,
+      triggerShake,
     ],
   );
 
-  const newGame = useCallback(() => {
+  // Reset to a fresh game of variant `v` (used by New Game and by switching the
+  // game mode, which necessarily starts a new board).
+  const startFresh = useCallback((v: Variant) => {
     if (aiTimer.current) clearTimeout(aiTimer.current);
     if (aiHopTimer.current) clearTimeout(aiHopTimer.current);
-    const fresh = createInitialState();
+    const fresh = createInitialState(v);
     setState(fresh);
     setColIds(freshColumnIds(fresh.board));
     setMoveFx(null);
@@ -891,7 +1161,22 @@ function LocalGame({
     setThinking(false);
     setResignedWinner(null);
     setHint(null);
+    setDealKey((k) => k + 1); // deal the fresh board in with a staggered entrance
   }, []);
+
+  const newGame = useCallback(() => startFresh(variant), [startFresh, variant]);
+
+  // Switching the game (Laska <-> Bashni) changes the board, so it always begins
+  // a new game and persists the choice for next session.
+  const selectVariant = useCallback(
+    (v: Variant) => {
+      if (v.id === variant.id) return;
+      onVariantChange(v);
+      saveVariant(v);
+      startFresh(v);
+    },
+    [variant.id, onVariantChange, startFresh],
+  );
 
   const resign = useCallback(() => {
     if (gameOver || isAiTurn || thinking) return;
@@ -909,6 +1194,7 @@ function LocalGame({
     setHint(null);
     setCapture(null);
     setStepBoard(null);
+    setUndoNonce((n) => n + 1); // spin the rewind icon
     setHistory((h) => {
       if (h.length === 0) return h;
       let target = h.length - 1;
@@ -948,6 +1234,7 @@ function LocalGame({
       moves,
       mode,
       result,
+      variant: variant.id,
       ...(resultReason ? { resultReason } : {}),
       ...(mode === 'ai' ? { difficulty, aiColor } : {}),
     };
@@ -973,10 +1260,11 @@ function LocalGame({
 
   return (
     <div className="game-layout">
+      {celebrate && <WinConfetti />}
       <BoardView
         board={stepBoard ?? state.board}
-        dim={BOARD_DIM}
-        rcToSquare={RC_TO_SQUARE}
+        dim={variant.boardDim}
+        rcToSquare={variant.rcToSquare}
         selected={movingSquare}
         movable={capture ? new Set(movingSquare == null ? [] : [movingSquare]) : movableSquares}
         destinations={new Set(destinations.keys())}
@@ -988,19 +1276,33 @@ function LocalGame({
         colIds={colIds}
         moveFx={moveFx}
         highlight={hintSquares}
+        dealKey={dealKey}
+        shakeSquare={shakeSquare}
+        overlay={
+          <>
+            {combo && (
+              <div className="combo-pop" key={combo.id} role="status" aria-live="polite">
+                <Layers className="combo-ico" size={18} aria-hidden="true" />
+                {comboLabel(combo.n)} <span className="combo-n">×{combo.n}</span>
+              </div>
+            )}
+            {gameOver && (
+              <div className="board-mascot">
+                <DotMascot
+                  tint={celebrate ? 'sun' : 'sky'}
+                  mood={celebrate ? 'cheer' : 'sleepy'}
+                  size={84}
+                  label={celebrate ? 'You won!' : 'Game over'}
+                />
+              </div>
+            )}
+            {pieceSweep > 0 && <div className="theme-sweep" key={pieceSweep} aria-hidden="true" />}
+          </>
+        }
       />
 
       <div className="control-deck">
-        {gameOver && (
-          <div style={{ order: -2, display: 'flex', justifyContent: 'center' }}>
-            <DotMascot
-              tint={celebrate ? 'sun' : 'sky'}
-              mood={celebrate ? 'cheer' : 'sleepy'}
-              size={84}
-              label={celebrate ? 'You won!' : 'Game over'}
-            />
-          </div>
-        )}
+        <div className="deck-scroll">
         <div
           className={`status ${status.state === 'win' ? 'win' : status.state === 'draw' ? 'draw' : ''}${
             (isAiTurn || thinking) ? ' thinking' : ''
@@ -1026,11 +1328,30 @@ function LocalGame({
         )}
 
         <div className="controls">
+          <div className="segment" role="group" aria-label="Game">
+            <button
+              className={variant.id === 'laska' ? 'active' : ''}
+              onClick={() => selectVariant(LASKA)}
+              title="Laska — Emanuel Lasker's 1911 game on a 7×7 board"
+            >
+              <Gamepad2 size={15} /> Laska
+            </button>
+            <button
+              className={variant.id === 'bashni' ? 'active' : ''}
+              onClick={() => selectVariant(BASHNI)}
+              title="Bashni — the Russian towers game Laska descends from: 8×8, flying kings"
+            >
+              <Layers size={15} /> Bashni
+            </button>
+          </div>
+        </div>
+
+        <div className="controls">
           <button className="btn" onClick={newGame}>
             <RotateCcw size={16} /> New game
           </button>
           <button className="btn" onClick={undo} disabled={history.length === 0 || isAiTurn || thinking}>
-            <Undo2 size={16} /> Undo
+            <Undo2 key={undoNonce} className="undo-spin" size={16} /> Undo
           </button>
           <button
             className="btn"
@@ -1054,7 +1375,7 @@ function LocalGame({
 
         <div className="controls">
           <button className="btn" onClick={saveGame} disabled={moves.length === 0}>
-            {justSaved ? <Check size={16} /> : <Save size={16} />}{' '}
+            {justSaved ? <Check key="saved" className="save-pop" size={16} /> : <Save size={16} />}{' '}
             {justSaved ? 'Saved' : savedId ? 'Update save' : 'Save game'}
           </button>
           {justSaved && (
@@ -1110,6 +1431,7 @@ function LocalGame({
         )}
 
         <Legend />
+        </div>
       </div>
     </div>
   );

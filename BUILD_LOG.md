@@ -51,11 +51,13 @@ Before the milestones, the one invariant that makes the rest trustworthy:
   **Emanuel Lasker's own 1911 published games** move-for-move (`web/src/games.ts`
   throws on the first illegal ply). If an agent breaks a rule, a century-old game
   stops replaying — an instant, unambiguous failure signal.
-- **Tests, measured today:** **47** engine/AI/agents tests (`./test/`) + **53**
-  server tests (`server/test/`) = **100** automated tests, all passing on
-  Node ≥ 22. Reproduce: `npm test` at the repo root, and `npm test` in `server/`.
-  *(An earlier checkpoint quoted 65 — that predated the agent-arena and the
-  Redis/multi-node suites. This file tracks the current measured count.)*
+- **Tests, measured today:** **75** engine/AI/agents tests (`./test/`) + **76**
+  server tests (`server/test/`) = **151** automated tests, all green on
+  Node ≥ 22 (one Redis integration test skips without a live `REDIS_URL`).
+  Reproduce: `npm test` at the repo root, and `npm test` in `server/`.
+  *(Earlier checkpoints quoted 65, then 100 — those predated the agent-arena, the
+  Redis/multi-node suites, and the M12 social suite. This file tracks the current
+  measured count.)*
 
 ---
 
@@ -201,6 +203,35 @@ Before the milestones, the one invariant that makes the rest trustworthy:
 - **Honest edge:** this is the first strategy lesson set, not the flagship
   first-run “learn Laska in five minutes” capture tutorial. Course packaging,
   account-backed progress, and paid content remain open.
+
+### M12 · In-match social, product analytics, sound & responsive polish
+**Agent:** backend-realtime-engineer + growth-monetization-engineer +
+frontend-board-engineer · **Order:** retention / analytics / polish
+
+- **Shipped:**
+  - **Server-authoritative in-match social** — closed-list emotes, chat (280-char
+    cap, sanitized, shared rate limiter), draw-decline, and a 60s post-game
+    **rematch** offer (swapped colors, same settings) torn down on
+    accept/decline/leave/expiry. The protocol carries it (`net/protocol.ts`),
+    `gameServer` relays and sanitizes it, and the client renders the chat+emote
+    feed, an unread badge, and the rematch UX.
+  - **Product analytics** — `web/src/analytics/vercelSink.ts` forwards typed,
+    PII-free funnel events and `<Analytics/>` collects traffic; `prodInit.ts`
+    installs the real sink only in production builds (dev stays console).
+  - **Sound** — opt-in Web Audio blips (move/capture/promote/win/lose), off by
+    default, toggled from the top bar (`web/src/sound.ts`).
+  - **Responsive + entrance polish** — the game top bar wraps below 960px so its
+    controls no longer clip on phones; a one-shot staggered board deal-in plus an
+    invalid-click shake; a first-visit welcome toast and ambient hero particles on
+    the landing; replay move-lists scroll the active move internally instead of
+    yanking the board off-screen.
+- **Verified:** `server/test/social.test.ts` covers chat relay, sanitization
+  drop, emote validation, rate-limiting, draw-decline, and both rematch flows; the
+  server suite is **76 tests** and the web production build passes, with the social
+  feed, sound toggle, and responsive top bar exercised in a browser.
+- **Honest edge:** the analytics sink is PII-free and production-only, but a
+  GDPR/CCPA **consent gate** must still wrap its init before it ships to real
+  users; chat/emotes have no per-user mute or report tooling yet.
 
 ---
 

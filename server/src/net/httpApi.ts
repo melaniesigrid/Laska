@@ -13,8 +13,10 @@
  *   PATCH /me/cosmetics   (Bearer access) {selectedMascotTint?, selectedPieceTheme?, selectedBoardTheme?}
  *   GET  /leaderboard?limit=
  *   GET  /matches/mine?limit=   (Bearer access)
+ *   GET  /admin/stats           (admin: Bearer <LASKA_ADMIN_TOKEN> or x-admin-token)
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { timingSafeEqual } from 'node:crypto';
 import { AuthService, AuthError, toPublicUser } from '../auth/service.ts';
 import type { Repository } from '../storage/types.ts';
 import { RateLimiter } from './rateLimiter.ts';
@@ -28,6 +30,12 @@ interface Deps {
    */
   authLimiter?: RateLimiter;
   authRateLimit?: { max: number; windowMs: number };
+  /**
+   * Static shared secret for the internal `GET /admin/stats` endpoint. When
+   * undefined/empty the endpoint is DISABLED (responds 404, undiscoverable).
+   * Intentionally separate from user JWT auth — admin is not a user account.
+   */
+  adminToken?: string;
 }
 
 /** Best-effort client IP for rate-limit keying. */
@@ -44,7 +52,7 @@ function json(res: ServerResponse, status: number, body: unknown): void {
     'content-type': 'application/json',
     'content-length': Buffer.byteLength(payload),
     'access-control-allow-origin': '*',
-    'access-control-allow-headers': 'authorization, content-type',
+    'access-control-allow-headers': 'authorization, content-type, x-admin-token',
     'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS',
   });
   res.end(payload);
@@ -67,6 +75,27 @@ function bearer(req: IncomingMessage): string | null {
   const h = req.headers['authorization'];
   if (typeof h !== 'string' || !h.startsWith('Bearer ')) return null;
   return h.slice('Bearer '.length).trim();
+}
+
+/**
+ * Pull the admin secret from either `Authorization: Bearer <token>` or the
+ * `x-admin-token: <token>` header. Returns null when neither is present.
+ */
+function adminTokenFromReq(req: IncomingMessage): string | null {
+  const fromBearer = bearer(req);
+  if (fromBearer) return fromBearer;
+  const x = req.headers['x-admin-token'];
+  if (typeof x === 'string' && x.length > 0) return x.trim();
+  if (Array.isArray(x) && x.length > 0) return x[0]!.trim();
+  return null;
+}
+
+/** Constant-time string equality; unequal lengths reject without throwing. */
+function constantTimeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
 }
 
 function authCode(e: AuthError): number {
@@ -95,6 +124,7 @@ const RATE_LIMITED_AUTH_PATHS = new Set([
 
 export function createHttpHandler(deps: Deps) {
   const { auth, repo } = deps;
+  const adminToken = deps.adminToken && deps.adminToken.length > 0 ? deps.adminToken : undefined;
   const authLimiter =
     deps.authLimiter ?? new RateLimiter(deps.authRateLimit ?? { max: 20, windowMs: 60_000 });
 
@@ -187,6 +217,20 @@ export function createHttpHandler(deps: Deps) {
       }
       if (method === 'GET' && path === '/health') {
         return json(res, 200, { ok: true });
+      }
+
+      // ---- Admin-gated read (internal dashboard) ----
+      // Guarded by a static shared secret (LASKA_ADMIN_TOKEN), NOT user JWT auth.
+      // When no token is configured the endpoint is invisible: it 404s exactly
+      // like an unknown route so its existence can't be probed.
+      if (method === 'GET' && path === '/admin/stats') {
+        if (!adminToken) return json(res, 404, { error: 'not-found' });
+        const presented = adminTokenFromReq(req);
+        if (!presented || !constantTimeEqual(presented, adminToken)) {
+          return json(res, 401, { error: 'unauthorized' });
+        }
+        const stats = await repo.platformStats(Date.now());
+        return json(res, 200, { stats });
       }
 
       return json(res, 404, { error: 'not-found' });

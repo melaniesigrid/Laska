@@ -79,6 +79,8 @@
 .landing-page .btn:active { box-shadow: var(--nm-inset); transform: translateY(1px); }
 .landing-page .btn .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--l-accent); }
 .landing-page .btn-lg { font-size: 1rem; padding: 1.05rem 2.2rem; box-shadow: var(--nm-raise); }
+.landing-page .btn-primary { color: var(--accent-dk); box-shadow: var(--nm-raise); font-weight: 700; }
+.landing-page .btn-primary:hover { color: var(--l-accent); }
 .landing-page :focus-visible { outline: 2px solid var(--accent-dk); outline-offset: 3px; border-radius: 6px; }
 
 .landing-page .hero { padding-top: clamp(3rem, 7vw, 6rem); padding-bottom: var(--section-y); }
@@ -169,6 +171,11 @@
 .landing-page .lesson-card h3 { margin: 1.2rem 0 0.55rem; font-size: 1.3rem; }
 .landing-page .lesson-card p { color: var(--muted); line-height: 1.6; }
 .landing-page .lesson-go { margin-top: auto; padding-top: 1.1rem; display: inline-flex; align-items: center; gap: 0.3rem; color: var(--l-accent); font-weight: 700; }
+/* Locked lessons: dimmed, no hover lift, and the "go" line becomes a muted gate. */
+.landing-page .lesson-card.locked { cursor: not-allowed; opacity: 0.62; }
+.landing-page .lesson-card.locked:hover { transform: none; border-color: var(--line); box-shadow: 0 12px 30px rgba(40, 34, 27, 0.07); }
+.landing-page .lesson-status.locked { color: var(--faint); }
+.landing-page .lesson-go.locked { color: var(--muted); font-weight: 600; }
 .landing-page .tutorial-runner {
   display: grid; grid-template-columns: minmax(0, auto) minmax(250px, 360px);
   align-items: start; justify-content: center; gap: clamp(1.25rem, 4vw, 3rem);
@@ -189,6 +196,8 @@
   background: color-mix(in srgb, var(--l-accent) 13%, transparent); color: var(--l-accent);
   font-size: 0.72rem; font-weight: 800;
 }
+.landing-page .tutorial-done-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.landing-page .tutorial-done-actions .btn { flex: 1 1 auto; justify-content: center; }
 .landing-page .tutorial-feedback { display: flex; align-items: flex-start; gap: 0.55rem; padding: 0.8rem; border-radius: 12px; font-size: 0.9rem; line-height: 1.45; }
 .landing-page .tutorial-feedback.hint { background: #f6eed8; color: #725a1f; }
 .landing-page .tutorial-feedback.success { background: #e5f2eb; color: #30634a; }
@@ -331,6 +340,8 @@
 
 .landing-page .lasker-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: clamp(2.5rem, 5vw, 4.5rem); align-items: start; }
 .landing-page .portrait { background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise); aspect-ratio: 4/5; max-width: 380px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.4rem; position: sticky; top: 100px; }
+.landing-page .medallion-stack { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+.landing-page .medallion-crown { color: var(--l-ink); opacity: 0.85; filter: drop-shadow(0 1px 0 var(--light)); }
 .landing-page .medallion { width: 128px; height: 128px; border-radius: 50%; background: var(--bg); box-shadow: var(--nm-inset-deep); display: grid; place-items: center; font-family: 'Fraunces', serif; font-weight: 600; font-size: 2.6rem; color: var(--l-ink); letter-spacing: 0.02em; }
 .landing-page .portrait-photo { width: 180px; height: 180px; border-radius: 50%; object-fit: cover; object-position: 50% 22%; background: var(--bg); box-shadow: var(--nm-raise); padding: 7px; }
 .landing-page .portrait .name { font-family: 'Fraunces', serif; font-size: 1.45rem; color: var(--l-ink); }
@@ -366,6 +377,14 @@
 .landing-page .term p { font-size: 1rem; }
 .landing-page .brochure-split { display: grid; grid-template-columns: 1fr minmax(0, 360px); gap: clamp(2rem, 5vw, 4rem); align-items: center; }
 .landing-page .numbered-board { display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(3px, 0.8vw, 6px); width: 100%; max-width: 360px; aspect-ratio: 1/1; padding: clamp(0.6rem, 1.6vw, 1rem); background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset-deep); }
+.landing-page .numbered-board.dim8 { grid-template-columns: repeat(8, 1fr); }
+.landing-page .numbered-board.dim8 .bd-cell { font-size: clamp(0.62rem, 1.5vw, 0.85rem); }
+/* Coordinate gutter: a thin auto-width rank column on the left + a file-letter
+   row along the bottom, complementing the in-cell Lasker numbering. */
+.landing-page .numbered-board.with-coords { grid-template-columns: auto repeat(7, 1fr); }
+.landing-page .numbered-board.dim8.with-coords { grid-template-columns: auto repeat(8, 1fr); }
+.landing-page .bd-coord { display: flex; align-items: center; justify-content: center; font-family: 'Hanken Grotesk', sans-serif; font-weight: 700; font-size: clamp(0.5rem, 1.3vw, 0.72rem); color: var(--faint); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.landing-page .bd-rank { padding-right: clamp(2px, 0.6vw, 5px); }
 .landing-page .bd-cell { display: flex; align-items: center; justify-content: center; border-radius: 7px; font-family: 'Hanken Grotesk', sans-serif; font-size: clamp(0.7rem, 1.7vw, 0.95rem); font-weight: 600; font-variant-numeric: tabular-nums; }
 .landing-page .bd-cell.light { background: transparent; }
 .landing-page .bd-cell.play { box-shadow: inset 2px 2px 4px var(--l-shadow), inset -2px -2px 4px var(--l-light); }
@@ -409,6 +428,7 @@
   --q-inaccuracy: #c79a3a;
   --q-mistake: #c8772f;
   --q-blunder: #b5483b;
+  --q-brilliant: #1a9aa6;
 }
 .landing-page .analysis-block { display: flex; flex-direction: column; gap: 0.9rem; }
 .landing-page .analyse-btn { align-self: flex-start; }
@@ -429,7 +449,13 @@
   letter-spacing: 0.04em; color: var(--l-ink); font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 0 color-mix(in srgb, var(--l-light) 80%, transparent);
 }
-.landing-page .analysis-summary { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.landing-page .analysis-summary { display: flex; flex-direction: column; gap: 0.7rem; }
+.landing-page .analysis-tallies { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+/* The critic's one-line verdict on the whole game. */
+.landing-page .analysis-verdict {
+  margin: 0; font-family: 'Fraunces', serif; font-style: italic;
+  font-size: 0.98rem; line-height: 1.45; color: var(--l-ink);
+}
 .landing-page .summary-side {
   flex: 1 1 0; min-width: 7rem; display: flex; align-items: center; justify-content: space-between;
   gap: 0.6rem; background: var(--bg); border-radius: var(--r-sm); box-shadow: var(--nm-inset);
@@ -440,8 +466,21 @@
 .landing-page .summary-counts em { font-style: normal; }
 .landing-page .best-from-here { font-size: 0.9rem; color: var(--faint); margin: 0; }
 .landing-page .best-from-here b { color: var(--accent-dk); }
-.landing-page .best-line { font-size: 0.9rem; color: var(--faint); margin: 0 0 0.6rem; }
-.landing-page .best-line b { color: var(--accent-dk); }
+/* The fun-critic line under the move heading. Tinted by move quality; a left
+   rule in the matching hue ties the prose to the badge above it. */
+.landing-page .move-commentary {
+  font-size: 0.94rem; line-height: 1.5; margin: 0 0 0.6rem;
+  color: var(--l-body); padding-left: 0.7rem;
+  border-left: 2px solid color-mix(in srgb, var(--l-light) 60%, transparent);
+}
+.landing-page .move-commentary.q-brilliant { border-left-color: var(--q-brilliant); }
+.landing-page .move-commentary.q-best { border-left-color: var(--q-good); }
+.landing-page .move-commentary.q-good { border-left-color: var(--q-good); }
+.landing-page .move-commentary.q-inaccuracy { border-left-color: var(--q-inaccuracy); }
+.landing-page .move-commentary.q-mistake { border-left-color: var(--q-mistake); }
+.landing-page .move-commentary.q-blunder { border-left-color: var(--q-blunder); }
+.landing-page .move-commentary.q-forced { border-left-color: color-mix(in srgb, var(--faint) 50%, transparent); }
+.landing-page .commentary-cost { color: var(--faint); font-variant-numeric: tabular-nums; }
 /* Quality colour tokens, shared by the per-move marks, the summary and badge. */
 .landing-page .q-good { color: var(--q-good); }
 .landing-page .q-inaccuracy { color: var(--q-inaccuracy); }
@@ -454,6 +493,7 @@
   padding: 0.15rem 0.5rem; border-radius: var(--r-pill); vertical-align: 0.08em;
   background: var(--bg); box-shadow: var(--nm-raise-sm);
 }
+.landing-page .quality-badge.q-brilliant { color: var(--q-brilliant); letter-spacing: 0.1em; }
 .landing-page .quality-badge.q-best { color: var(--q-good); }
 .landing-page .quality-badge.q-good { color: var(--q-good); }
 .landing-page .quality-badge.q-inaccuracy { color: var(--q-inaccuracy); }
@@ -461,6 +501,30 @@
 .landing-page .quality-badge.q-blunder { color: var(--q-blunder); }
 /* Compact mark in the move list (sub-par moves only). */
 .landing-page .q-mark { margin-left: 0.3rem; font-size: 0.78rem; font-weight: 800; }
+
+/* Pick your commentator: a small neumorphic segmented control. */
+.landing-page .commentator-picker {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  flex-wrap: wrap; margin-top: 0.2rem;
+}
+.landing-page .commentator-label {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--faint);
+}
+.landing-page .commentator-chips {
+  display: inline-flex; gap: 0.3rem; padding: 0.25rem;
+  background: var(--bg); border-radius: var(--r-pill); box-shadow: var(--nm-inset);
+}
+.landing-page .commentator-chip {
+  border: 0; cursor: pointer; font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 0.78rem; font-weight: 600; color: var(--l-body);
+  padding: 0.3rem 0.7rem; border-radius: var(--r-pill); background: transparent;
+  transition: color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.landing-page .commentator-chip:hover { color: var(--l-ink); }
+.landing-page .commentator-chip.active {
+  color: var(--accent-dk); background: var(--bg); box-shadow: var(--nm-raise-sm);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .landing-page .reveal { opacity: 1 !important; transform: none !important; }
@@ -517,6 +581,13 @@
 }
 .landing-page .saved-result.W, .landing-page .saved-result.B { color: var(--accent-dk); }
 .landing-page .saved-meta { display: flex; align-items: center; gap: 0.4rem; font-size: 0.86rem; color: var(--l-body); }
+.landing-page .saved-variant {
+  flex: none; display: inline-flex; align-items: center; white-space: nowrap;
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--faint); background: var(--bg); border-radius: var(--r-pill); padding: 0.22rem 0.55rem;
+  box-shadow: var(--nm-inset); margin-right: 0.15rem;
+}
+.landing-page .saved-variant.bashni { color: var(--accent-dk); }
 .landing-page .saved-date { font-size: 0.78rem; color: var(--faint); }
 .landing-page .saved-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
 .landing-page .saved-actions .btn { padding: 0.6rem 1rem; }
@@ -576,4 +647,331 @@
 }
 [data-theme='confetti'] .landing-page .btn-lg {
   box-shadow: 0 4px 0 var(--dark), 0 10px 22px rgb(var(--cast) / 0.12);
+}
+
+/* ---- first-visit welcome toast ----------------------------------------
+   A one-time friendly nudge to the tutorial, bottom-left. Slides up on appear;
+   reduced-motion shows it in place. Dismissal is remembered (see Landing). */
+.landing-page .welcome-toast {
+  position: fixed; left: clamp(12px, 3vw, 24px); bottom: clamp(12px, 3vw, 24px); z-index: 60;
+  display: flex; align-items: flex-start; gap: 0.85rem;
+  max-width: min(360px, calc(100vw - 24px)); padding: 1rem 1.1rem;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 16px 40px rgb(var(--cast) / 0.22);
+  animation: welcome-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.landing-page .welcome-toast .wt-body { display: flex; flex-direction: column; gap: 0.25rem; }
+.landing-page .welcome-toast strong { font-family: 'Fraunces', serif; font-size: 1.05rem; color: var(--l-ink); }
+.landing-page .welcome-toast .wt-body > span { font-size: 0.9rem; color: var(--l-body); line-height: 1.45; }
+.landing-page .welcome-toast .wt-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.landing-page .welcome-toast .wt-cta {
+  display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer;
+  font-family: 'Hanken Grotesk', sans-serif; font-weight: 700; font-size: 0.82rem;
+  color: #fff; background: var(--l-accent); border: 0; border-radius: 999px; padding: 0.5rem 0.95rem;
+}
+.landing-page .welcome-toast .wt-cta:hover { filter: brightness(1.06); }
+.landing-page .welcome-toast .wt-later {
+  cursor: pointer; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 0.82rem;
+  color: var(--faint); background: transparent; border: 0; padding: 0.5rem 0.4rem;
+}
+.landing-page .welcome-toast .wt-later:hover { color: var(--l-ink); }
+.landing-page .welcome-toast .wt-close {
+  position: absolute; top: 0.5rem; right: 0.5rem; display: grid; place-items: center;
+  width: 26px; height: 26px; border: 0; border-radius: 50%; cursor: pointer;
+  color: var(--faint); background: transparent;
+}
+.landing-page .welcome-toast .wt-close:hover { color: var(--l-ink); background: color-mix(in srgb, var(--l-ink) 8%, transparent); }
+@keyframes welcome-in { from { opacity: 0; transform: translateY(18px) scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .landing-page .welcome-toast { animation: none; } }
+
+/* ---- hero ambient particles -------------------------------------------
+   A few slow-drifting accent dots behind the hero for atmosphere and depth.
+   Decorative + low-opacity so they never fight the copy; content sits above
+   via z-index. Removed entirely under reduced-motion. */
+.landing-page .hero { position: relative; }
+.landing-page .hero-grid { position: relative; z-index: 1; }
+.landing-page .hero-ambient { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.landing-page .amb-dot {
+  position: absolute; border-radius: 50%; opacity: 0.16; background: var(--l-accent);
+  animation: amb-float 15s ease-in-out infinite;
+}
+.landing-page .amb-dot:nth-child(1) { top: 12%; left: 7%;  width: 11px; height: 11px; animation-delay: 0s; }
+.landing-page .amb-dot:nth-child(2) { top: 72%; left: 13%; width: 7px;  height: 7px;  animation-delay: -3s; background: var(--accent-dk); }
+.landing-page .amb-dot:nth-child(3) { top: 32%; left: 44%; width: 6px;  height: 6px;  animation-delay: -6s; }
+.landing-page .amb-dot:nth-child(4) { top: 84%; left: 50%; width: 9px;  height: 9px;  animation-delay: -2s; background: var(--accent-dk); }
+.landing-page .amb-dot:nth-child(5) { top: 16%; left: 78%; width: 13px; height: 13px; animation-delay: -8s; }
+.landing-page .amb-dot:nth-child(6) { top: 56%; left: 90%; width: 8px;  height: 8px;  animation-delay: -5s; background: var(--accent-dk); }
+.landing-page .amb-dot:nth-child(7) { top: 44%; left: 24%; width: 5px;  height: 5px;  animation-delay: -10s; }
+.landing-page .amb-dot:nth-child(8) { top: 88%; left: 82%; width: 7px;  height: 7px;  animation-delay: -7s; }
+.landing-page .amb-dot:nth-child(9) { top: 6%;  left: 58%; width: 6px;  height: 6px;  animation-delay: -12s; background: var(--accent-dk); }
+@keyframes amb-float {
+  0%, 100% { transform: translate(0, 0); opacity: 0.10; }
+  50% { transform: translate(8px, -22px); opacity: 0.22; }
+}
+@media (prefers-reduced-motion: reduce) { .landing-page .amb-dot { animation: none; } }
+
+/* ==========================================================================
+   Leaderboard page (LeaderboardPage.tsx). Scoped under .leaderboard-page so it
+   rides the live palette like the rest of the site. The table is a neumorphic
+   list: each row is a raised plaque; the signed-in player's row and the top
+   three get accent treatments. Collapses gracefully on mobile.
+   ========================================================================== */
+.leaderboard-page .lb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+  padding: clamp(2.5rem, 7vw, 4.5rem) 1.5rem;
+  background: var(--card);
+  border-radius: var(--r-md);
+  box-shadow: var(--nm-inset);
+  color: var(--l-body);
+}
+.leaderboard-page .lb-empty p { margin: 0; }
+.leaderboard-page .lb-empty .muted { font-size: 0.9rem; color: var(--faint); }
+.leaderboard-page .lb-spin { animation: lb-spin 0.9s linear infinite; color: var(--l-accent); }
+@keyframes lb-spin { to { transform: rotate(360deg); } }
+
+.leaderboard-page .lb-table {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.leaderboard-page .lb-row {
+  display: grid;
+  grid-template-columns: 2.6rem auto 1fr auto auto;
+  align-items: center;
+  gap: clamp(0.6rem, 1.6vw, 1.2rem);
+  padding: 0.7rem clamp(0.8rem, 2vw, 1.3rem);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  box-shadow: var(--nm-raise-sm);
+}
+.leaderboard-page .lb-head {
+  background: transparent;
+  box-shadow: none;
+  padding-block: 0.2rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 700;
+}
+.leaderboard-page .lb-pos {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--l-ink);
+}
+.leaderboard-page .lb-pos svg { color: var(--l-accent); }
+.leaderboard-page .lb-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+  color: var(--l-ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaderboard-page .lb-you {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--accent-dk);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  box-shadow: var(--nm-inset);
+}
+.leaderboard-page .lb-rating { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--l-ink); }
+.leaderboard-page .lb-games { font-variant-numeric: tabular-nums; color: var(--faint); font-size: 0.9rem; }
+
+/* The signed-in player's row: a recessed accent so it reads as "mine". */
+.leaderboard-page .lb-me {
+  box-shadow: var(--nm-inset), inset 0 0 0 2px color-mix(in srgb, var(--l-accent) 45%, transparent);
+}
+
+/* Podium: top three get a subtle accent ring; gold/silver/bronze warmth via
+   the position number color, still all token-derived. */
+.leaderboard-page .lb-podium { box-shadow: var(--nm-raise); }
+.leaderboard-page .lb-p1 .lb-pos svg { color: var(--accent-dk); }
+.leaderboard-page .lb-p1 { box-shadow: var(--nm-raise), inset 0 0 0 1.5px color-mix(in srgb, var(--accent-dk) 38%, transparent); }
+
+@media (max-width: 560px) {
+  .leaderboard-page .lb-row { grid-template-columns: 2.1rem auto 1fr; row-gap: 0.4rem; }
+  /* Tuck rating + games onto a second line under the name on narrow screens. */
+  .leaderboard-page .lb-rating { grid-column: 2 / 4; justify-self: start; font-size: 0.95rem; }
+  .leaderboard-page .lb-rating::before { content: 'Rating '; font-weight: 500; color: var(--faint); }
+  .leaderboard-page .lb-games { grid-column: 2 / 4; justify-self: start; }
+  .leaderboard-page .lb-games::after { content: ' games'; }
+  .leaderboard-page .lb-head .lb-rating,
+  .leaderboard-page .lb-head .lb-games { display: none; }
+}
+
+/* --- Openings: lessons meta row + study/repertoire page ------------------- */
+.landing-page .lesson-meta-row {
+  margin-top: 0.9rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+.landing-page .btn-small {
+  font-size: 0.78rem; padding: 0.4rem 0.85rem; gap: 0.35rem;
+}
+.landing-page .opening-head { margin-bottom: 0.4rem; }
+.landing-page .opening-source {
+  margin-top: 1rem; font-size: 0.78rem; color: var(--faint); line-height: 1.55; font-style: italic;
+}
+.landing-page .opening-variations {
+  margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line);
+}
+.landing-page .opening-variations h3,
+.landing-page .opening-sources h3 {
+  display: inline-flex; align-items: center; margin: 0 0 0.7rem;
+  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--faint);
+}
+.landing-page .opening-variations ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+.landing-page .opening-variations li { display: flex; flex-direction: column; gap: 0.2rem; }
+.landing-page .opening-variations li.unresolved { opacity: 0.8; }
+.landing-page .opening-variations .var-san {
+  font-family: 'Hanken Grotesk', sans-serif; font-weight: 700; color: var(--accent-dk); letter-spacing: 0.02em;
+}
+.landing-page .opening-variations li.unresolved .var-san { color: var(--faint); text-decoration: line-through; }
+.landing-page .opening-variations .var-note { font-size: 0.86rem; color: var(--muted); line-height: 1.55; }
+.landing-page .opening-sources {
+  margin-top: clamp(1.5rem, 4vw, 2.5rem); padding-top: 1.2rem; border-top: 1px solid var(--line);
+}
+.landing-page .opening-sources ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.landing-page .opening-sources li { font-size: 0.84rem; color: var(--muted); line-height: 1.5; }
+.landing-page .opening-sources a { color: var(--accent-dk); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent-dk) 35%, transparent); }
+.landing-page .opening-sources a:hover { border-bottom-color: var(--accent-dk); }
+
+/* ==========================================================================
+   Admin analytics dashboard (AdminStatsPage.tsx). Internal-only, reached by
+   #/admin. Scoped under .admin-page so it rides the live palette and the same
+   neumorphic vocabulary (raised plaques, inset wells) as the rest of the site.
+   ========================================================================== */
+.admin-page .topbar .wrap { justify-content: space-between; }
+
+.admin-page .admin-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+  text-align: center; padding: clamp(2.5rem, 7vw, 4.5rem) 1.5rem;
+  background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-inset); color: var(--l-body);
+}
+.admin-page .admin-empty p { margin: 0; }
+
+/* --- token entry card --- */
+.admin-page .admin-token-card {
+  max-width: 420px; margin-inline: auto; display: flex; flex-direction: column; align-items: center;
+  gap: 0.8rem; text-align: center; padding: clamp(2rem, 5vw, 3rem) clamp(1.6rem, 4vw, 2.6rem);
+  background: var(--bg); border-radius: var(--r-lg); box-shadow: var(--nm-raise);
+}
+.admin-page .admin-token-icon {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--bg); box-shadow: var(--nm-inset-deep); color: var(--accent-dk); margin-bottom: 0.2rem;
+}
+.admin-page .admin-token-title { font-size: 1.4rem; }
+.admin-page .admin-token-sub { font-size: 0.92rem; color: var(--muted); max-width: 34ch; line-height: 1.55; }
+.admin-page .admin-field { width: 100%; display: flex; flex-direction: column; gap: 0.4rem; text-align: left; margin-top: 0.4rem; }
+.admin-page .admin-field-label { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+.admin-page .admin-input {
+  width: 100%; box-sizing: border-box; font-family: 'Hanken Grotesk', sans-serif; font-size: 0.95rem;
+  color: var(--l-ink); background: var(--bg); border: none; border-radius: var(--r-sm);
+  padding: 0.85rem 1rem; box-shadow: var(--nm-inset); outline: none;
+}
+.admin-page .admin-input::placeholder { color: var(--faint); }
+.admin-page .admin-input:focus-visible { box-shadow: var(--nm-inset), 0 0 0 2px color-mix(in srgb, var(--accent-dk) 45%, transparent); }
+.admin-page .admin-token-card .btn { margin-top: 0.4rem; }
+.admin-page .admin-token-card .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* --- snapshot / refresh row --- */
+.admin-page .admin-snapshot {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  margin-bottom: clamp(1rem, 2.5vw, 1.6rem); font-size: 0.86rem; color: var(--muted);
+}
+.admin-page .admin-refresh { font-size: 0.82rem; padding: 0.55rem 1rem; }
+
+/* --- dashboard grid of cards --- */
+.admin-page .admin-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: clamp(1rem, 2.5vw, 1.5rem);
+}
+.admin-page .admin-card {
+  background: var(--bg); border-radius: var(--r-md); box-shadow: var(--nm-raise);
+  padding: clamp(1.3rem, 3vw, 1.9rem); display: flex; flex-direction: column; gap: 1rem;
+}
+.admin-page .admin-card-wide { grid-column: 1 / -1; }
+.admin-page .admin-card-head {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
+}
+.admin-page .admin-card-head svg { color: var(--accent-dk); }
+
+/* headline number (users total) */
+.admin-page .admin-headline { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.admin-page .admin-big {
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: clamp(2.4rem, 6vw, 3.4rem);
+  line-height: 1; color: var(--l-ink); font-variant-numeric: tabular-nums;
+}
+.admin-page .admin-big-label { font-size: 0.9rem; color: var(--muted); }
+
+/* registered vs guest split bar */
+.admin-page .admin-split {
+  display: flex; gap: 4px; height: 14px; border-radius: var(--r-pill);
+  padding: 4px; background: var(--bg); box-shadow: var(--nm-inset);
+}
+.admin-page .admin-split-bar { border-radius: var(--r-pill); min-width: 4px; transition: flex-basis 0.4s ease; }
+.admin-page .admin-split-registered { background: var(--accent-dk); }
+.admin-page .admin-split-guest { background: color-mix(in srgb, var(--l-ink) 28%, var(--bg)); }
+
+.admin-page .admin-mini-row { display: flex; flex-wrap: wrap; gap: clamp(1rem, 3vw, 2rem); }
+.admin-page .admin-mini { display: grid; grid-template-columns: auto auto; align-items: center; gap: 0.3rem 0.5rem; }
+.admin-page .admin-mini-dot { width: 9px; height: 9px; border-radius: 50%; grid-row: span 2; }
+.admin-page .admin-mini-ico { grid-row: span 2; color: var(--accent-dk); }
+.admin-page .dot-registered { background: var(--accent-dk); }
+.admin-page .dot-guest { background: color-mix(in srgb, var(--l-ink) 28%, var(--bg)); }
+.admin-page .admin-mini-val { font-weight: 700; font-size: 1.15rem; color: var(--l-ink); font-variant-numeric: tabular-nums; }
+.admin-page .admin-mini-label { font-size: 0.78rem; color: var(--faint); grid-column: 2; }
+
+/* trio / quad of stats (active, new users, matches) */
+.admin-page .admin-trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; }
+.admin-page .admin-quad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem; }
+.admin-page .admin-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem; text-align: center;
+  padding: 0.9rem 0.5rem; background: var(--bg); border-radius: var(--r-sm); box-shadow: var(--nm-inset);
+}
+.admin-page .admin-stat-val {
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: clamp(1.3rem, 3.5vw, 1.7rem);
+  line-height: 1; color: var(--l-ink); font-variant-numeric: tabular-nums;
+}
+.admin-page .admin-stat-label { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+
+/* signups bar chart */
+.admin-page .admin-chart { display: flex; flex-direction: column; gap: 0.7rem; }
+.admin-page .admin-bars {
+  display: flex; align-items: flex-end; gap: clamp(2px, 0.6vw, 4px); height: 120px;
+  padding: 0.8rem; background: var(--bg); border-radius: var(--r-sm); box-shadow: var(--nm-inset);
+}
+.admin-page .admin-bar {
+  flex: 1 1 0; min-width: 3px; border-radius: 3px 3px 1px 1px;
+  background: color-mix(in srgb, var(--accent-dk) 55%, var(--bg)); transition: background 0.18s ease;
+}
+.admin-page .admin-bar:hover { background: var(--accent-dk); }
+.admin-page .admin-bar-peak { background: var(--accent-dk); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-dk) 30%, transparent); }
+.admin-page .admin-chart-axis {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.76rem; color: var(--faint); font-variant-numeric: tabular-nums;
+}
+.admin-page .admin-chart-peak { color: var(--accent-dk); font-weight: 600; }
+.admin-page .admin-chart-empty { color: var(--muted); font-size: 0.9rem; padding: 1rem 0; }
+
+@media (max-width: 620px) {
+  .admin-page .admin-grid { grid-template-columns: 1fr; }
+  .admin-page .admin-quad { grid-template-columns: repeat(2, 1fr); }
 }

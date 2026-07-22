@@ -11,10 +11,13 @@ import type {
   CosmeticsPatch,
   LeaderboardEntry,
   MatchRecord,
+  PlatformStats,
   Repository,
   SerializedMove,
   User,
 } from './types.ts';
+import { rankFor } from '../rating/rank.ts';
+import { utcDay, windows, signupDayWindow, fillSignupDays } from './stats.ts';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -24,15 +27,24 @@ CREATE TABLE IF NOT EXISTS users (
   email                TEXT UNIQUE,
   password_hash        TEXT,
   is_guest             BOOLEAN NOT NULL,
+  is_bot               BOOLEAN NOT NULL DEFAULT false,
   email_verified       BOOLEAN NOT NULL,
   rating               INTEGER NOT NULL,
+  rating_deviation     DOUBLE PRECISION NOT NULL DEFAULT 350,
+  volatility           DOUBLE PRECISION NOT NULL DEFAULT 0.06,
   rated_games          INTEGER NOT NULL,
+  last_rated_at        BIGINT,
   created_at           BIGINT NOT NULL,
   selected_mascot_tint TEXT,
   selected_piece_theme TEXT,
   selected_board_theme TEXT
 );
 
+-- Idempotent migration for DBs created before the Glicko-2 columns existed.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_deviation DOUBLE PRECISION NOT NULL DEFAULT 350;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS volatility DOUBLE PRECISION NOT NULL DEFAULT 0.06;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_rated_at BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_bot BOOLEAN NOT NULL DEFAULT false;
 -- Forward migration: add cosmetic columns to databases created before they
 -- existed. Idempotent (IF NOT EXISTS), so reapplying on every startup is safe.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_mascot_tint TEXT;
@@ -43,6 +55,7 @@ CREATE TABLE IF NOT EXISTS matches (
   id                   TEXT PRIMARY KEY,
   white_id             TEXT NOT NULL,
   black_id             TEXT NOT NULL,
+  variant              TEXT NOT NULL DEFAULT 'laska',
   moves                JSONB NOT NULL,
   result               TEXT NOT NULL,
   end_reason           TEXT NOT NULL,
@@ -55,6 +68,10 @@ CREATE TABLE IF NOT EXISTS matches (
   ended_at             BIGINT NOT NULL
 );
 
+-- Idempotent migration for match tables created before per-variant support
+-- (predating Bashni). Without it, saving a finished match fails on the missing column.
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS variant TEXT NOT NULL DEFAULT 'laska';
+
 CREATE INDEX IF NOT EXISTS idx_matches_white ON matches(white_id, ended_at DESC);
 CREATE INDEX IF NOT EXISTS idx_matches_black ON matches(black_id, ended_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_rating ON users(rating DESC) WHERE is_guest = false;
@@ -66,9 +83,13 @@ interface UserRow {
   email: string | null;
   password_hash: string | null;
   is_guest: boolean;
+  is_bot: boolean;
   email_verified: boolean;
   rating: number;
+  rating_deviation: number;
+  volatility: number;
   rated_games: number;
+  last_rated_at: string | null; // BIGINT comes back as a string from pg
   created_at: string; // BIGINT comes back as a string from pg
   selected_mascot_tint: string | null;
   selected_piece_theme: string | null;
@@ -79,6 +100,7 @@ interface MatchRow {
   id: string;
   white_id: string;
   black_id: string;
+  variant: string;
   moves: SerializedMove[]; // JSONB parsed by pg
   result: string;
   end_reason: string;
@@ -98,9 +120,13 @@ function rowToUser(r: UserRow): User {
     email: r.email,
     passwordHash: r.password_hash,
     isGuest: r.is_guest,
+    isBot: r.is_bot,
     emailVerified: r.email_verified,
     rating: r.rating,
+    ratingDeviation: Number(r.rating_deviation),
+    volatility: Number(r.volatility),
     ratedGames: r.rated_games,
+    lastRatedAt: r.last_rated_at === null ? null : Number(r.last_rated_at),
     createdAt: Number(r.created_at),
     selectedMascotTint: r.selected_mascot_tint,
     selectedPieceTheme: r.selected_piece_theme,
@@ -113,6 +139,7 @@ function rowToMatch(r: MatchRow): MatchRecord {
     id: r.id,
     whiteId: r.white_id,
     blackId: r.black_id,
+    variant: (r.variant as MatchRecord['variant']) ?? 'laska',
     moves: r.moves,
     result: r.result as MatchRecord['result'],
     endReason: r.end_reason,
@@ -144,9 +171,13 @@ const USER_COLUMNS: Partial<Record<keyof User, string>> = {
   email: 'email',
   passwordHash: 'password_hash',
   isGuest: 'is_guest',
+  isBot: 'is_bot',
   emailVerified: 'email_verified',
   rating: 'rating',
+  ratingDeviation: 'rating_deviation',
+  volatility: 'volatility',
   ratedGames: 'rated_games',
+  lastRatedAt: 'last_rated_at',
   createdAt: 'created_at',
   selectedMascotTint: 'selected_mascot_tint',
   selectedPieceTheme: 'selected_piece_theme',
@@ -173,9 +204,10 @@ export class PostgresRepository implements Repository {
     try {
       await this.pool.query(
         `INSERT INTO users
-          (id, username, username_lower, email, password_hash, is_guest, email_verified, rating, rated_games, created_at,
+          (id, username, username_lower, email, password_hash, is_guest, is_bot, email_verified,
+           rating, rating_deviation, volatility, rated_games, last_rated_at, created_at,
            selected_mascot_tint, selected_piece_theme, selected_board_theme)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
         [
           user.id,
           user.username,
@@ -183,9 +215,13 @@ export class PostgresRepository implements Repository {
           user.email ? user.email.toLowerCase() : null,
           user.passwordHash,
           user.isGuest,
+          user.isBot,
           user.emailVerified,
           user.rating,
+          user.ratingDeviation,
+          user.volatility,
           user.ratedGames,
+          user.lastRatedAt,
           user.createdAt,
           user.selectedMascotTint,
           user.selectedPieceTheme,
@@ -266,15 +302,16 @@ export class PostgresRepository implements Repository {
   async saveMatch(record: MatchRecord): Promise<void> {
     await this.pool.query(
       `INSERT INTO matches
-        (id, white_id, black_id, moves, result, end_reason, ranked,
+        (id, white_id, black_id, variant, moves, result, end_reason, ranked,
          white_rating_before, black_rating_before, white_rating_after, black_rating_after,
          started_at, ended_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO NOTHING`,
       [
         record.id,
         record.whiteId,
         record.blackId,
+        record.variant,
         JSON.stringify(record.moves),
         record.result,
         record.endReason,
@@ -306,14 +343,133 @@ export class PostgresRepository implements Repository {
   }
 
   async topByRating(limit: number): Promise<LeaderboardEntry[]> {
-    const { rows } = await this.pool.query<{ id: string; username: string; rating: number; rated_games: number }>(
-      `SELECT id, username, rating, rated_games
+    const { rows } = await this.pool.query<{
+      id: string;
+      username: string;
+      rating: number;
+      rating_deviation: number;
+      rated_games: number;
+    }>(
+      `SELECT id, username, rating, rating_deviation, rated_games
        FROM users
-       WHERE is_guest = false AND rated_games > 0
+       WHERE is_guest = false AND is_bot = false AND rated_games > 0
        ORDER BY rating DESC
        LIMIT $1`,
       [limit],
     );
-    return rows.map((r) => ({ userId: r.id, username: r.username, rating: r.rating, ratedGames: r.rated_games }));
+    return rows.map((r) => ({
+      userId: r.id,
+      username: r.username,
+      rating: r.rating,
+      ratingDeviation: Number(r.rating_deviation),
+      ratedGames: r.rated_games,
+      rank: rankFor({
+        rating: r.rating,
+        ratingDeviation: Number(r.rating_deviation),
+        ratedGames: r.rated_games,
+      }),
+    }));
+  }
+
+  async platformStats(now: number): Promise<PlatformStats> {
+    const { d1, d7, d30 } = windows(now);
+
+    // COUNT/SUM come back as strings from pg; Number() them on the way out.
+    // Real players only (NOT is_bot) for every count; bots tallied separately so
+    // they never inflate "real player" metrics.
+    const userAgg = await this.pool.query<{
+      total: string;
+      registered: string;
+      guests: string;
+      verified: string;
+      bots: string;
+      new24h: string;
+      new7d: string;
+      new30d: string;
+    }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE is_bot = false)                    AS total,
+         COUNT(*) FILTER (WHERE is_bot = false AND is_guest = false) AS registered,
+         COUNT(*) FILTER (WHERE is_bot = false AND is_guest = true)  AS guests,
+         COUNT(*) FILTER (WHERE is_bot = false AND email_verified = true) AS verified,
+         COUNT(*) FILTER (WHERE is_bot = true)                     AS bots,
+         COUNT(*) FILTER (WHERE is_bot = false AND created_at >= $1) AS new24h,
+         COUNT(*) FILTER (WHERE is_bot = false AND created_at >= $2) AS new7d,
+         COUNT(*) FILTER (WHERE is_bot = false AND created_at >= $3) AS new30d
+       FROM users`,
+      [d1, d7, d30],
+    );
+    const ua = userAgg.rows[0]!;
+
+    const matchAgg = await this.pool.query<{
+      total: string;
+      ranked: string;
+      last24h: string;
+      last7d: string;
+    }>(
+      `SELECT
+         COUNT(*)                                   AS total,
+         COUNT(*) FILTER (WHERE ranked = true)      AS ranked,
+         COUNT(*) FILTER (WHERE ended_at >= $1)     AS last24h,
+         COUNT(*) FILTER (WHERE ended_at >= $2)     AS last7d
+       FROM matches`,
+      [d1, d7],
+    );
+    const ma = matchAgg.rows[0]!;
+
+    // Activity signal: distinct users (either color) who FINISHED a match
+    // (ended_at) within each window. ended_at covers all completed play —
+    // ranked and casual, both players — a truer "active" signal than
+    // last_rated_at, which only reflects ranked games.
+    const active = await this.pool.query<{ d1: string; d7: string; d30: string }>(
+      `SELECT
+         COUNT(DISTINCT uid) FILTER (WHERE ended_at >= $1) AS d1,
+         COUNT(DISTINCT uid) FILTER (WHERE ended_at >= $2) AS d7,
+         COUNT(DISTINCT uid) FILTER (WHERE ended_at >= $3) AS d30
+       FROM (
+         SELECT white_id AS uid, ended_at FROM matches
+         UNION ALL
+         SELECT black_id AS uid, ended_at FROM matches
+       ) m`,
+      [d1, d7, d30],
+    );
+    const act = active.rows[0]!;
+
+    // signupsByDay: range-query the 30-day window, then bucket in JS so we can
+    // gap-fill missing days with 0.
+    const { days, sinceMs } = signupDayWindow(now);
+    const signups = await this.pool.query<{ created_at: string }>(
+      'SELECT created_at FROM users WHERE is_bot = false AND created_at >= $1',
+      [sinceMs],
+    );
+    const dayCounts = new Map<string, number>();
+    for (const r of signups.rows) {
+      const day = utcDay(Number(r.created_at));
+      dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
+    }
+
+    return {
+      generatedAt: now,
+      users: {
+        total: Number(ua.total),
+        registered: Number(ua.registered),
+        guests: Number(ua.guests),
+        verified: Number(ua.verified),
+        bots: Number(ua.bots),
+      },
+      active: { d1: Number(act.d1), d7: Number(act.d7), d30: Number(act.d30) },
+      newUsers: {
+        last24h: Number(ua.new24h),
+        last7d: Number(ua.new7d),
+        last30d: Number(ua.new30d),
+      },
+      signupsByDay: fillSignupDays(days, dayCounts),
+      matches: {
+        total: Number(ma.total),
+        ranked: Number(ma.ranked),
+        last24h: Number(ma.last24h),
+        last7d: Number(ma.last7d),
+      },
+    };
   }
 }

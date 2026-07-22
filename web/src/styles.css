@@ -162,7 +162,7 @@ button { font-family: inherit; }
 }
 
 .topbar {
-  position: sticky; top: 0; z-index: 40;
+  position: sticky; top: 0; z-index: 40; order: -3; /* keep the header first once the game layout flattens (see local-game layout) */
   width: 100%; max-width: 920px; display: flex; align-items: center; justify-content: space-between; gap: 14px;
   padding: 10px 14px; border-radius: 0 0 18px 18px;
   background: color-mix(in srgb, var(--ground) 84%, transparent);
@@ -172,8 +172,16 @@ button { font-family: inherit; }
 .brand b { color: var(--cobalt); font-weight: 500; }
 .topbar-actions { display: flex; gap: 12px; align-items: center; }
 
+/* The secondary chrome (theme / pieces / coords / sound / my-games / leaderboard).
+   Desktop: `display: contents` so the buttons flow inline in the top bar and the
+   kebab toggle is hidden. Mobile (≤640px, below): they collapse into a popover
+   behind the kebab so the bar stays one clean row. */
+.chrome { display: contents; }
+.topbar .chrome-toggle { display: none; } /* scoped over `.btn`'s inline-flex; re-shown at ≤640px */
+.chrome-menu { display: contents; }
+
 /* ---- masthead -------------------------------------------------------- */
-.head { text-align: center; }
+.head { text-align: center; order: -2; /* sits below the sticky top bar; above the flattened board/status on mobile */ }
 .head .eyebrow {
   font-weight: 600; font-size: clamp(9px, 1.1vw, 11px); letter-spacing: 0.32em; text-transform: uppercase;
   color: var(--ink-soft); margin-bottom: 12px;
@@ -223,6 +231,19 @@ button { font-family: inherit; }
 }
 .sq.light { background: var(--sq-light); }
 .sq.dark { background: var(--sq-dark); box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi); }
+/* Board coordinate labels (files a–g / ranks 1–7) live in the field's padding
+   gutter — a quiet ink-soft border ring that never collides with the pieces.
+   `with-coords` widens the left+bottom gutters so the glyphs have room. */
+.field.with-coords { padding-left: calc(var(--field-pad) + var(--sq) * 0.42); padding-bottom: calc(var(--field-pad) + var(--sq) * 0.42); }
+.coord-ranks, .coord-files {
+  position: absolute; display: flex; pointer-events: none;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  font-weight: 700; font-size: calc(var(--sq) * 0.26); line-height: 1;
+  color: var(--ink-soft); letter-spacing: 0.02em;
+}
+.coord-ranks { left: 0; top: var(--field-pad); width: calc(var(--field-pad) + var(--sq) * 0.42); flex-direction: column; }
+.coord-files { bottom: 0; left: calc(var(--field-pad) + var(--sq) * 0.42); height: calc(var(--field-pad) + var(--sq) * 0.42); flex-direction: row; }
+.coord-ranks span, .coord-files span { flex: 1; display: flex; align-items: center; justify-content: center; }
 .sq.dark.play { cursor: pointer; transition: box-shadow 0.16s ease; }
 .sq.dark.play:disabled { cursor: default; }
 .sq.dark.highlight {
@@ -332,31 +353,49 @@ button { font-family: inherit; }
  * recessed `.control-deck` rail right, top-aligned. */
 .game-layout { display: contents; }
 .control-deck { display: contents; }
+.deck-scroll { display: contents; }
 .game-layout > .board { order: 0; }
-.control-deck > .status { order: -1; }
+.deck-scroll > .status { order: -1; }
 
 @media (min-width: 960px) {
   .game-layout {
     display: flex; align-items: stretch; justify-content: center;
     gap: clamp(20px, 2.6vw, 36px); width: 100%;
   }
+  /* The rail is now just a recessed, height-stretching frame. Its content is
+     lifted into an absolutely-positioned `.deck-scroll` layer (below) so the
+     controls' own height never drives the row — the rail simply matches the
+     board's height, and any overflow scrolls inside it. */
   .control-deck {
-    display: flex; flex-direction: column; align-items: stretch;
-    gap: 14px; flex: 0 0 auto; width: clamp(290px, 24vw, 320px);
-    padding: 18px 18px 20px; border-radius: 20px;
+    display: block; position: relative;
+    flex: 0 0 auto; width: clamp(290px, 24vw, 320px);
+    border-radius: 20px;
     background: var(--pedestal);
     box-shadow: inset 5px 5px 11px var(--dark), inset -5px -5px 11px var(--light);
   }
-  .control-deck > .status { order: 0; width: 100%; }
+  .control-deck > .deck-scroll {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: stretch;
+    gap: 14px; padding: 18px 18px 20px;
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  /* A quiet, on-surface scrollbar that fits the neumorphic rail. */
+  .control-deck > .deck-scroll { scrollbar-width: thin; scrollbar-color: var(--ink-soft) transparent; }
+  .control-deck > .deck-scroll::-webkit-scrollbar { width: 8px; }
+  .control-deck > .deck-scroll::-webkit-scrollbar-thumb {
+    background: rgb(var(--cast) / 0.28); border-radius: 999px; border: 2px solid transparent; background-clip: content-box;
+  }
+  .control-deck > .deck-scroll::-webkit-scrollbar-thumb:hover { background: rgb(var(--cast) / 0.42); background-clip: content-box; }
+  .deck-scroll > .status { order: 0; width: 100%; }
   /* inside the rail the controls stack and stretch rather than centre-wrap */
-  .control-deck > .controls { width: 100%; justify-content: flex-start; }
-  .control-deck > .controls .btn { flex: 1 1 auto; justify-content: center; }
-  .control-deck > .controls .segment { flex: 1 1 100%; }
-  .control-deck > .controls .segment button { flex: 1 1 0; justify-content: center; }
-  .control-deck > .controls .field-label { flex: 1 1 100%; align-items: stretch; }
-  .control-deck > .controls .field-label .neu-select { width: 100%; }
-  .control-deck > .ai-note { max-width: 100%; text-align: left; }
-  .control-deck > .legend { justify-content: flex-start; gap: 14px 18px; }
+  .deck-scroll > .controls { width: 100%; justify-content: flex-start; }
+  .deck-scroll > .controls .btn { flex: 1 1 auto; justify-content: center; }
+  .deck-scroll > .controls .segment { flex: 1 1 100%; }
+  .deck-scroll > .controls .segment button { flex: 1 1 0; justify-content: center; }
+  .deck-scroll > .controls .field-label { flex: 1 1 100%; align-items: stretch; }
+  .deck-scroll > .controls .field-label .neu-select { width: 100%; }
+  .deck-scroll > .ai-note { max-width: 100%; text-align: left; }
+  .deck-scroll > .legend { justify-content: flex-start; gap: 14px 18px; }
 }
 
 /* ---- status, controls, legend (neumorphic, on-surface) --------------- */
@@ -503,6 +542,136 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .connection-banner span { color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
 @keyframes reconnect-spin { to { transform: rotate(360deg); } }
 
+/* opponent-disconnected variant: same neumorphic weight as the self banner, but
+   a steady (non-spinning) danger-toned icon + a soft pulse to draw the eye. */
+.connection-banner.opponent-offline svg {
+  color: var(--danger); animation: opp-offline-pulse 1.8s ease-in-out infinite;
+}
+@keyframes opp-offline-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* presence dot on the opponent's clock name: green when live, danger when gone. */
+.presence-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--ink-soft); }
+.presence-dot.online { background: var(--win); }
+.presence-dot.offline { background: var(--danger); animation: opp-offline-pulse 1.8s ease-in-out infinite; }
+.clock.opponent-offline { opacity: 0.72; }
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-banner.opponent-offline svg,
+  .presence-dot.offline { animation: none; }
+}
+
+/* ---- in-match social: chat feed, emote bar, rematch ----------------------
+   All sculpted from the shared --light/--dark shadows so the panel reads as
+   one neumorphic surface with the clocks/status above it. */
+.chat-panel { display: flex; flex-direction: column; gap: 12px; }
+
+/* recessed scroll tray for the message feed */
+.chat-feed {
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: 240px; overflow-y: auto; padding: 14px;
+  border-radius: 16px; background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+}
+.chat-empty { color: var(--ink-soft); font-size: 12px; font-style: italic; text-align: center; margin: auto 0; }
+
+/* unobtrusive "opponent is typing…" row at the foot of the feed */
+.chat-typing { display: flex; align-items: center; gap: 8px; align-self: flex-start; padding: 2px 2px; }
+.chat-typing-text { font-size: 11px; font-style: italic; color: var(--ink-soft); letter-spacing: 0.01em; }
+.chat-typing-dots { display: inline-flex; align-items: flex-end; gap: 3px; }
+.chat-typing-dots span {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--cobalt);
+  opacity: 0.55; animation: chat-typing-bounce 1.2s ease-in-out infinite;
+}
+.chat-typing-dots span:nth-child(2) { animation-delay: 0.18s; }
+.chat-typing-dots span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes chat-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-typing-dots span { animation: none; opacity: 0.7; }
+}
+
+.chat-line { display: flex; flex-direction: column; gap: 3px; max-width: 85%; }
+.chat-line.mine { align-self: flex-end; align-items: flex-end; }
+.chat-line.theirs { align-self: flex-start; align-items: flex-start; }
+
+/* raised bubble; mine carries a faint cobalt wash so the two sides read apart */
+.chat-bubble {
+  font-size: 13px; line-height: 1.4; color: var(--btn-ink);
+  padding: 9px 13px; border-radius: 14px; background: var(--pedestal);
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  word-break: break-word; white-space: pre-wrap;
+}
+.chat-line.mine .chat-bubble {
+  color: var(--ink); background: color-mix(in srgb, var(--cobalt) 14%, var(--pedestal));
+}
+.chat-meta { font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+
+/* emote rendered inline in the feed as a labeled chip */
+.chat-emote-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 600; color: var(--cobalt);
+  padding: 7px 12px; border-radius: 12px; background: var(--pedestal);
+  box-shadow: 3px 3px 7px var(--dark), -3px -3px 7px var(--light);
+}
+.chat-emote-chip svg { flex: 0 0 auto; }
+
+/* quick-bar of canned emotes */
+.emote-bar { display: flex; flex-wrap: wrap; gap: 7px; }
+.emote-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-body); font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--btn-ink); background: var(--pedestal); border: 0; border-radius: 11px;
+  padding: 7px 11px; cursor: pointer;
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease, color 0.14s ease;
+}
+.emote-btn svg { flex: 0 0 auto; color: var(--cobalt); }
+.emote-btn:hover { color: var(--cobalt); }
+.emote-btn:active { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); transform: translateY(1px); }
+.emote-btn:disabled { opacity: 0.45; cursor: default; box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light); transform: none; }
+
+/* composer: recessed input + raised send button */
+.chat-composer { display: flex; align-items: center; gap: 9px; position: relative; }
+.chat-input {
+  flex: 1 1 auto; min-width: 0; font-family: var(--font-body); font-size: 13px;
+  color: var(--btn-ink); background: var(--plate); border: 0; border-radius: 12px; padding: 10px 13px;
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+}
+.chat-input:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+.chat-send {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--cobalt); background: var(--pedestal); border: 0; border-radius: 12px;
+  width: 40px; height: 40px; cursor: pointer;
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease;
+}
+.chat-send:active { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); transform: translateY(1px); }
+.chat-send:disabled { opacity: 0.45; cursor: default; box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light); transform: none; }
+.chat-counter {
+  position: absolute; right: 52px; bottom: -16px;
+  font-size: 10px; font-variant-numeric: tabular-nums; color: var(--ink-soft);
+}
+
+/* unread badge on the Online toggle / wherever the count is shown */
+.chat-unread {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  font-size: 10px; font-weight: 700; color: #fff; background: var(--cobalt);
+  box-shadow: 2px 2px 4px var(--dark);
+}
+
+/* rematch buttons: align the lucide icon, highlight the "opponent ready" CTA */
+.buttons button.rematch-ready,
+.buttons button:has(svg) { display: inline-flex; align-items: center; gap: 8px; }
+.buttons button.rematch-ready {
+  color: var(--cobalt);
+  box-shadow: 6px 6px 12px var(--dark), -6px -6px 12px var(--light), inset 0 0 0 1.5px color-mix(in srgb, var(--cobalt) 60%, transparent);
+}
+.buttons button.rematch-ready svg { color: var(--cobalt); }
+.rematch-wait { text-align: center; }
+
 .capture-choice {
   display: flex; flex-direction: column; gap: 10px; padding: 14px;
   border-radius: 16px; background: var(--pedestal);
@@ -524,10 +693,194 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .searching { font-size: 12px; color: var(--ink-soft); font-style: italic; }
 .foot { font-size: 11px; color: var(--ink-soft); letter-spacing: 0.06em; opacity: 0.7; text-align: center; }
 
-@media (max-width: 560px) {
-  .topbar { flex-direction: column; gap: 10px; }
+/* ---- online lobby: quick / play-a-friend / watch -------------------------
+   All surfaces sculpted from the shared --light/--dark shadows so the lobby
+   reads as one neumorphic panel. */
+.lobby-modes { display: flex; width: 100%; }
+.lobby-modes button { flex: 1 1 0; justify-content: center; padding: 9px 8px; }
+
+/* "Play a friend" — create form + open-invite card + join-by-code */
+.friend-panel { display: flex; flex-direction: column; gap: 14px; }
+.invite-field { display: flex; flex-direction: column; gap: 7px; }
+.invite-field-label { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); }
+.invite-field .segment { display: flex; width: 100%; }
+.invite-field .segment button { flex: 1 1 0; justify-content: center; padding: 8px 6px; }
+.color-choice button { flex: 1 1 0; justify-content: center; }
+.invite-ranked { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--btn-ink); cursor: pointer; }
+.invite-ranked input { accent-color: var(--cobalt); width: 16px; height: 16px; flex: 0 0 auto; }
+
+/* ranked vs-computer value-prop: a recessed note reminding the player this match
+   moves their rating (unlike the offline Local-tab computer game). */
+.bot-ranked-note {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 11px 13px; border-radius: 14px; background: var(--pedestal);
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+  font-size: 12px; line-height: 1.45; color: var(--ink-soft);
+}
+.bot-ranked-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--cobalt); }
+.bot-ranked-note b { color: var(--btn-ink); }
+
+/* the live-invite card: recessed plate holding the shareable link + waiting state */
+.invite-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 16px;
+  border-radius: 16px; background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+}
+.invite-eyebrow { display: flex; align-items: center; gap: 7px; font-family: var(--font-display); font-size: 13px; color: var(--ink); }
+.invite-eyebrow svg { color: var(--cobalt); }
+.invite-link-row { display: flex; align-items: center; gap: 9px; }
+.invite-link {
+  flex: 1 1 auto; min-width: 0; font-family: var(--font-body); font-size: 12px; color: var(--btn-ink);
+  background: var(--plate); border: 0; border-radius: 11px; padding: 9px 12px;
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+}
+.invite-link:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
+.invite-copy {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-body); font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--cobalt); background: var(--pedestal); border: 0; border-radius: 11px; padding: 9px 13px; cursor: pointer;
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease;
+}
+.invite-copy:active { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); transform: translateY(1px); }
+.invite-code { font-size: 12px; color: var(--ink-soft); }
+.invite-code b { color: var(--btn-ink); font-variant-numeric: tabular-nums; letter-spacing: 0.08em; }
+.invite-meta { display: flex; flex-wrap: wrap; gap: 7px; }
+.invite-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-soft);
+  padding: 5px 9px; border-radius: 9px; background: var(--pedestal);
+  box-shadow: 3px 3px 6px var(--dark), -3px -3px 6px var(--light);
+}
+.invite-chip.ranked { color: var(--cobalt); }
+.invite-chip svg { flex: 0 0 auto; }
+.invite-waiting { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px 0; }
+
+/* "Watch live" — list of ongoing games */
+.watch-panel { display: flex; flex-direction: column; gap: 12px; }
+.watch-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.watch-count { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.watch-refresh {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-body); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--btn-ink); background: var(--pedestal); border: 0; border-radius: 11px; padding: 8px 13px; cursor: pointer;
+  box-shadow: 4px 4px 8px var(--dark), -4px -4px 8px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease, color 0.14s ease;
+}
+.watch-refresh:hover { color: var(--cobalt); }
+.watch-refresh:active { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); transform: translateY(1px); }
+.watch-refresh:disabled { opacity: 0.45; cursor: default; }
+.watch-empty { font-size: 12px; color: var(--ink-soft); font-style: italic; text-align: center; padding: 14px 0; }
+.spectate-list { display: flex; flex-direction: column; gap: 9px; }
+.spectate-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  text-align: left; border: 0; cursor: pointer;
+  padding: 11px 13px; border-radius: 14px; background: var(--pedestal); color: var(--btn-ink);
+  box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light);
+  transition: box-shadow 0.14s ease, transform 0.14s ease;
+}
+.spectate-row:hover { transform: translateY(-1px); }
+.spectate-row:active { box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light); transform: translateY(1px); }
+.spectate-row:disabled { opacity: 0.5; cursor: default; transform: none; }
+.spectate-side { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.spectate-name { font-size: 12.5px; font-weight: 600; }
+.spectate-rating { font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.spectate-vs { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.spectate-tags { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.spectate-moves { font-size: 10px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+/* spectator banner above the read-only board */
+.spectate-banner {
+  display: flex; align-items: center; gap: 9px; padding: 11px 14px;
+  border-radius: 14px; color: var(--btn-ink); background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+  font-size: 12.5px;
+}
+.spectate-banner svg { flex: 0 0 auto; color: var(--cobalt); }
+.spectate-banner b { color: var(--ink); }
+
+/* ---- floating emote reactions over the board ----------------------------
+   A lucide icon rises + fades; `--lane` (0..1) scatters them horizontally,
+   animation-delay staggers a burst. Pointer-events off so play is unaffected. */
+.reaction-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.reaction {
+  position: absolute; bottom: 8%;
+  left: calc(12% + var(--lane, 0.5) * 72%);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 50%;
+  color: var(--cobalt); background: var(--pedestal);
+  box-shadow: 4px 4px 9px var(--dark), -4px -4px 9px var(--light);
+  opacity: 0; transform: translate(-50%, 6%) scale(0.6);
+  animation: reaction-float 1.8s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+.reaction.theirs { color: color-mix(in srgb, var(--rose) 80%, var(--cobalt)); }
+@keyframes reaction-float {
+  0%   { opacity: 0; transform: translate(-50%, 6%) scale(0.6); }
+  15%  { opacity: 1; transform: translate(-50%, 0%) scale(1.05); }
+  30%  { transform: translateY(-8%) scale(1); }
+  100% { opacity: 0; transform: translateY(-150%) scale(0.92); }
+}
+
+/* a brief glow pulse on the sender's name/clock when their emote lands */
+.clock.emote-pulse { animation: emote-pulse 0.85s ease-out; }
+@keyframes emote-pulse {
+  0%   { box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light); }
+  35%  { box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light), inset 0 0 0 2px color-mix(in srgb, var(--cobalt) 55%, transparent); }
+  100% { box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction { animation-duration: 1.4s; }
+  .reaction { animation-name: reaction-fade; }
+  @keyframes reaction-fade { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+  .clock.emote-pulse { animation: none; }
+}
+
+/* Tablet band (561–959px): the labelled chrome no longer fits one nowrap row,
+   so let the actions wrap to the right instead of overflowing. Desktop (≥960px)
+   keeps the original single nowrap row; phones (≤640px) use the kebab below. */
+@media (max-width: 959px) {
+  .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
+}
+
+/* ---- phone (≤640px): one clean app bar + a tidied play column ---------- */
+@media (max-width: 640px) {
+  /* Top bar collapses to a single row: [back] [Local|Online] … [kebab].
+     The five+ secondary controls move into a popover behind the kebab, so the
+     bar never wraps to a lopsided second row or clips off the screen edges. */
+  .topbar { gap: 8px; padding: 8px 10px; }
+  .topbar-actions { flex: 0 0 auto; flex-wrap: nowrap; gap: 8px; }
+  .chrome { display: block; position: relative; }
+  .topbar .chrome-toggle { display: inline-flex; }
+  .chrome-menu {
+    position: absolute; top: calc(100% + 10px); right: 0; z-index: 50;
+    display: none; flex-direction: column; gap: 6px;
+    min-width: 196px; padding: 8px; border-radius: 16px;
+    background: var(--pedestal);
+    box-shadow: 8px 8px 18px var(--dark), -8px -8px 18px var(--light);
+  }
+  .chrome.open .chrome-menu { display: flex; animation: chrome-pop 0.16s var(--ease-settle); }
+  /* In the popover the buttons read as a left-aligned list with full labels. */
+  .chrome-menu .btn { width: 100%; justify-content: flex-start; gap: 10px; padding: 11px 13px; border-radius: 12px; box-shadow: none; }
+  .chrome-menu .btn:hover { box-shadow: none; background: color-mix(in srgb, var(--cobalt) 12%, transparent); }
+  .chrome-menu .btn .btn-label { display: inline; }
+
+  /* Masthead: trim it down so the board sits high on the screen. */
+  .app { gap: 12px; }
+  .head .eyebrow { margin-bottom: 5px; }
+  .head .title { font-size: clamp(26px, 8vw, 38px); }
+  .head .sub { margin-top: 5px; }
+
+  /* Controls: a tidy 2-up grid instead of a ragged centred wrap. Action
+     buttons pair off; the segments and save span the full width. */
+  .controls { gap: 8px; justify-content: stretch; }
+  .controls .btn { flex: 1 1 calc(50% - 4px); justify-content: center; }
+  .controls .segment { flex: 1 1 100%; }
+  .controls .segment button { flex: 1 1 0; justify-content: center; }
+
   .panel { max-width: 100%; }
 }
+@keyframes chrome-pop { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* ==========================================================================
@@ -844,4 +1197,408 @@ input[type='radio'] { accent-color: var(--cobalt); }
   0%   { transform: translateY(0.45em); opacity: 0; }
   45%  { transform: translateY(-0.12em); opacity: 1; }
   100% { transform: translateY(0); opacity: 1; }
+}
+
+/* ---- victory confetti (one-shot shower, mounted on a win) ----------------
+   A fixed full-screen field of falling dot-chips. Per-chip start (left), colour,
+   drift, spin and timing come from inline styles set by <WinConfetti>; the fall
+   itself is this one keyframe. pointer-events:none so it never blocks the board.
+   Hidden entirely under reduced-motion (below), so it's purely additive joy. */
+.confetti-field { position: fixed; inset: 0; z-index: 80; pointer-events: none; overflow: hidden; }
+.confetti-bit {
+  position: absolute; top: -28px; width: 10px; height: 10px; opacity: 0;
+  will-change: transform, opacity;
+  animation-name: confetti-fall; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
+  animation-iteration-count: 1; animation-fill-mode: forwards;
+}
+@keyframes confetti-fall {
+  0%   { transform: translate(0, -10px) rotate(0) scale(var(--scale, 1)); opacity: 0; }
+  8%   { opacity: 1; }
+  100% { transform: translate(var(--drift, 0), 104vh) rotate(var(--rot, 360deg)) scale(var(--scale, 1)); opacity: 1; }
+}
+
+/* ---- promotion sparkle (an accent ring blooms when a coin is crowned) ----
+   Sits inside the popping commander (Board.tsx renders it on `pop`). Uses the
+   theme accent (gold on Navy, grape on Confetti…), so it reads as "rank earned".*/
+.promo-ring {
+  position: absolute; left: 50%; top: 50%; width: var(--coin); height: var(--coin);
+  border-radius: 50%; border: 2px solid var(--cobalt); pointer-events: none; z-index: 3;
+  transform: translate(-50%, -50%) scale(0.4); opacity: 0;
+  animation: promo-ring 0.62s ease-out 0.12s forwards;
+}
+@keyframes promo-ring {
+  0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0.85; }
+  100% { transform: translate(-50%, -50%) scale(1.9); opacity: 0; }
+}
+
+/* ---- multi-capture "combo" badge (2+ prisoners in one move) -------------
+   Board-anchored: rendered inside the relative `.stage` (see BoardView overlay).
+   A soft accent-tinted pill that pops in, holds, then floats up and fades — one
+   shot, remounted per combo so it replays. Neutral ink keeps it legible on any
+   palette; the accent colours the icon + count. */
+.combo-pop {
+  position: absolute; top: 6%; left: 50%; z-index: 5; pointer-events: none;
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  padding: 9px 18px; border-radius: 999px;
+  background: color-mix(in srgb, var(--cobalt) 16%, var(--pedestal));
+  color: var(--ink); font-family: var(--font-display); font-weight: 600;
+  font-size: clamp(13px, 2.1vw, 17px);
+  box-shadow: 0 8px 22px rgb(var(--cast) / 0.28);
+  transform: translateX(-50%);
+  animation: combo-pop 1.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.combo-pop .combo-ico, .combo-pop .combo-n { color: var(--cobalt); }
+.combo-pop .combo-n { font-variant-numeric: tabular-nums; }
+@keyframes combo-pop {
+  0%   { opacity: 0; transform: translate(-50%, 12px) scale(0.7); }
+  14%  { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  28%  { transform: translate(-50%, 0) scale(1); }
+  72%  { opacity: 1; transform: translate(-50%, -6px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -30px) scale(0.96); }
+}
+
+/* ---- game-over mascot (board-anchored) ---------------------------------
+   The end-of-game mascot used to live at the top of the control deck; it now
+   pops over the finished board so the celebration/commiseration plays where the
+   eye already is, and the (scrollable) deck keeps its height for the controls.
+   Rendered inside the relative `.stage` via BoardView's overlay slot. */
+.board-mascot {
+  position: absolute; left: 50%; bottom: clamp(10px, 2.4vw, 20px); z-index: 6;
+  transform: translateX(-50%); pointer-events: none;
+  filter: drop-shadow(0 10px 18px rgb(var(--cast) / 0.34));
+  animation: board-mascot-in 0.5s var(--ease-settle) both;
+}
+@keyframes board-mascot-in {
+  from { opacity: 0; transform: translate(-50%, 16px) scale(0.78); }
+  to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+/* ---- palette-icon spin when the colour theme cycles --------------------- */
+.theme-spin { animation: theme-spin 0.55s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes theme-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ---- save-success checkmark pop ---------------------------------------- */
+.save-pop { animation: save-pop 0.42s var(--ease-settle); }
+@keyframes save-pop { 0% { transform: scale(0.2); opacity: 0; } 60% { transform: scale(1.25); } 100% { transform: scale(1); opacity: 1; } }
+
+/* Both celebrations are decorative — fully removed when motion is reduced. */
+@media (prefers-reduced-motion: reduce) {
+  .confetti-field, .promo-ring { display: none !important; }
+  .combo-pop { animation: none; opacity: 1; transform: translateX(-50%); }
+  .board-mascot { animation: none; }
+  .theme-spin, .save-pop { animation: none; }
+}
+
+/* ---- hover-lift on your movable columns --------------------------------
+   On a pointer device, hovering a column you can move gives it the same lift +
+   accent ring as selection, so the board feels tactile before you commit. The
+   `.column` transition already eases it; selected columns keep their own lift. */
+@media (hover: hover) {
+  .sq.dark.movable:hover:not(:disabled) .column:not(.selected) { transform: translateY(-3px); }
+  .sq.dark.movable:hover:not(:disabled) .column:not(.selected) .disc.top {
+    box-shadow: 0 1px 1px rgb(var(--cast) / 0.30), 0 6px 9px rgb(var(--cast) / 0.26),
+                inset 0 1.5px 0 rgba(255,255,255,0.42), 0 0 0 2px rgb(var(--ring) / 0.5);
+  }
+}
+
+/* ---- hint square breathes (draws the eye to the suggested move) ---------
+   Layers an animation onto the static .highlight ring (the resting / reduced-
+   motion state stays the rule above). Same language as the forced-capture breathe. */
+.sq.dark.highlight { animation: hint-pulse 1.6s ease-in-out infinite; }
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi), inset 0 0 0 2px rgb(var(--ring) / 0.5); }
+  50%      { box-shadow: inset 3px 3px 6px var(--sq-lo), inset -3px -3px 6px var(--sq-hi), inset 0 0 0 3px rgb(var(--ring) / 0.92); }
+}
+
+/* ---- online clock urgency (your time is running out) -------------------- */
+.clock.low .clock-time { color: var(--danger); animation: clock-low 1s ease-in-out infinite; }
+@keyframes clock-low { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* ---- rating gain pop (online result) ----------------------------------- */
+.rating-delta { font-weight: 700; }
+.rating-delta.up { color: var(--win); display: inline-block; animation: rating-pop 0.5s var(--ease-settle) 0.2s both; }
+.rating-delta.down { color: var(--ink-soft); }
+@keyframes rating-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
+
+/* ---- new-game deal-in (staggered piece entrance) -----------------------
+   On a fresh board (BoardView `dealing`), each occupied column drops + scales
+   in, delayed by its render-order index (`--deal-i`) for a dealt-out feel.
+   `backwards` holds the from-state during the delay; reduced-motion just shows
+   the pieces (global animation kill-switch). */
+.field.dealing .column {
+  animation: deal-in 0.5s var(--ease-settle) backwards;
+  animation-delay: calc(var(--deal-i, 0) * 24ms);
+}
+@keyframes deal-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.6); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- piece-insignia light sweep (on rank-mark theme change) -------------
+   A soft band of accent light wipes across the board when the insignia theme
+   cycles, so the change registers as a flourish. Lives in the relative .stage. */
+.theme-sweep { position: absolute; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; border-radius: inherit; }
+.theme-sweep::before {
+  content: ''; position: absolute; top: -25%; bottom: -25%; width: 45%; left: -60%;
+  background: linear-gradient(100deg, transparent, rgb(var(--ring) / 0.4), transparent);
+  transform: skewX(-12deg); animation: theme-sweep 0.7s ease-out forwards;
+}
+@keyframes theme-sweep { from { left: -60%; } to { left: 130%; } }
+
+/* ---- invalid-click shake ("you can't move that") ----------------------- */
+.sq.dark.shake { animation: sq-shake 0.38s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+@keyframes sq-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-3px); }
+  30% { transform: translateX(3px); }
+  45% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  75% { transform: translateX(-1px); }
+}
+
+/* ---- undo "rewind" icon spin (counter-clockwise tick) ------------------- */
+.undo-spin { animation: undo-spin 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes undo-spin { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+
+/* ---- win trophy bounce (status pill) ----------------------------------- */
+.status.win .ico { animation: trophy-pop 0.6s var(--ease-settle); }
+@keyframes trophy-pop {
+  0% { transform: scale(0.2) rotate(-12deg); opacity: 0; }
+  55% { transform: scale(1.25) rotate(6deg); }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+/* ==========================================================================
+   Rank badge — the displayed military rank (RankBadge.tsx). Sculpted from the
+   shared --light/--dark shadows on the --plate ground (no hard borders), so it
+   sits on every [data-theme] palette. Used in the online match HUD, the result
+   screen, the rank-up celebration, and the leaderboard.
+   ========================================================================== */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+  font-family: var(--font-body);
+  color: var(--ink);
+  vertical-align: middle;
+  /* badge metrics scale off a single size knob set per-size variant below */
+  --rb-medal: 30px;
+  --rb-name: 12px;
+  --rb-ink: var(--cobalt); /* accent that paints the insignia mark */
+}
+.rb-sm { --rb-medal: 24px; --rb-name: 11px; gap: 0.4em; }
+.rb-md { --rb-medal: 30px; --rb-name: 12px; }
+.rb-lg { --rb-medal: 46px; --rb-name: 15px; gap: 0.7em; }
+
+/* The medal: a raised neumorphic disc the insignia is debossed onto. */
+.rb-medal {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--rb-medal);
+  height: var(--rb-medal);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--plate);
+  box-shadow:
+    calc(var(--rb-medal) * 0.07) calc(var(--rb-medal) * 0.07) calc(var(--rb-medal) * 0.16) var(--dark),
+    calc(var(--rb-medal) * -0.07) calc(var(--rb-medal) * -0.07) calc(var(--rb-medal) * 0.16) var(--light);
+  color: var(--rb-ink);
+}
+/* The general tier earns a recessed (inset) plate — a "minted" mastery feel. */
+.rb-tier-general .rb-medal {
+  box-shadow:
+    inset calc(var(--rb-medal) * 0.07) calc(var(--rb-medal) * 0.07) calc(var(--rb-medal) * 0.14) var(--dark),
+    inset calc(var(--rb-medal) * -0.07) calc(var(--rb-medal) * -0.07) calc(var(--rb-medal) * 0.14) var(--light);
+}
+
+.rb-insignia { display: grid; place-items: center; width: 100%; height: 100%; }
+
+/* Climb: a shield plaque with escalating chevron stripes. */
+.rb-climb { position: relative; }
+.rb-climb .rb-plate {
+  position: absolute;
+  width: 78%;
+  height: 78%;
+  color: color-mix(in srgb, var(--rb-ink) 80%, var(--ink-soft));
+  opacity: 0.85;
+}
+.rb-chevrons {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--rb-medal) * -0.07);
+  z-index: 1;
+}
+.rb-chevron {
+  width: calc(var(--rb-medal) * 0.34);
+  height: calc(var(--rb-medal) * 0.34);
+  color: var(--plate);
+  filter: drop-shadow(0 0.5px 0.5px var(--dark));
+}
+
+/* General: a cluster of stars, capped at 5 per row (wraps for 6..9). */
+.rb-general {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: calc(var(--rb-medal) * 0.02);
+  padding: 12%;
+}
+.rb-general .rb-star {
+  width: calc(var(--rb-medal) * 0.28);
+  height: calc(var(--rb-medal) * 0.28);
+  filter: drop-shadow(0 0.5px 0.5px var(--dark));
+}
+/* Lone star (★1) reads bigger — it's the milestone of crossing into mastery. */
+.rb-medal[data-stars='1'] .rb-star { width: 58%; height: 58%; }
+.rb-medal[data-stars='2'] .rb-star,
+.rb-medal[data-stars='3'] .rb-star { width: calc(var(--rb-medal) * 0.34); height: calc(var(--rb-medal) * 0.34); }
+
+.rb-text { display: inline-flex; flex-direction: column; gap: 0.25em; min-width: 0; }
+.rb-name {
+  font-weight: 700;
+  font-size: var(--rb-name);
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.rb-stars-suffix { color: var(--rb-ink); font-weight: 600; }
+.rb-q { color: var(--ink-soft); font-weight: 600; }
+
+/* lg variant: a thin recessed progress track toward the next rank. */
+.rb-progress {
+  display: block;
+  width: 100%;
+  min-width: 92px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--plate);
+  box-shadow: inset 1.5px 1.5px 3px var(--dark), inset -1.5px -1.5px 3px var(--light);
+  overflow: hidden;
+}
+.rb-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--rb-ink) 70%, var(--win)), var(--rb-ink));
+  transition: width var(--t-move) var(--ease-settle);
+}
+
+/* Provisional: muted, desaturated, with a small ? overlay on the medal. */
+.rb-provisional { --rb-ink: var(--ink-soft); }
+.rb-provisional .rb-medal { filter: saturate(0.55) opacity(0.82); }
+.rb-provisional .rb-name { color: var(--ink-soft); }
+.rb-provisional-mark {
+  position: absolute;
+  right: -6%;
+  bottom: -6%;
+  width: 42%;
+  height: 42%;
+  color: var(--ink-soft);
+  background: var(--plate);
+  border-radius: 50%;
+  box-shadow: 1px 1px 2px var(--dark), -1px -1px 2px var(--light);
+}
+
+/* ---- online lobby identity (own rank, persistent) ---------------------- */
+.lobby-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--pedestal);
+  box-shadow: 5px 5px 10px var(--dark), -5px -5px 10px var(--light);
+}
+.lobby-identity-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lobby-identity-text strong { font-family: var(--font-display); font-size: 1.05rem; color: var(--ink); }
+.lobby-identity-text .muted { font-size: 12px; color: var(--ink-soft); display: flex; align-items: center; gap: 5px; }
+
+/* The in-match clock name now leads with a small rank badge. */
+.clock-name { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ---- end-screen rank outcome + rank-up celebration --------------------- */
+.rank-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: var(--pedestal);
+  box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light);
+  text-align: center;
+}
+.rank-result-rating { font-size: 13px; color: var(--ink-soft); }
+.rank-result-line { font-family: var(--font-display); font-size: 1.05rem; color: var(--ink); }
+.rank-result-line.quiet { color: var(--ink-soft); font-size: 0.98rem; }
+.rank-result-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--cobalt);
+}
+
+/* Promotion: one orchestrated reveal — the eyebrow, badge, line and rating
+   stagger in, the medal gives a brass pop, and a small sparkle burst fires. */
+.rank-promote { box-shadow: 6px 6px 13px var(--dark), -6px -6px 13px var(--light); position: relative; overflow: hidden; }
+.rank-promote .rank-result-eyebrow { animation: rr-rise 0.45s var(--ease-settle) 0.05s both; }
+.rank-promote .rank-badge { animation: rr-medal 0.6s var(--ease-settle) 0.18s both; }
+.rank-promote .rank-result-line { animation: rr-rise 0.45s var(--ease-settle) 0.34s both; }
+.rank-promote .rank-result-rating { animation: rr-rise 0.45s var(--ease-settle) 0.46s both; }
+.rank-promote.into-general {
+  box-shadow: 7px 7px 16px var(--dark), -7px -7px 16px var(--light),
+              inset 0 0 0 2px color-mix(in srgb, var(--cobalt) 40%, transparent);
+}
+.rank-promote.into-general .rank-result-eyebrow { color: var(--cobalt); font-size: 11px; }
+
+@keyframes rr-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes rr-medal {
+  0% { opacity: 0; transform: scale(0.3) rotate(-18deg); }
+  55% { transform: scale(1.18) rotate(6deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+/* Sparkle burst — seven sparkles fan out from the medal area. */
+.rank-result-burst {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.rank-result-burst svg {
+  position: absolute;
+  color: var(--cobalt);
+  opacity: 0;
+  animation: rr-spark 0.9s ease-out 0.3s both;
+  transform: rotate(calc(var(--i) * 51deg)) translateY(-10px);
+}
+@keyframes rr-spark {
+  0% { opacity: 0; transform: rotate(calc(var(--i) * 51deg)) translateY(-6px) scale(0.4); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(calc(var(--i) * 51deg)) translateY(-46px) scale(1); }
+}
+
+/* Demotion: quiet and dignified — no burst, no pop, just a gentle fade in. */
+.rank-demote { box-shadow: inset 4px 4px 9px var(--dark), inset -4px -4px 9px var(--light); }
+.rank-demote .rank-badge { animation: rr-rise 0.4s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .field.dealing .column { animation: none; }
+  .theme-sweep { display: none !important; }
+  .sq.dark.shake, .undo-spin, .status.win .ico { animation: none; }
+  .rank-promote .rank-result-eyebrow,
+  .rank-promote .rank-badge,
+  .rank-promote .rank-result-line,
+  .rank-promote .rank-result-rating,
+  .rank-demote .rank-badge,
+  .rank-result-burst svg { animation: none; opacity: 1; transform: none; }
+  .rank-result-burst { display: none; }
 }

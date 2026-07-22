@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useMemo, type CSSProperties, type ReactNode } from 'react';
 
 /**
  * Dot-mascots — original, lightweight SVG creatures in the *spirit* of the
@@ -101,6 +101,58 @@ export function MascotState({ tint = 'grape', mood = 'idle', title, sub, childre
       <div className="ms-title">{title}</div>
       {sub ? <div className="ms-sub">{sub}</div> : null}
       {children}
+    </div>
+  );
+}
+
+/** The five friendly dot hues, hard-coded so the celebration reads vividly on
+ *  every theme (the `--dot-*` tokens only exist under Confetti). */
+const CONFETTI_COLORS = ['#f4796b', '#ffc94d', '#4fc59a', '#58b4e6', '#8a63d2'];
+
+/**
+ * WinConfetti — a one-shot victory shower. A fixed full-screen overlay of small
+ * falling dots/chips in the friendly palette. Pure CSS motion (keyframes in
+ * styles.css under `.confetti-field`); the global `prefers-reduced-motion`
+ * kill-switch hides the whole field, so it never animates when the user opts
+ * out. Mount it when a game is won — it plays once and then sits off-screen.
+ */
+export function WinConfetti({ count = 38 }: { count?: number }) {
+  // Randomised once per mount (a fresh win remounts → a fresh shower). Math.random
+  // is fine in the real React runtime; the spread keeps every chip distinct.
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => ({
+        left: Math.random() * 100,
+        delay: Math.random() * 0.45,
+        duration: 2.1 + Math.random() * 1.6,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        drift: (Math.random() - 0.5) * 90,
+        rot: (Math.random() * 6 - 3) * 180,
+        round: Math.random() > 0.5,
+        scale: 0.7 + Math.random() * 0.7,
+      })),
+    [count],
+  );
+  return (
+    <div className="confetti-field" aria-hidden="true">
+      {pieces.map((p, i) => (
+        <span
+          key={i}
+          className="confetti-bit"
+          style={
+            {
+              left: `${p.left}%`,
+              background: p.color,
+              borderRadius: p.round ? '50%' : '2px',
+              animationDelay: `${p.delay}s`,
+              animationDuration: `${p.duration}s`,
+              '--drift': `${p.drift}px`,
+              '--rot': `${p.rot}deg`,
+              '--scale': `${p.scale}`,
+            } as CSSProperties
+          }
+        />
+      ))}
     </div>
   );
 }

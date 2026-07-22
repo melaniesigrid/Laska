@@ -22,7 +22,8 @@ import type { Move, PlayerColor, ScoredMove } from '../../src/index.ts';
 /** Move-quality buckets, weakest play last. `forced` = no real choice existed. */
 export type MoveQuality = 'best' | 'good' | 'inaccuracy' | 'mistake' | 'blunder' | 'forced';
 
-/** Short human label per quality, for badges and the ply note. */
+/** Neutral, precise label per quality — used for accessibility (badge aria/title,
+ *  move-mark labels) and the stat tallies, where clarity beats personality. */
 export const QUALITY_LABEL: Record<MoveQuality, string> = {
   best: 'Best move',
   good: 'Good',
@@ -31,6 +32,23 @@ export const QUALITY_LABEL: Record<MoveQuality, string> = {
   blunder: 'Blunder',
   forced: 'Forced',
 };
+
+/** Playful display names for the prominent move badge (the visible pill under the
+ *  move heading). The neutral QUALITY_LABEL is kept as its aria-label so screen
+ *  readers still hear the real verdict. "Brilliant!" is handled in the badge
+ *  itself (it's a flavour of `best`, not a separate bucket). */
+export const QUALITY_BADGE: Record<MoveQuality, string> = {
+  best: 'Spot On',
+  good: 'Solid',
+  inaccuracy: 'Loose',
+  mistake: 'Ouch',
+  blunder: 'Yikes',
+  forced: 'Forced',
+};
+
+/** Badge name + glyph for the "Brilliant!" flavour of a best move. */
+export const BRILLIANT_BADGE = 'Brilliant!';
+export const BRILLIANT_GLYPH = '!!';
 
 /** A glyph that reads without colour (badges are also colour-coded in CSS). */
 export const QUALITY_GLYPH: Record<MoveQuality, string> = {

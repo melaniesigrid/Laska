@@ -41,9 +41,9 @@ test.describe('Guest play', () => {
     const status = lobbyStatus(page);
     await expect(status).toBeVisible();
     await expect(status).toContainText(/guest-[0-9a-f]{8}/);
-    await expect(status).toContainText('(guest)');
+    await expect(status).toContainText('guest');
     await expect(status).toContainText('rating 1200');
-    await expect(page.getByRole('button', { name: 'Play online (ranked)' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Play Laska (ranked)' })).toBeVisible();
   });
 });
 
@@ -58,7 +58,7 @@ test.describe('Registration', () => {
     await expect(status).toContainText(creds.username);
     await expect(status).toContainText('rating 1200');
     // A real (non-guest) account must not be flagged as a guest.
-    await expect(status).not.toContainText('(guest)');
+    await expect(status).not.toContainText('guest');
   });
 
   test('a password under 8 characters is rejected with a clear message', async ({ page }) => {

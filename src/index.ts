@@ -26,9 +26,24 @@ export {
   controlledSquares,
   commander,
   opponent,
+  variantOf,
   DEFAULT_NO_PROGRESS_PLY_LIMIT,
   type StatusOptions,
 } from './rules.ts';
+
+export {
+  LASKA,
+  BASHNI,
+  VARIANTS,
+  DEFAULT_VARIANT,
+  stepIn,
+  promotionRowIn,
+  isPromotionSquareIn,
+  type Variant,
+  type VariantId,
+  type KingType,
+  type ManCaptureDirs,
+} from './variant.ts';
 
 export {
   beginCaptureChain,

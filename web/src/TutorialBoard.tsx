@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Lightbulb, CheckCircle2, RotateCcw, Trophy } from 'lucide-react';
+import { Lightbulb, CheckCircle2, RotateCcw, Trophy, ArrowRight } from 'lucide-react';
 import {
-  RC_TO_SQUARE,
-  BOARD_DIM,
   beginCaptureChain,
   nextHopTargets,
   advanceCaptureChain,
@@ -43,9 +41,15 @@ const OPPONENT_HOP_MS = 300;
 export function TutorialBoard({
   lesson,
   onComplete,
+  onNext,
+  nextTitle,
 }: {
   lesson: Lesson;
   onComplete: () => void;
+  /** Advance to the next lesson in the track. Omitted on the last lesson. */
+  onNext?: () => void;
+  /** Title of the next lesson, shown on the completion CTA. */
+  nextTitle?: string;
 }) {
   // Step cursor. `done` once the cursor passes the last step.
   const [stepIdx, setStepIdx] = useState(0);
@@ -309,8 +313,8 @@ export function TutorialBoard({
       <div className="tutorial-board">
         <BoardView
           board={stepBoard ?? state.board}
-          dim={BOARD_DIM}
-          rcToSquare={RC_TO_SQUARE}
+          dim={lesson.variant.boardDim}
+          rcToSquare={lesson.variant.rcToSquare}
           selected={movingSquare}
           movable={movable}
           destinations={destinations}
@@ -348,9 +352,16 @@ export function TutorialBoard({
         )}
 
         {done && (
-          <button className="btn" onClick={restart}>
-            <RotateCcw size={16} /> Replay this lesson
-          </button>
+          <div className="tutorial-done-actions">
+            {onNext && (
+              <button className="btn btn-primary" onClick={onNext}>
+                Next lesson{nextTitle ? `: ${nextTitle}` : ''} <ArrowRight size={16} />
+              </button>
+            )}
+            <button className="btn" onClick={restart}>
+              <RotateCcw size={16} /> Replay this lesson
+            </button>
+          </div>
         )}
       </div>
     </div>

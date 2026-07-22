@@ -33,13 +33,14 @@ export function buildServer(
     refreshSecret: config.refreshSecret,
     startingRating: config.startingRating,
   });
-  const manager = new MatchManager(repo);
+  const manager = new MatchManager(repo, config.startingRating);
   const gameServer = new GameServer(repo, auth, manager, cluster);
 
   const httpHandler = createHttpHandler({
     auth,
     repo,
     ...(config.authRateLimit ? { authRateLimit: config.authRateLimit } : {}),
+    ...(config.adminToken ? { adminToken: config.adminToken } : {}),
   });
   const http = createServer((req, res) => void httpHandler(req, res));
   const wss = new WebSocketServer({ server: http, path: '/ws' });
@@ -56,12 +57,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const nodeId = config.nodeId;
     const cluster = await createCluster(config.cluster, nodeId);
     const { http, gameServer, wss } = buildServer(config, repo, cluster);
+    // Seed the built-in computer opponents (one ranked bot per difficulty tier)
+    // before accepting connections, so a `match.startBot` always has an opponent.
+    await gameServer.seedBots();
     gameServer.start();
     http.listen(config.port, () => {
       console.log(`Laska server listening on http://localhost:${config.port}`);
       console.log(`  WebSocket: ws://localhost:${config.port}/ws`);
       console.log(`  Storage:   ${config.db.kind}${config.db.kind === 'sqlite' ? ` (${config.db.sqlitePath})` : ''}`);
       console.log(`  Cluster:   ${config.cluster.kind} (node ${nodeId})`);
+      console.log(
+        `  Admin stats: ${config.adminToken ? 'enabled (GET /admin/stats)' : 'disabled (set LASKA_ADMIN_TOKEN to enable)'}`,
+      );
       if (config.usingDefaultSecrets) {
         console.warn(
           '  WARNING: using random per-boot token secrets. Set LASKA_ACCESS_SECRET and ' +

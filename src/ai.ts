@@ -17,7 +17,7 @@
  */
 
 import type { GameState, Move, PlayerColor } from './types.ts';
-import { NUM_SQUARES, SQUARE_TO_RC, BOARD_DIM, promotionRow } from './board.ts';
+import { variantOf, promotionRowIn, type Variant } from './variant.ts';
 import { legalMoves, applyMove, opponent, DEFAULT_NO_PROGRESS_PLY_LIMIT } from './rules.ts';
 import { encodePosition } from './notation.ts';
 
@@ -81,13 +81,10 @@ export const DEFAULT_WEIGHTS: EvalWeights = {
  * Laska board this is 0,1,2,3,2,1,0 across columns 0..6. Used by the §1
  * edge-safety term: a *larger* distance means a more exposed (central) column.
  */
-function distanceFromEdge(square: number): number {
-  const col = SQUARE_TO_RC[square]!.col;
-  return Math.min(col, BOARD_DIM - 1 - col);
+function distanceFromEdge(v: Variant, square: number): number {
+  const col = v.squareToRc[square]!.col;
+  return Math.min(col, v.boardDim - 1 - col);
 }
-
-/** The centre file's distance-from-edge (max value of `distanceFromEdge`). */
-const MAX_EDGE_DISTANCE = (BOARD_DIM - 1) / 2; // 3 on a 7-wide board
 
 /**
  * A column has "extra height" once it is taller than a lone commander. Only this
@@ -104,8 +101,13 @@ const WIN_SCORE = 1_000_000;
  * Does NOT check terminal status — the search handles terminal nodes.
  */
 export function evaluate(state: GameState, me: PlayerColor, w: EvalWeights = DEFAULT_WEIGHTS): number {
+  const v = variantOf(state);
   const them = opponent(me);
   let score = 0;
+
+  // The centre file's distance-from-edge (max value of `distanceFromEdge`): 3 on
+  // a 7-wide Laska board, 3.5 on an 8-wide Bashni board.
+  const maxEdgeDistance = (v.boardDim - 1) / 2;
 
   // Pre-pass: average column height per controlling colour, for the §2
   // over-concentration term. This is computed symmetrically for both colours so
@@ -114,7 +116,7 @@ export function evaluate(state: GameState, me: PlayerColor, w: EvalWeights = DEF
   // sees as a bonus via the `sign` flip.
   const totalHeight: Record<PlayerColor, number> = { W: 0, B: 0 };
   const numColumns: Record<PlayerColor, number> = { W: 0, B: 0 };
-  for (let sq = 0; sq < NUM_SQUARES; sq++) {
+  for (let sq = 0; sq < v.numSquares; sq++) {
     const col = state.board[sq];
     if (!col || col.length === 0) continue;
     const controller = col[col.length - 1]!.color;
@@ -126,7 +128,7 @@ export function evaluate(state: GameState, me: PlayerColor, w: EvalWeights = DEF
     B: numColumns.B > 0 ? totalHeight.B / numColumns.B : 0,
   };
 
-  for (let sq = 0; sq < NUM_SQUARES; sq++) {
+  for (let sq = 0; sq < v.numSquares; sq++) {
     const col = state.board[sq];
     if (!col || col.length === 0) continue;
     const top = col[col.length - 1]!;
@@ -151,10 +153,10 @@ export function evaluate(state: GameState, me: PlayerColor, w: EvalWeights = DEF
 
     // Promotion threat: reward soldier-topped columns nearing the back rank.
     if (top.rank === 'soldier') {
-      const row = SQUARE_TO_RC[sq]!.row;
-      const target = promotionRow(controller);
+      const row = v.squareToRc[sq]!.row;
+      const target = promotionRowIn(v, controller);
       const distance = Math.abs(target - row); // 0 at back rank
-      const advanced = (BOARD_DIM - 1 - distance); // larger = closer to promotion
+      const advanced = (v.boardDim - 1 - distance); // larger = closer to promotion
       score += sign * w.advance * advanced;
     }
 
@@ -169,7 +171,7 @@ export function evaluate(state: GameState, me: PlayerColor, w: EvalWeights = DEF
     // i.e. exactly the negative — so flipping `me` negates this term term-for-term.
     const extraHeight = Math.max(0, col.length - HEIGHT_THRESHOLD);
     if (extraHeight > 0) {
-      const closeness = MAX_EDGE_DISTANCE - distanceFromEdge(sq); // 0 centre .. MAX edge
+      const closeness = maxEdgeDistance - distanceFromEdge(v, sq); // 0 centre .. max edge
       score += sign * w.edgeSafety * extraHeight * closeness;
     }
 

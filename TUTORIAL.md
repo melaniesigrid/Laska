@@ -124,8 +124,17 @@ Progress in `localStorage` now, account later.
 ## Course outline (Phase 4, monetizable)
 Each course = a sequence of interactive lessons + engine-verified puzzles. Free
 intro lesson per course; full course behind subscription / one-time purchase.
-- **Openings** — sound first moves on 7×7; why the empty centre row matters.
-- **Tactics** — capture chains, multi-jumps, sham sacrifices that win a column.
+- **Openings** — ✅ SHIPPED. Sound first moves on 7×7; why the empty centre row
+  matters. A foundational "first move" lesson + Lasker's three named openings
+  (Hague, Berlin defence, Wing gambit), GENERATED from the engine-validated lines
+  in `web/src/openings.ts` (`web/src/openingLessons.ts`), with per-ply coaching.
+  Paired with a read-only repertoire browser (`web/src/OpeningsPage.tsx`). NOTE:
+  opening lessons do NOT use `lessons.ts`'s `buildLesson` — Black's replies are
+  authored opening theory, not the engine-forced replies that `buildLesson`
+  asserts. The Lessons page is now a 3-course picker (Openings · Strategy · Bashni).
+- **Tactics** — capture chains, multi-jumps, and the **gambit**: give up a man
+  you are sure to win straight back (or recapture as a taller column) — Lasker's
+  "attack over defence" made concrete. See `STRATEGY.md` §5 + book Ch. 5.7.
 - **Column strategy** — build tall vs stay mobile; when freeing prisoners helps you.
 - **Endgames** — converting a column/material edge; beating the no-progress draw.
 

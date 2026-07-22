@@ -9,18 +9,22 @@ import {
   Pause,
   Sparkles,
 } from 'lucide-react';
-import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
+import { LASKA } from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
 import { HISTORIC_GAMES, type HistoricGame } from './games.ts';
 import { moveToSan } from './savedGames.ts';
 import {
   useGameAnalysis,
+  useCommentator,
   EvalBar,
   AnalysisSummary,
   ReviewBadge,
-  BestLine,
+  MoveCommentary,
+  FromHereHint,
+  CommentatorPicker,
   QualityMark,
 } from './gameAnalysis.tsx';
+import { isBrilliant } from './commentary.ts';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
 import { ShareButton } from './ShareButton.tsx';
 import './landing.css';
@@ -71,6 +75,7 @@ export function ReplayPage({
   const lastPly = game.plies.length;
   const [ply, setPly] = useState(0); // 0 = opening position
   const [playing, setPlaying] = useState(false);
+  const [persona, setPersona] = useCommentator();
   const listRef = useRef<HTMLDivElement>(null);
 
   const selectGame = (idx: number) => {
@@ -93,6 +98,7 @@ export function ReplayPage({
   }, [playing, ply, lastPly]);
 
   const state = game.states[ply]!;
+  const variant = game.variant ?? LASKA;
   const current = ply > 0 ? game.plies[ply - 1] : undefined;
 
   // Engine review of every position, on demand and off-thread (shared with the
@@ -106,7 +112,19 @@ export function ReplayPage({
   });
   const currentReview = ply > 0 ? review.reviews[ply - 1] ?? null : null;
   const currentWhiteEval = review.analysis ? review.analysis[ply]?.whiteEval ?? null : null;
+  const evalBefore = review.analysis?.[ply - 1]?.whiteEval ?? 0;
   const bestNext = review.analysis?.[ply]?.scored[0]?.move ?? null;
+  const currentBrilliant =
+    currentReview && current
+      ? isBrilliant(currentReview, {
+          side: current.side,
+          ply,
+          whiteEvalBefore: evalBefore,
+          whiteEvalAfter: currentWhiteEval ?? 0,
+          move: current.move,
+          bestSan: null,
+        })
+      : false;
 
   // ring the square the last move landed on
   const landing = useMemo(() => (current ? new Set([current.move.to]) : EMPTY), [current]);
@@ -120,10 +138,17 @@ export function ReplayPage({
     setPly(Math.max(0, Math.min(lastPly, p)));
   };
 
-  // keep the active move scrolled into view in the list
+  // keep the active move scrolled into view in the list — only inside the
+  // move-list, never the window (plain scrollIntoView scrolls every scrollable
+  // ancestor, which would yank the board off-screen on each move).
   useEffect(() => {
-    const el = listRef.current?.querySelector('.move-cell.active');
-    el?.scrollIntoView({ block: 'nearest' });
+    const list = listRef.current;
+    const el = list?.querySelector<HTMLElement>('.move-cell.active');
+    if (!list || !el) return;
+    const elRect = el.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    if (elRect.top < listRect.top) list.scrollTop -= listRect.top - elRect.top;
+    else if (elRect.bottom > listRect.bottom) list.scrollTop += elRect.bottom - listRect.bottom;
   }, [ply]);
 
   const noteText =
@@ -138,7 +163,7 @@ export function ReplayPage({
             <ArrowLeft size={16} /> Back
           </button>
           <div className="topbar-actions">
-            <ShareButton moves={shareMoves} />
+            <ShareButton moves={shareMoves} variant={variant.id} />
             <button className="btn" onClick={onPlay}>
               <span className="dot" />
               Play the game
@@ -179,8 +204,8 @@ export function ReplayPage({
             <div className="replay-board">
               <BoardView
                 board={state.board}
-                dim={BOARD_DIM}
-                rcToSquare={RC_TO_SQUARE}
+                dim={variant.boardDim}
+                rcToSquare={variant.rcToSquare}
                 selected={null}
                 movable={EMPTY}
                 destinations={landing}
@@ -206,12 +231,11 @@ export function ReplayPage({
               ) : (
                 <>
                   <EvalBar white={currentWhiteEval ?? 0} />
-                  <AnalysisSummary summary={review.summary!} />
-                  {bestNext && ply < lastPly && (
-                    <p className="best-from-here">
-                      Engine likes <b>{moveToSan(bestNext)}</b> here.
-                    </p>
+                  <AnalysisSummary summary={review.summary!} persona={persona} />
+                  {ply < lastPly && (
+                    <FromHereHint best={bestNext} ply={ply} sanOf={moveToSan} persona={persona} />
                   )}
+                  <CommentatorPicker value={persona} onChange={setPersona} />
                 </>
               )}
             </div>
@@ -219,10 +243,19 @@ export function ReplayPage({
             <div className="replay-note reveal in">
               <span className="replay-ply-label">
                 {ply === 0 ? 'Opening' : `${current!.moveNo}. ${current!.side === 'W' ? 'White' : 'Black'} — ${current!.san}`}
-                <ReviewBadge review={currentReview} />
+                <ReviewBadge review={currentReview} brilliant={currentBrilliant} />
               </span>
               {noteText && <p>{noteText}</p>}
-              <BestLine review={currentReview} sanOf={moveToSan} />
+              <MoveCommentary
+                review={currentReview}
+                side={current?.side ?? 'W'}
+                ply={ply}
+                whiteEvalBefore={evalBefore}
+                whiteEvalAfter={currentWhiteEval ?? 0}
+                move={current?.move ?? null}
+                sanOf={moveToSan}
+                persona={persona}
+              />
             </div>
 
             <div className="replay-controls">

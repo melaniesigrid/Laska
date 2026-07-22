@@ -14,7 +14,10 @@ import {
   createInitialState,
   legalMoves,
   applyMove,
-  SQUARE_TO_RC,
+  LASKA,
+  VARIANTS,
+  type Variant,
+  type VariantId,
   type GameState,
   type Move,
   type PlayerColor,
@@ -204,8 +207,14 @@ function sameCaptures(a: number[], b: number[]): boolean {
  * Throws on the first move that isn't legal in its position — a real signal the
  * save is corrupt or the rules changed under it, which the viewer reports.
  */
+/** The rule variant a saved game was played under (defaults to Laska). */
+export function savedGameVariant(game: Pick<SavedGame, 'variant'>): Variant {
+  const id = game.variant as VariantId | undefined;
+  return (id && VARIANTS[id]) || LASKA;
+}
+
 export function rebuildGame(game: SavedGame): RebuiltGame {
-  let state = createInitialState();
+  let state = createInitialState(savedGameVariant(game));
   const states: GameState[] = [state];
   const resolved: Move[] = [];
   game.moves.forEach((sm, i) => {
@@ -229,16 +238,17 @@ export function rebuildGame(game: SavedGame): RebuiltGame {
 
 /* ---- notation ------------------------------------------------------------- */
 
-/** Engine square index → lasca.org algebraic (e.g. 0 → "a1"), matching games.ts. */
-export function squareToAlgebraic(square: number): string {
-  const rc = SQUARE_TO_RC[square];
+/** Engine square index → lasca.org algebraic (e.g. 0 → "a1"), on `variant`'s
+ *  board (defaults to Laska). Bashni's 8×8 maps files a–h × ranks 1–8. */
+export function squareToAlgebraic(square: number, variant: Variant = LASKA): string {
+  const rc = variant.squareToRc[square];
   if (!rc) return String(square);
   return `${String.fromCharCode(97 + rc.col)}${rc.row + 1}`;
 }
 
-/** A resolved Move → algebraic SAN, e.g. "c3-d4" or "c3xe5xg7". */
-export function moveToSan(move: Move): string {
-  const from = squareToAlgebraic(move.from);
-  if (!move.isCapture) return `${from}-${squareToAlgebraic(move.to)}`;
-  return from + move.path.map((p) => `x${squareToAlgebraic(p)}`).join('');
+/** A resolved Move → algebraic SAN, e.g. "c3-d4" or "c3xe5xg7", on `variant`'s board. */
+export function moveToSan(move: Move, variant: Variant = LASKA): string {
+  const from = squareToAlgebraic(move.from, variant);
+  if (!move.isCapture) return `${from}-${squareToAlgebraic(move.to, variant)}`;
+  return from + move.path.map((p) => `x${squareToAlgebraic(p, variant)}`).join('');
 }

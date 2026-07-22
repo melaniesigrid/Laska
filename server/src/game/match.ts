@@ -13,9 +13,12 @@ import {
   applyMove,
   gameStatus,
   encodePosition,
+  VARIANTS,
+  DEFAULT_VARIANT,
   type GameState,
   type Move,
   type PlayerColor,
+  type VariantId,
 } from '../../../src/index.ts';
 import type { MatchResult, SerializedMove } from '../storage/types.ts';
 
@@ -78,6 +81,8 @@ export class Match {
   readonly ranked: boolean;
   readonly timeControl: TimeControl;
   readonly startedAt: number;
+  /** The rule variant this match is played under (Laska by default). */
+  readonly variantId: VariantId;
 
   private state: GameState;
   private moves: SerializedMove[] = [];
@@ -94,6 +99,7 @@ export class Match {
     blackId: string;
     ranked: boolean;
     timeControl?: TimeControl;
+    variant?: VariantId;
     now?: number;
   }) {
     this.id = params.id;
@@ -101,10 +107,12 @@ export class Match {
     this.blackId = params.blackId;
     this.ranked = params.ranked;
     this.timeControl = params.timeControl ?? DEFAULT_TIME_CONTROL;
+    const variant = (params.variant && VARIANTS[params.variant]) || DEFAULT_VARIANT;
+    this.variantId = variant.id;
     const now = params.now ?? Date.now();
     this.startedAt = now;
     this.turnStartedAt = now;
-    this.state = createInitialState();
+    this.state = createInitialState(variant);
     this.clock = { whiteMs: this.timeControl.initialMs, blackMs: this.timeControl.initialMs };
   }
 
@@ -151,6 +159,15 @@ export class Match {
 
   legalMovesForCurrent(): Move[] {
     return this.phase === 'active' ? legalMoves(this.state) : [];
+  }
+
+  /**
+   * The authoritative engine GameState, for the server-side bot driver to feed
+   * `chooseMove`. Read-only by contract — callers must not mutate it; the engine
+   * is functional (applyMove returns a new state) so this is only ever read.
+   */
+  gameState(): GameState {
+    return this.state;
   }
 
   /**
@@ -270,6 +287,17 @@ export class Match {
       throw new MatchError('illegal-move', 'No draw offer from your opponent to accept');
     }
     return this.finish({ result: '1/2-1/2', reason: 'agreement', winner: null }, now);
+  }
+
+  /** Decline a standing draw offer made by the opponent (clears the offer). */
+  declineDraw(userId: string): void {
+    if (this.phase !== 'active') throw new MatchError('not-active', 'Match is not active');
+    const color = this.colorOf(userId);
+    if (!color) throw new MatchError('not-a-player', 'You are not a player in this match');
+    if (!this.drawOfferBy || this.drawOfferBy === color) {
+      throw new MatchError('illegal-move', 'No draw offer from your opponent to decline');
+    }
+    this.drawOfferBy = null;
   }
 
   get pendingDrawOfferBy(): PlayerColor | null {

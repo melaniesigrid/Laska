@@ -25,6 +25,13 @@ export interface ServerConfig {
    * `buildServer` falls back to a safe default when absent.
    */
   authRateLimit?: AuthRateLimitConfig;
+  /**
+   * Static shared secret guarding the internal `GET /admin/stats` endpoint.
+   * Optional and intentionally NOT auto-generated: when unset the admin endpoint
+   * is fully disabled (responds 404, undiscoverable). Set `LASKA_ADMIN_TOKEN`
+   * to enable. This is separate from user JWT auth — it is not a user account.
+   */
+  adminToken?: string;
 }
 
 export interface AuthRateLimitConfig {
@@ -65,6 +72,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const refreshFromEnv = env.LASKA_REFRESH_SECRET;
   const usingDefaultSecrets = !accessFromEnv || !refreshFromEnv;
 
+  // Absent => admin stats endpoint stays DISABLED. Never default this to a value.
+  const adminToken = env.LASKA_ADMIN_TOKEN;
+
   return {
     port: env.PORT ? Number(env.PORT) : 8080,
     // Random per-boot secrets in dev mean tokens don't survive a restart, which
@@ -77,5 +87,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     cluster: loadClusterConfig(env),
     nodeId: env.LASKA_NODE_ID ?? `node-${randomUUID().slice(0, 8)}`,
     authRateLimit: loadAuthRateLimitConfig(env),
+    ...(adminToken ? { adminToken } : {}),
   };
 }

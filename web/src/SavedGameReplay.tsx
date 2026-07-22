@@ -19,20 +19,25 @@ import {
   CircleDot,
   Sparkles,
 } from 'lucide-react';
-import { RC_TO_SQUARE, BOARD_DIM } from '../../src/index.ts';
+import { LASKA, type VariantId } from '../../src/index.ts';
 import { BoardView } from './Board.tsx';
 import { PieceThemeContext, type PieceTheme } from './pieceTheme.tsx';
 import {
   useGameAnalysis,
+  useCommentator,
   EvalBar,
   AnalysisSummary,
   ReviewBadge,
-  BestLine,
+  MoveCommentary,
+  FromHereHint,
+  CommentatorPicker,
   QualityMark,
 } from './gameAnalysis.tsx';
+import { isBrilliant } from './commentary.ts';
 import {
   getSavedGame,
   rebuildGame,
+  savedGameVariant,
   moveToSan,
   upsertSavedGame,
   type SavedGame,
@@ -70,8 +75,10 @@ export function SavedGameReplay({
   pieceTheme: PieceTheme;
 }) {
   const [game, setGame] = useState<SavedGame | undefined>(() => getSavedGame(id));
+  const variant = useMemo(() => (game ? savedGameVariant(game) : LASKA), [game]);
   const [ply, setPly] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [persona, setPersona] = useCommentator();
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => window.scrollTo(0, 0), []);
@@ -126,8 +133,16 @@ export function SavedGameReplay({
   }, [playing, ply, lastPly]);
 
   useEffect(() => {
-    const el = listRef.current?.querySelector('.move-cell.active');
-    el?.scrollIntoView({ block: 'nearest' });
+    // Scroll the active move into view inside the move-list only. Plain
+    // scrollIntoView scrolls every scrollable ancestor (including the window),
+    // which would yank the whole page — and the board — out of view on each move.
+    const list = listRef.current;
+    const el = list?.querySelector<HTMLElement>('.move-cell.active');
+    if (!list || !el) return;
+    const elRect = el.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    if (elRect.top < listRect.top) list.scrollTop -= listRect.top - elRect.top;
+    else if (elRect.bottom > listRect.bottom) list.scrollTop += elRect.bottom - listRect.bottom;
   }, [ply]);
 
   const go = (p: number) => {
@@ -190,6 +205,20 @@ export function SavedGameReplay({
   // that position — both null until the game has been analysed.
   const currentReview = ply > 0 ? review.reviews[ply - 1] ?? null : null;
   const currentWhiteEval = review.analysis ? review.analysis[ply]?.whiteEval ?? null : null;
+  // Evals bracketing the current move (before → after), for the critic's drama.
+  const evalBefore = review.analysis?.[ply - 1]?.whiteEval ?? 0;
+  const evalAfter = currentWhiteEval ?? 0;
+  const currentBrilliant =
+    currentReview && current
+      ? isBrilliant(currentReview, {
+          side: current.side,
+          ply,
+          whiteEvalBefore: evalBefore,
+          whiteEvalAfter: evalAfter,
+          move: current.move,
+          bestSan: null,
+        })
+      : false;
   // The engine's preferred move at the current position, shown as a hint.
   const bestNext = review.analysis?.[ply]?.scored[0]?.move ?? null;
 
@@ -199,6 +228,7 @@ export function SavedGameReplay({
         onBack={onBack}
         onMyGames={onMyGames}
         shareMoves={game.moves.map((m) => ({ from: m.from, to: m.to }))}
+        variant={variant.id}
       />
 
       <section className="hero" style={{ paddingTop: 'clamp(2rem,5vw,4rem)', paddingBottom: 'clamp(1.5rem,4vw,2.5rem)' }}>
@@ -235,8 +265,8 @@ export function SavedGameReplay({
             <div className="replay-board">
               <BoardView
                 board={state.board}
-                dim={BOARD_DIM}
-                rcToSquare={RC_TO_SQUARE}
+                dim={variant.boardDim}
+                rcToSquare={variant.rcToSquare}
                 selected={null}
                 movable={EMPTY}
                 destinations={landing}
@@ -264,12 +294,11 @@ export function SavedGameReplay({
               ) : (
                 <>
                   <EvalBar white={currentWhiteEval ?? 0} />
-                  <AnalysisSummary summary={review.summary!} />
-                  {bestNext && ply < lastPly && (
-                    <p className="best-from-here">
-                      Engine likes <b>{moveToSan(bestNext)}</b> here.
-                    </p>
+                  <AnalysisSummary summary={review.summary!} persona={persona} />
+                  {ply < lastPly && (
+                    <FromHereHint best={bestNext} ply={ply} sanOf={moveToSan} persona={persona} />
                   )}
+                  <CommentatorPicker value={persona} onChange={setPersona} />
                 </>
               )}
             </div>
@@ -279,9 +308,18 @@ export function SavedGameReplay({
                 {ply === 0
                   ? 'Opening position'
                   : `${current!.moveNo}. ${current!.side === 'W' ? 'White' : 'Black'} — ${current!.san}`}
-                <ReviewBadge review={currentReview} />
+                <ReviewBadge review={currentReview} brilliant={currentBrilliant} />
               </span>
-              <BestLine review={currentReview} sanOf={moveToSan} />
+              <MoveCommentary
+                review={currentReview}
+                side={current?.side ?? 'W'}
+                ply={ply}
+                whiteEvalBefore={evalBefore}
+                whiteEvalAfter={evalAfter}
+                move={current?.move ?? null}
+                sanOf={moveToSan}
+                persona={persona}
+              />
               {ply === 0 ? (
                 <p>Step through your game, or press play. Add a note to any move below.</p>
               ) : (
@@ -367,10 +405,12 @@ function ReplayHeader({
   onBack,
   onMyGames,
   shareMoves = [],
+  variant = 'laska',
 }: {
   onBack: () => void;
   onMyGames: () => void;
   shareMoves?: { from: number; to: number }[];
+  variant?: VariantId;
 }) {
   return (
     <header className="topbar">
@@ -379,7 +419,7 @@ function ReplayHeader({
           <ArrowLeft size={16} /> Back
         </button>
         <div className="topbar-actions">
-          {shareMoves.length > 0 && <ShareButton moves={shareMoves} />}
+          {shareMoves.length > 0 && <ShareButton moves={shareMoves} variant={variant} />}
           <button className="btn" onClick={onMyGames}>
             <Library size={16} /> My games
           </button>

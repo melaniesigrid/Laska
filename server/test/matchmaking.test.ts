@@ -21,8 +21,24 @@ test('pairs two close-rated players immediately', () => {
   assert.equal(mm.size, 0, 'paired players leave the queue');
 });
 
+test('never pairs players queuing for different variants', () => {
+  const mm = new Matchmaker();
+  const now = 1_000_000;
+  mm.enqueue('laska', 1500, now); // defaults to Laska
+  mm.enqueue('bashni', 1500, now, 'bashni');
+  assert.equal(mm.tryMatch(now), null, 'same rating but different variants must not pair');
+  assert.equal(mm.size, 2);
+
+  // A same-variant opponent does pair, leaving the odd-variant player waiting.
+  mm.enqueue('bashni2', 1500, now, 'bashni');
+  const pair = mm.tryMatch(now);
+  assert.ok(pair);
+  assert.deepEqual(new Set([pair!.a.userId, pair!.b.userId]), new Set(['bashni', 'bashni2']));
+  assert.equal(mm.size, 1, 'the Laska player is still queued');
+});
+
 test('does not pair players outside the initial window until wait widens it', () => {
-  const mm = new Matchmaker({ baseWindow: 100, windowGrowthPerSec: 50, maxWindow: 1000 });
+  const mm = new Matchmaker({ baseWindow: 100, windowGrowthPerSec: 50, maxWindow: 1000, rdWindowFactor: 0.5 });
   const t0 = 1_000_000;
   mm.enqueue('low', 1200, t0);
   mm.enqueue('high', 1500, t0); // gap 300 > base window 100

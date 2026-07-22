@@ -28,8 +28,10 @@ import {
   type GameState,
   type Move,
   type GameOutcome,
+  LASKA,
   type Difficulty,
   type PlayerColor,
+  type Variant,
 } from '../engine/index.ts';
 import { getBestMove } from '../engine/ai.ts';
 
@@ -59,8 +61,8 @@ export interface UseGame {
   resign: () => void;
 }
 
-export function useGame(mode: GameMode): UseGame {
-  const [state, setState] = useState<GameState>(() => createInitialState());
+export function useGame(mode: GameMode, variant: Variant = LASKA): UseGame {
+  const [state, setState] = useState<GameState>(() => createInitialState(variant));
   const [selected, setSelected] = useState<number | null>(null);
   const [thinking, setThinking] = useState(false);
   const [resigned, setResigned] = useState<PlayerColor | null>(null);
@@ -174,14 +176,14 @@ export function useGame(mode: GameMode): UseGame {
   const reset = useCallback(() => {
     aiRunId.current++;
     if (aiHopTimer.current) clearTimeout(aiHopTimer.current);
-    setState(createInitialState());
+    setState(createInitialState(variant));
     setSelected(null);
     setResigned(null);
     setThinking(false);
     setLastMove(null);
     setStepBoard(null);
     setCapture(null);
-  }, []);
+  }, [variant]);
 
   const resign = useCallback(() => {
     if (outcome.state === 'ongoing') setResigned(state.toMove);

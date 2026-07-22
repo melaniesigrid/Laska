@@ -12,6 +12,8 @@ import { randomUUID } from 'node:crypto';
 import type { CosmeticsPatch, Repository, User } from '../storage/types.ts';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import { signToken, verifyToken, type TokenPayload } from './tokens.ts';
+import { DEFAULT_RD, DEFAULT_VOLATILITY } from '../rating/glicko2.ts';
+import { rankFor, type Rank } from '../rating/rank.ts';
 
 export const ACCESS_TTL_SECONDS = 15 * 60; // 15 minutes
 export const REFRESH_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -34,7 +36,9 @@ export interface PublicUser {
   isGuest: boolean;
   emailVerified: boolean;
   rating: number;
+  ratingDeviation: number;
   ratedGames: number;
+  rank: Rank;
   /**
    * Cosmetic preferences. `null` = unset (client uses its local default). The
    * Profile page reads these to hydrate mascot/piece/board selectors.
@@ -52,7 +56,9 @@ export function toPublicUser(u: User): PublicUser {
     isGuest: u.isGuest,
     emailVerified: u.emailVerified,
     rating: u.rating,
+    ratingDeviation: u.ratingDeviation,
     ratedGames: u.ratedGames,
+    rank: rankFor({ rating: u.rating, ratingDeviation: u.ratingDeviation, ratedGames: u.ratedGames }),
     selectedMascotTint: u.selectedMascotTint,
     selectedPieceTheme: u.selectedPieceTheme,
     selectedBoardTheme: u.selectedBoardTheme,
@@ -175,9 +181,13 @@ export class AuthService {
       email: normEmail,
       passwordHash: await hashPassword(password),
       isGuest: false,
+      isBot: false,
       emailVerified: false,
       rating: this.config.startingRating,
+      ratingDeviation: DEFAULT_RD,
+      volatility: DEFAULT_VOLATILITY,
       ratedGames: 0,
+      lastRatedAt: null,
       createdAt: Date.now(),
       selectedMascotTint: null,
       selectedPieceTheme: null,
@@ -207,9 +217,13 @@ export class AuthService {
       email: null,
       passwordHash: null,
       isGuest: true,
+      isBot: false,
       emailVerified: false,
       rating: this.config.startingRating,
+      ratingDeviation: DEFAULT_RD,
+      volatility: DEFAULT_VOLATILITY,
       ratedGames: 0,
+      lastRatedAt: null,
       createdAt: Date.now(),
       selectedMascotTint: null,
       selectedPieceTheme: null,

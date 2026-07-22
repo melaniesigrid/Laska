@@ -15,11 +15,19 @@ retention → monetization → polish/analytics.**
   tokens, guest + linking), in-memory repository behind a `Repository`
   interface, **Elo** ranking, **matchmaking** by rating, real-time **matches**
   over WebSocket with per-move clock, draw offers, resignation, reconnection
-  resync, and match-history/leaderboard REST. 68 tests incl. a 2-client
+  resync, and match-history/leaderboard REST. 76 tests incl. a 2-client
   end-to-end integration test.
+- **In-match social + analytics + sound + responsive polish** (commit
+  `a675da1`) — server-authoritative chat (280-char cap, sanitized,
+  rate-limited), closed-list emotes, draw-decline, and a 60s post-game rematch
+  (swapped colors, same settings); a production-only, PII-free Vercel analytics
+  sink (`web/src/analytics/vercelSink.ts` + `<Analytics/>`); opt-in Web Audio
+  sound (off by default); and responsive top-bar wrapping + board deal-in/shake +
+  landing welcome toast/particles. See `server/test/social.test.ts`.
 
-> Total: **123 automated tests** across engine, AI, and server, all passing on
-> Node ≥ 22. Engine/AI run with native type-stripping; the server adds
+> Total: **151 automated tests** (75 engine/AI + 76 server) across engine, AI,
+> and server, all green on Node ≥ 22 (one Redis integration test skips without a
+> live `REDIS_URL`). Engine/AI run with native type-stripping; the server adds
 > `--experimental-transform-types` (for TS parameter properties / enums).
 
 ---
@@ -154,6 +162,25 @@ ownership, and cross-node message routing:
 - **Quests/missions**, well-timed (non-spammy) push notifications.
 - Social: friend challenges, **shareable replays** (we already persist full move
   lists), spectating, clubs/teams.
+  - ⏳ **"Play a friend" private invite link** (`#/play/<code>` / `#/join/<code>`) —
+    deferred out of the analytics-dashboard PR (`growth/user-analytics-dashboard`),
+    where an `App.tsx` deep-link effect calling `online.requestPendingJoin(code)`
+    was removed because the supporting subsystem doesn't exist on that branch. To
+    ship it needs the full **challenge/invite** path: a `challenge.create` /
+    `challenge.join` pair in `server/src/net/protocol.ts`, server handlers +
+    code-keyed pending-challenge state in `gameServer.ts`/matchmaking, and the
+    `useOnline` machinery (`createChallenge`/`joinChallenge`/`requestPendingJoin`
+    with a `pendingJoinCode` that auto-fires once connected + authed). A reference
+    implementation already exists on `feature/analysis-commentary-voices` — port
+    from there. Own PR; out of scope for any analytics work.
+  - ✅ **In-match social shipped** (`a675da1`): server-authoritative chat
+    (280-char cap, sanitized, shared rate limiter), closed-list emotes,
+    draw-decline, and a **60s post-game rematch** (swapped colors, same settings)
+    torn down on accept/decline/leave/expiry. Client renders the chat+emote feed,
+    unread badge, and rematch UX. Remaining: per-user **mute/report** + a
+    moderation/admin view (ties into anti-cheat §8).
+- ✅ **Opt-in sound** (`web/src/sound.ts`): Web Audio blips for
+  move/capture/promote/win/lose, off by default, toggled from the top bar.
 - **Interactive tutorial** — see the dedicated flagship section below. This is a
   primary selling point, not just onboarding.
 
@@ -203,10 +230,54 @@ in `TUTORIAL.md` (rules, the four capture beats, copy). Build order:
   - ✅ First strategy lesson set shipped: four engine-validated, interactive
     lessons (column safety, guarding, one-handed attack, attack over defence)
     with guided moves and local progress. Course packaging/paywall remains open.
+  - ✅ **Openings course shipped** (`web/src/openingLessons.ts`): a foundational
+    "first move" lesson + Lasker's three named openings (Hague, Berlin defence,
+    Wing gambit), each GENERATED from the engine-validated lines in `openings.ts`
+    (the learner plays White; Black's theory replies auto-play) with per-ply
+    coaching, plus a read-only **OpeningsPage** repertoire browser
+    (`web/src/OpeningsPage.tsx`, `openings` view in `App.tsx`) covering both the
+    Laska and Bashni repertoires with main line + variations + sources. The
+    Lessons page is now course-organised (Openings · Strategy · Bashni).
+
+- **⭐ Tutorial deepening plan (sequenced; "from mechanic to mastery").** The
+  infrastructure is solid (`lessons.ts`/`openingLessons.ts` builders +
+  `TutorialBoard` + `LessonsPage`, all engine-validated); the remaining work is
+  curriculum DEPTH. Owner tags point at the charter engineers.
+  - **[done] Openings course** — see the ✅ above. The user-requested lead phase.
+  - **[next][tutorial-content-engineer] First-run hook (TUTORIAL.md Phase 1).**
+    The flagship 5-tap onboarding does not exist yet as a component. Build a
+    `FirstRun` flow exactly as scripted in TUTORIAL.md (gated steps → first win vs
+    the Beginner bot), first-visit trigger, skippable, resumable via
+    `localStorage`. Highest activation lever (most players have never seen Laska).
+  - **[tutorial-content-engineer] Curriculum spine (light Phase 0).** The
+    `LessonsPage` track toggle is now a 3-course picker. ✅ Sequential
+    ordering/locking now ships: each lesson unlocks only when the previous one in
+    its track is complete (first is always open), and the completion screen has a
+    "Next lesson →" arrow that advances within the track (`TutorialBoard.onNext` +
+    `nextLessonAfter` in `LessonsPage`). Remaining: formalise a `Course` concept
+    with per-course progress and a "free intro lesson" seam so the paywall
+    (Phase 5) slots in without touching lesson data.
+  - **[tutorial-content-engineer] Deepen Strategy + add Tactics & Endgames.**
+    The four strategy lessons are mostly single-step. Expand to multi-step lines;
+    add a **Tactics** course (capture chains, multi-jumps, the sham-sacrifice
+    gambit — STRATEGY.md §2/§5) and an **Endgames** course (converting a column
+    edge; beating the no-progress draw — STRATEGY.md §1).
+  - **[opening-book-curator-engineer + tutorial-content-engineer] Bashni openings
+    course.** The 4 principled Bashni lines in `openings.ts` are shown in the
+    OpeningsPage study view but have no interactive lessons yet; add a Bashni
+    openings track in `openingLessons.ts` mirroring the Laska one.
+  - **[puzzle-generator-engineer] Practice puzzles woven in (Phase 3).** After a
+    course, offer engine-verified "white to move and capture" drills from the
+    puzzle pipeline; same feed powers daily puzzles (retention §5).
+  - **[growth-monetization-engineer] Packaging & paywall seam (Phase 5).** Course
+    packs, completion UI, analytics funnel events; no real billing until §6.
 - **Tech notes.** Tutorial steps as data (`{position, prompt, expectedMove(s),
   hint, successText}`), rendered over `BoardView`. A `TutorialBoard` wrapper adds
   step highlighting + move gating. Progress saved to `localStorage` (later: account).
-  Keep it engine-driven so lessons can't drift from the real rules.
+  Keep it engine-driven so lessons can't drift from the real rules. Strategy
+  lessons author bespoke positions (`lessons.ts`, gated through `buildLesson`'s
+  forced-reply contract); opening lessons are GENERATED from validated repertoire
+  data (`openingLessons.ts`, opponent replies are authored theory, not forced).
 
 ### 6b. Historic games (heritage content) — ⏳ PARTIAL
 - ✅ **Replay viewer** (`web/src/ReplayPage.tsx` + `games.ts`): steps a recorded
@@ -248,11 +319,19 @@ in `TUTORIAL.md` (rules, the four capture beats, copy). Build order:
   `analytics/events.ts`; streaks/puzzles/billing engineers import event names
   from there. Existing touchpoints wired: app open (`app.loaded`/`app.returned`),
   local + online match start/first-move/finish, signup/login/guest.
-- TODO (gated, NOT YET): swap the default sink for a real product-analytics
-  vendor — **verify the vendor + its current SDK/pricing against live docs**, and
-  **only after a GDPR/CCPA consent gate** is in place (`setSink` must be called
-  from a consent-gated init path; the default stays a no-op so nothing leaves the
-  device pre-consent).
+- ⏳ PARTIAL (`a675da1`): a real vendor sink now exists —
+  `web/src/analytics/vercelSink.ts` forwards typed, **PII-free** funnel events and
+  `<Analytics/>` collects traffic; `web/src/analytics/prodInit.ts` installs the
+  real sink **only in production builds** (dev stays console/no-op).
+- TODO (still gated): the production sink installs without an explicit
+  **GDPR/CCPA consent gate** — wire `setSink`/`prodInit` behind a consent-gated
+  init so nothing leaves the device pre-consent, and **verify Vercel Analytics'
+  current data-handling/pricing against live docs**. Until then it ships
+  PII-free, which lowers but does not remove the obligation.
+- ✅ DONE: `<SpeedInsights/>` (`@vercel/speed-insights`) mounted at the app root in
+  `web/src/main.tsx` for cookieless real-user Core Web Vitals (LCP/CLS/INP), and
+  Speed Insights is **enabled for the project in the Vercel dashboard** — now
+  collecting live on deploy. Cookieless/PII-free like Web Analytics.
 - TODO: decide if/when to add a server `/events` ingest endpoint. Client-only is
   the right call for now — a vendor sink covers reporting, and an own-endpoint
   needs a storage schema, retention policy, and the same consent gate first
@@ -284,6 +363,10 @@ project — it shows the milestones and the process, not just the result.
   append a new `### Mn` block to `BUILD_LOG.md` and, if visitor-facing, mirror it
   in `BuildStoryPage.tsx`. Quote only reproducible numbers (`npm test`, a
   benchmark, a replay). Never rewrite a past milestone — append only.
+- ✅ **M12 appended** (`a675da1`): in-match social, product analytics, sound, and
+  responsive/entrance polish are logged in `BUILD_LOG.md` and mirrored in
+  `BuildStoryPage.tsx`; the test-count spine on both was refreshed to the measured
+  151 (75 engine/AI + 76 server).
 - ⏳ **Next candidates to document** when shipped: the flagship tutorial, an
   external AI-strength benchmark, and production hardening (migrations/failover).
 
@@ -304,14 +387,16 @@ listed files and consumes the engine read-only via `src/index.ts`.
   hand-asserted best move. Deliver a small seeded, verified set + a deterministic
   puzzle-of-the-day selector. Feeds — does not own — the growth daily-puzzle loop
   (retention §5) and tutorial Phase 3.
-- **[opening-book-curator-engineer]** Populate `web/src/openings.ts` + new
-  `web/src/openingsData.ts` with 2–3 named openings (e.g. Hague opening, Berlin
-  defence, Wing gambit) as **engine-validated line data** — each ply replays through
-  `src/index.ts` at import, the way `games.ts` does — plus a read-only
-  `web/src/OpeningsPage.tsx` study view in the neumorphic style (see `DESIGN.md`) and
-  `OPENINGS.md`. Wiring the page into the router/`App.tsx` is **Frontend's** lane —
-  hand it off, don't edit `App.tsx`. Distinct from the tutorial's paid Openings course
-  (Phase 4), which consumes this repertoire as data.
+- **[opening-book-curator-engineer]** ✅ **MOSTLY DONE.** `web/src/openings.ts`
+  holds Lasker's three named Laska openings (Hague, Berlin defence, Wing gambit) +
+  four principled Bashni lines as **engine-validated line data** (each ply replays
+  through `src/index.ts` at import, the way `games.ts` does). The read-only
+  `web/src/OpeningsPage.tsx` study view (neumorphic, both repertoires, main line +
+  variations + sources) is built and wired into the router (`openings` view in
+  `App.tsx`). The Phase-4 **Openings course** that consumes this data as
+  interactive lessons is also shipped (`web/src/openingLessons.ts`). Remaining:
+  a standalone `OPENINGS.md` reference doc, and recovering the flagged `c5-b5`
+  Hague token if the original scan can be re-read.
 - **[i18n-localization-engineer]** Scaffold `web/src/i18n/` (`index.ts`, `provider.tsx`,
   `useTranslation.ts`, `keys.ts`, `locales/` with an English baseline + one stub locale)
   + `I18N.md`. Provide a `LocaleProvider` + `t()` hook that **reads** the route locale
@@ -345,6 +430,13 @@ a compliant contest layer later does not require reworking the game/rating code.
 
 ## Notes / known limitations to revisit
 
+- **Local-game control deck now scrolls instead of stretching the row.** On
+  desktop (≥960px) the controls live in an out-of-flow `.deck-scroll` layer so
+  the rail matches the board's height and overflows internally; the game-over
+  mascot moved from the deck onto the board (`.board-mascot`, BoardView overlay).
+  Follow-ups if desired: tuck the win mascot into a board corner rather than
+  bottom-center, and re-check the deck height on very tall control sets (Bashni +
+  hint banner + AI note all open at once).
 - **In-memory storage is not durable** and not multi-node — first production task
   is the Postgres/Redis swap (item 2).
 - **Dev token secrets are random per boot** — set `LASKA_ACCESS_SECRET` /
@@ -352,8 +444,13 @@ a compliant contest layer later does not require reworking the game/rating code.
 - **Ambiguous capture chains** that share a landing square now have an online
   route chooser that sends the full `captures` path. Local play still auto-picks
   the longest chain; add the same chooser there if authored positions expose it.
-- **AI strength is not benchmarked** against a reference Laska engine; heuristic
-  weights are reasonable defaults, not tuned.
+- **AI strength: self-play benchmark shipped** (`server/bench/strength.ts`) — a
+  deterministic round-robin of the difficulty tiers through the real engine,
+  reported as a win-rate matrix + Glicko-2/rank ladder. The fast tiers come out
+  cleanly monotonic (`beginner < easy < intermediate < medium`); `--full` places
+  `hard`/`expert`. Still TODO: benchmark against an *external* reference Laska
+  engine, and tune the heuristic weights (current weights are reasonable defaults,
+  not tuned — the benchmark is now the harness to tune them against).
 - **Rules edge case to confirm**: free-choice vs. maximum-capture. We implemented
   free choice (English-draughts heritage) per sources; confirm against whatever
   competition ruleset you intend to honor. Lasker's original-rules page was
