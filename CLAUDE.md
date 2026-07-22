@@ -26,6 +26,7 @@ Web app (from `web/`):
   - `npm run test:logic` → Node's built-in runner, runs the `*.test.ts` pure-logic files (`streak.ts`, `cosmetics.ts`) with no DOM.
   - Watch mode: `npm run test:watch`. Config: `web/vitest.config.ts`; setup: `web/src/test/setup.ts`.
   - Write component/hook tests as `*.spec.tsx`; write pure-logic tests as `*.test.ts` (vitest deliberately ignores those — they import `node:test`).
+  - **Test files are excluded from the production build** (`tsconfig.json`) so `npm run build` never depends on test-tooling types — that coupling once broke the Vercel deploy. Typecheck the tests with `npm run test:types` (`tsconfig.test.json`). CI runs both.
 
 Server (from `server/`):
 - Install: `npm install`

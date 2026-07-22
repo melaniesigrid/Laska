@@ -1,0 +1,14 @@
+{
+  // Typecheck the test layer WITHOUT dragging it into the production build.
+  // `src/test/setup.ts` imports '@testing-library/jest-dom/vitest', whose module
+  // augmentation adds the DOM matchers (toBeChecked / toBeInTheDocument / ...) to
+  // vitest's Assertion type — so including setup.ts here is what makes the .spec
+  // files typecheck. Run via `npm run test:types`. The production tsconfig.json
+  // deliberately excludes all of this (see its "// exclude" note).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": ["src", "vite.config.ts", "vitest.config.ts", "../src"],
+  "exclude": []
+}

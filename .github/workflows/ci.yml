@@ -68,11 +68,18 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      # Web has NO unit tests by design (CLAUDE.md). Typecheck + a clean Vite
-      # build is the strongest automated signal available — it does NOT verify
-      # runtime/visual correctness, which is why web changes stay human-gated.
-      - name: Typecheck
+      # Production typecheck (tsconfig.json) deliberately EXCLUDES test files, so
+      # a clean `vite build` never depends on test-tooling type resolution (that
+      # coupling once broke the Vercel deploy). Tests are typechecked and run as
+      # their own steps below.
+      - name: Typecheck (production)
         run: npx tsc --noEmit
+      - name: Typecheck tests
+        run: npm run test:types
+      - name: Unit tests (vitest components)
+        run: npm test
+      - name: Unit tests (pure logic)
+        run: npm run test:logic
       - name: Build
         run: npm run build
 

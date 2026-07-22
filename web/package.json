@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:logic": "node --test src/streak.test.ts src/cosmetics.test.ts"
+    "test:logic": "node --test src/streak.test.ts src/cosmetics.test.ts",
+    "test:types": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

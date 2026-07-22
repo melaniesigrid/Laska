@@ -18,5 +18,6 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src", "vite.config.ts", "../src"],
-  "exclude": ["src/**/*.test.ts"]
+  "// exclude": "Test files are NOT part of the production build. They pull in test-only type augmentation (jest-dom's Assertion matchers) whose resolution varies by install strategy — letting tsc -b typecheck them coupled `vite build` (and the Vercel deploy) to devDep resolution and broke the deploy. Tests are typechecked separately via tsconfig.test.json (npm run test:types) and executed by vitest.",
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts", "src/**/*.spec.tsx", "src/test"]
 }
