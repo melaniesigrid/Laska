@@ -21,7 +21,12 @@ Web app (from `web/`):
 - Build: `npm run build`  (`tsc -b && vite build`)
 - Typecheck only: `npx tsc --noEmit`
 - Preview a build: `npm run preview`
-- Tests: **none** — verify web changes by typecheck + running the app.
+- **Tests — two runners, split by filename:**
+  - `npm test` → vitest + jsdom + Testing Library, runs `src/**/*.spec.{ts,tsx}` (components/hooks).
+  - `npm run test:logic` → Node's built-in runner, runs the `*.test.ts` pure-logic files (`streak.ts`, `cosmetics.ts`) with no DOM.
+  - Watch mode: `npm run test:watch`. Config: `web/vitest.config.ts`; setup: `web/src/test/setup.ts`.
+  - Write component/hook tests as `*.spec.tsx`; write pure-logic tests as `*.test.ts` (vitest deliberately ignores those — they import `node:test`).
+  - **Test files are excluded from the production build** (`tsconfig.json`) so `npm run build` never depends on test-tooling types — that coupling once broke the Vercel deploy. Typecheck the tests with `npm run test:types` (`tsconfig.test.json`). CI runs both.
 
 Server (from `server/`):
 - Install: `npm install`
@@ -120,7 +125,7 @@ Reference docs (point, don't duplicate): `DESIGN.md` (visual/UI source of truth 
 ## Definition of Done (verification loop)
 
 - **Engine/AI change:** from `./` → `npm run typecheck` → `npm test` (or the single affected `test/*.test.ts`).
-- **Web change:** from `web/` → `npx tsc --noEmit` → run `npm run dev` and verify the affected screen (no web unit tests exist).
+- **Web change:** from `web/` → `npx tsc --noEmit` → `npm test` (vitest components) → `npm run test:logic` (pure logic) → run `npm run dev` and verify the affected screen.
 - **Server change:** from `server/` → `npm run typecheck` → `npm test`.
 - A rules change must additionally keep `web/` typecheck/build green (it imports `games.ts`, which replays Lasker's games).
 - Commit often: on a feature branch, commit each coherent, green (typecheck + tests) change as you go — no need to ask first. Never commit directly to `main` (branch first), and push only when asked.

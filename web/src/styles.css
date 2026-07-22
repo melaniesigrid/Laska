@@ -948,6 +948,257 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .mascot-state .ms-title { font-family: var(--font-display); font-weight: 500; font-size: clamp(16px, 2.4vw, 20px); color: var(--ink); }
 .mascot-state .ms-sub { font-size: 13px; color: var(--ink-soft); max-width: 32ch; line-height: 1.5; }
 
+/* ==========================================================================
+   PROFILE — the player's identity hub + cosmetics picker. Scoped under
+   .profile-page (which also carries .landing-page, so it inherits that scope's
+   neumorphic token set: --card, --nm-raise, --nm-inset, --l-accent, --r-md…).
+   Two-shadow sculpting only — no hard borders, no flat drop shadows. The
+   selection pop reuses --t-reward / --ease-settle; the global reduced-motion
+   kill-switch (above) disables every animation here.
+   ========================================================================== */
+.profile-shell { padding-top: clamp(1.5rem, 4vw, 3rem); padding-bottom: clamp(3rem, 7vw, 5rem); }
+.profile-shell .wrap { display: flex; flex-direction: column; gap: clamp(1.1rem, 2.6vw, 1.8rem); }
+
+/* ---- hero / identity card ---- */
+.profile-hero {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: clamp(1.4rem, 4vw, 2.8rem);
+  flex-wrap: wrap;
+  padding: clamp(1.6rem, 4vw, 2.8rem);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: var(--nm-raise);
+}
+.profile-hero .ph-glow {
+  position: absolute; inset: auto auto -40% -10%; width: 60%; aspect-ratio: 1;
+  background: radial-gradient(circle, color-mix(in srgb, var(--l-accent) 22%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.profile-hero .ph-mascot {
+  display: grid; place-items: center;
+  width: clamp(120px, 22vw, 184px); aspect-ratio: 1; border-radius: 50%;
+  background: var(--bg); box-shadow: var(--nm-inset); flex: 0 0 auto;
+}
+.profile-hero .ph-id { flex: 1 1 16rem; min-width: 0; }
+.profile-hero .ph-name {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(1.9rem, 5vw, 3rem); line-height: 1.05; margin: 0.3rem 0 0.2rem;
+  color: var(--l-ink);
+}
+.profile-hero .ph-note {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  font-size: 0.86rem; color: var(--muted); margin-top: 0.3rem;
+}
+.profile-hero .ph-note svg { color: var(--l-accent); flex: 0 0 auto; }
+
+.ph-stats { display: flex; gap: clamp(0.6rem, 2vw, 1rem); margin-top: clamp(1rem, 2.5vw, 1.4rem); flex-wrap: wrap; }
+.ph-stat {
+  display: grid; justify-items: center; gap: 2px;
+  padding: 0.8rem 1.1rem; min-width: 5.2rem; border-radius: var(--r-md);
+  background: var(--bg); box-shadow: var(--nm-inset);
+}
+.ph-stat-ico { color: var(--l-accent); display: grid; place-items: center; }
+.ph-stat-val { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.2rem, 3vw, 1.6rem); color: var(--l-ink); font-variant-numeric: tabular-nums; }
+.ph-stat-lbl { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); }
+
+/* ---- generic profile card ---- */
+.profile-card {
+  padding: clamp(1.2rem, 3vw, 1.8rem);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: var(--nm-raise-sm);
+}
+.profile-card .pc-head {
+  display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;
+  margin-bottom: clamp(0.9rem, 2.4vw, 1.3rem);
+}
+.profile-card .pc-head svg { color: var(--l-accent); flex: 0 0 auto; }
+.profile-card .pc-head h2 {
+  font-family: var(--font-display); font-weight: 500; font-size: clamp(1.05rem, 2.6vw, 1.4rem);
+  margin: 0; color: var(--l-ink);
+}
+.profile-card .pc-sub { font-size: 0.78rem; color: var(--faint); margin-left: auto; }
+
+.cosmetics-row { display: grid; gap: clamp(1.1rem, 2.6vw, 1.8rem); grid-template-columns: 1fr 1fr; }
+@media (max-width: 720px) { .cosmetics-row { grid-template-columns: 1fr; } }
+
+/* ---- mascot picker (the dopamine moment) ---- */
+.mascot-picker {
+  display: grid; gap: clamp(0.7rem, 2vw, 1.1rem);
+  grid-template-columns: repeat(5, 1fr);
+}
+@media (max-width: 620px) { .mascot-picker { grid-template-columns: repeat(3, 1fr); } }
+.mascot-card {
+  appearance: none; border: 0; cursor: pointer;
+  display: grid; justify-items: center; gap: 0.5rem;
+  padding: clamp(0.8rem, 2vw, 1.1rem) 0.5rem;
+  border-radius: var(--r-md);
+  background: var(--bg);
+  box-shadow: var(--nm-raise-sm);
+  transition: box-shadow var(--t-reward) var(--ease-settle), transform 0.16s ease;
+}
+.mascot-card:hover { transform: translateY(-2px); }
+.mascot-card .mc-preview {
+  display: grid; place-items: center; width: 72px; aspect-ratio: 1; border-radius: 50%;
+  background: var(--card);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--swatch) 38%, transparent);
+}
+.mascot-card .mc-label { font-size: 0.74rem; font-weight: 600; letter-spacing: 0.04em; color: var(--muted); }
+.mascot-card.selected {
+  box-shadow: var(--nm-inset), inset 0 0 0 2.5px color-mix(in srgb, var(--swatch) 80%, transparent);
+  transform: none;
+  animation: profile-pop var(--t-reward) var(--ease-settle) 1;
+}
+.mascot-card.selected .mc-label { color: var(--l-ink); }
+.mascot-card.selected .mc-preview {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--swatch) 60%, transparent);
+}
+@keyframes profile-pop { 0% { transform: scale(0.96); } 55% { transform: scale(1.02); } 100% { transform: scale(1); } }
+
+/* ---- piece-style chips ---- */
+.chip-grid { display: grid; gap: 0.7rem; }
+.pick-chip {
+  appearance: none; border: 0; cursor: pointer; text-align: left;
+  display: grid; grid-template-columns: auto 1fr; column-gap: 0.9rem; row-gap: 0.1rem;
+  align-items: center;
+  padding: 0.75rem 1rem; border-radius: var(--r-md);
+  background: var(--bg); box-shadow: var(--nm-raise-sm);
+  transition: box-shadow var(--t-reward) var(--ease-settle);
+}
+.pick-chip .chip-preview { grid-row: span 2; display: grid; place-items: center; width: 30px; }
+/* the preview coin is a real .disc (so it mirrors the live theme); reset its
+   absolute anchoring — same trick the legend uses — so it sits in the chip. */
+.pick-chip .chip-preview .legend-coin.disc { position: relative; left: auto; --coin: 30px; width: 30px; height: 30px; flex: 0 0 auto; }
+.pick-chip .chip-label { font-family: var(--font-display); font-weight: 500; font-size: 1rem; color: var(--l-ink); }
+.pick-chip .chip-blurb { font-size: 0.76rem; color: var(--faint); }
+.pick-chip.selected {
+  box-shadow: var(--nm-inset), inset 0 0 0 2px color-mix(in srgb, var(--l-accent) 55%, transparent);
+}
+
+/* ---- board palette swatches ---- */
+.swatch-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fill, minmax(5.2rem, 1fr)); }
+.board-swatch {
+  appearance: none; border: 0; cursor: pointer;
+  display: grid; justify-items: center; gap: 0.45rem;
+  padding: 0.7rem 0.4rem; border-radius: var(--r-md);
+  background: var(--bg); box-shadow: var(--nm-raise-sm);
+  transition: box-shadow var(--t-reward) var(--ease-settle), transform 0.16s ease;
+}
+.board-swatch:hover { transform: translateY(-2px); }
+.board-swatch .bs-chip {
+  width: 100%; height: 28px; border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06);
+}
+.board-swatch .bs-label { font-size: 0.72rem; font-weight: 600; color: var(--muted); }
+.board-swatch.selected {
+  box-shadow: var(--nm-inset), inset 0 0 0 2px color-mix(in srgb, var(--l-accent) 55%, transparent);
+  transform: none;
+}
+.board-swatch.selected .bs-label { color: var(--l-ink); }
+/* swatch fills sample each palette's board + the two armies, so the chip reads
+   like the actual board even though the page renders in the active theme. */
+.bs-chip.bs-navy { background: linear-gradient(135deg, #182b4d 0 50%, #397fd1 50% 75%, #c94d55 75% 100%); }
+.bs-chip.bs-stone { background: linear-gradient(135deg, #e8e4db 0 50%, #f2ede3 50% 75%, #4b463c 75% 100%); }
+.bs-chip.bs-dark { background: linear-gradient(135deg, #2b2823 0 50%, #e9e2d4 50% 75%, #8a7c66 75% 100%); }
+.bs-chip.bs-light { background: linear-gradient(135deg, #e3c3b2 0 50%, #f1e3d2 50% 75%, #d08c79 75% 100%); }
+.bs-chip.bs-chocolate { background: linear-gradient(135deg, #9a6c45 0 50%, #f3e7d3 50% 75%, #5a3d24 75% 100%); }
+.bs-chip.bs-twilight { background: linear-gradient(135deg, #131e40 0 50%, #f1e3d2 50% 75%, #d08c79 75% 100%); }
+.bs-chip.bs-confetti { background: linear-gradient(135deg, #eef1f4 0 50%, #f4796b 50% 75%, #4a6fb5 75% 100%); }
+
+/* ---- streak ---- */
+.streak-card .streak-row { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.streak-big { display: flex; align-items: baseline; gap: 0.4rem; }
+.streak-num { font-family: var(--font-display); font-weight: 600; font-size: clamp(2rem, 6vw, 3rem); color: var(--l-accent); }
+.streak-unit { font-size: 0.9rem; color: var(--muted); }
+.streak-best { margin-left: auto; font-size: 0.8rem; color: var(--faint); letter-spacing: 0.04em; }
+
+/* ---- trophy shelf ---- */
+.trophy-shelf { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); }
+.trophy {
+  display: grid; justify-items: center; gap: 0.4rem; text-align: center;
+  padding: 0.9rem 0.6rem; border-radius: var(--r-md);
+  background: var(--bg); box-shadow: var(--nm-inset);
+  color: var(--faint); opacity: 0.55;
+}
+.trophy span { font-size: 0.74rem; font-weight: 600; }
+.trophy.earned { box-shadow: var(--nm-raise-sm); color: var(--l-ink); opacity: 1; }
+.trophy.earned svg { color: var(--l-accent); }
+
+/* ---- match history ---- */
+.profile-empty { display: grid; justify-items: center; gap: 0.6rem; padding: 1rem 0; text-align: center; color: var(--muted); }
+.history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.history-row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.9rem;
+  padding: 0.7rem 1rem; border-radius: var(--r-md);
+  background: var(--bg); box-shadow: var(--nm-inset);
+}
+.hr-result { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--card); box-shadow: var(--nm-raise-sm); color: var(--faint); }
+.hr-result.win { color: var(--accent-dk); }
+.hr-result.loss { color: color-mix(in srgb, var(--l-ink) 60%, transparent); }
+.hr-main { display: grid; gap: 1px; min-width: 0; }
+.hr-opp { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; color: var(--l-ink); font-size: 0.92rem; }
+.hr-opp svg { color: var(--faint); flex: 0 0 auto; }
+.hr-meta { font-size: 0.74rem; color: var(--faint); font-variant-numeric: tabular-nums; }
+.hr-tag { font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--faint); }
+.hr-tag.win { color: var(--accent-dk); }
+.hr-tag.loss { color: color-mix(in srgb, var(--l-ink) 55%, transparent); }
+
+/* ---- streak indicator ------------------------------------------------ */
+/* A recessed pill that reads as carved from the same clay surface (inset
+   neumorphism), so it sits quietly in the top bar next to the raised .btn
+   controls. The flame is the one warm spark; the count uses the ink tone, the
+   freeze badge the cobalt accent. Ember hue is fixed (not palette-derived) so a
+   "hot streak" reads as warm against every board theme. All motion below is
+   disabled by the global prefers-reduced-motion kill-switch earlier in this file. */
+.streak-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 13px; border-radius: 14px;
+  background: var(--pedestal); color: var(--ink);
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+  font-family: var(--font-display); font-weight: 500; line-height: 1;
+  user-select: none; transition: box-shadow 0.18s ease, opacity 0.18s ease;
+}
+.streak-flame { display: inline-flex; color: #d9622b; filter: drop-shadow(0 0 3px rgba(217, 98, 43, 0.35)); }
+.streak-count {
+  font-size: 15px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+  min-width: 0.7em; text-align: center;
+}
+.streak-freezes {
+  display: inline-flex; align-items: center; gap: 2px;
+  margin-left: 2px; padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--ink-soft) 28%, transparent);
+  color: var(--cobalt);
+}
+.streak-freeze-n { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Streak alive but today's match not yet played: soften it as a gentle nudge. */
+.streak-pill.streak-dim { opacity: 0.62; }
+.streak-pill.streak-dim .streak-flame { color: color-mix(in srgb, #d9622b 55%, var(--ink-soft)); filter: none; }
+
+/* One-shot "ignite" on advance: the pill lifts to raised for a beat and the
+   flame pops + flickers, then settles back into the surface. */
+.streak-pill.igniting {
+  box-shadow: 4px 4px 10px var(--dark), -4px -4px 10px var(--light);
+  animation: streak-settle 0.72s ease-out;
+}
+.streak-pill.igniting .streak-flame { animation: streak-ignite 0.72s ease-out; }
+.streak-pill.igniting .streak-count { animation: streak-tick 0.72s ease-out; }
+@keyframes streak-settle {
+  0%   { box-shadow: 6px 6px 13px var(--dark), -6px -6px 13px var(--light); }
+  100% { box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light); }
+}
+@keyframes streak-ignite {
+  0%   { transform: scale(0.6) translateY(2px); color: #f0a23a; }
+  35%  { transform: scale(1.35) rotate(-6deg); color: #ff7a3d; filter: drop-shadow(0 0 8px rgba(255, 122, 61, 0.7)); }
+  60%  { transform: scale(0.95) rotate(4deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes streak-tick {
+  0%   { transform: translateY(0.45em); opacity: 0; }
+  45%  { transform: translateY(-0.12em); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
 /* ---- victory confetti (one-shot shower, mounted on a win) ----------------
    A fixed full-screen field of falling dot-chips. Per-chip start (left), colour,
    drift, spin and timing come from inline styles set by <WinConfetti>; the fall

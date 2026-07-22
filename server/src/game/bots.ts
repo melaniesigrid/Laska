@@ -85,6 +85,9 @@ export function botUser(tier: Difficulty, now = Date.now()): User {
     ratedGames: 0,
     lastRatedAt: null,
     createdAt: now,
+    selectedMascotTint: null,
+    selectedPieceTheme: null,
+    selectedBoardTheme: null,
   };
 }
 

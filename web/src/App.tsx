@@ -18,6 +18,7 @@ import {
   Check,
   Library,
   Lightbulb,
+  CircleUserRound,
   Grid3x3,
   Volume2,
   VolumeX,
@@ -85,8 +86,16 @@ import {
 } from './pieceTheme.tsx';
 import { useCoords, toggleCoords } from './coordsPref.ts';
 import { track, trackAppOpen, type MatchMode } from './analytics/index.ts';
-import { DotMascot, WinConfetti } from './mascots.tsx';
+import { DotMascot, WinConfetti, type MascotTint } from './mascots.tsx';
 import { sound } from './sound.ts';
+import { ProfilePage, type BoardThemeOption } from './ProfilePage.tsx';
+import {
+  getSelectedMascotTint,
+  setSelectedMascotTint,
+  reconcileCosmetics,
+} from './cosmetics.ts';
+import { useStreak } from './useStreak.ts';
+import { StreakIndicator } from './StreakIndicator.tsx';
 
 type Mode = 'hotseat' | 'ai';
 
@@ -149,6 +158,9 @@ const THEME_LABEL: Record<ThemeName, string> = {
   twilight: 'Twilight',
   confetti: 'Confetti',
 };
+
+/** Board palettes offered in the profile picker (id + label), from THEME_LABEL. */
+const BOARD_THEME_OPTIONS: BoardThemeOption[] = THEMES.map((id) => ({ id, label: THEME_LABEL[id] }));
 
 function readStoredTheme(): ThemeName {
   try {
@@ -236,6 +248,7 @@ export function App() {
     | 'mygames'
     | 'watch'
     | 'featured'
+    | 'profile'
     | 'leaderboard'
     | 'admin'
     // The admin dashboard is reachable only by the URL hash (#/admin) — never
@@ -251,6 +264,7 @@ export function App() {
   const [appMode, setAppMode] = useState<'local' | 'online'>('local');
   const [theme, setTheme] = useState<ThemeName>(readStoredTheme);
   const [pieceTheme, setPieceTheme] = useState<PieceTheme>(readStoredPieceTheme);
+  const [mascotTint, setMascotTint] = useState<MascotTint>(getSelectedMascotTint);
   // Mobile-only overflow ("More") menu for the secondary top-bar chrome. On
   // desktop the `.chrome` group is `display: contents` so these buttons flow
   // inline and this flag is inert; below the breakpoint they collapse behind a
@@ -300,6 +314,20 @@ export function App() {
   // owns the actual game state and resets when the choice changes.
   const [variant, setVariant] = useState<Variant>(() => loadVariant());
   const online = useOnline();
+  // Daily-streak retention loop. Owned here at the root; `recordDailyAction` is
+  // handed down to the finished-match funnel in LocalGame so a streak ticks once
+  // per genuinely-finished local game (idempotent per calendar day).
+  const streak = useStreak();
+
+  // Reconcile cosmetics whenever the signed-in user resolves (login / restore):
+  // server value wins, else the locally-stored pick, else the default. Writes the
+  // mascot tint back to storage so the rest of the app reads a consistent value.
+  useEffect(() => {
+    const { mascotTint: mt, pieceTheme: pt, boardTheme: bt } = reconcileCosmetics(online.user);
+    setMascotTint(mt);
+    if (pt) setPieceTheme(pt);
+    if (bt && THEMES.includes(bt as ThemeName)) setTheme(bt as ThemeName);
+  }, [online.user]);
 
   // Funnel: fire the app-open event(s) exactly once per page load (acquisition /
   // D1-D7 retention signal). Empty deps + StrictMode double-invokes in dev only;
@@ -341,6 +369,24 @@ export function App() {
   const cycleTheme = () => setTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]!);
   const cyclePieceTheme = () =>
     setPieceTheme(PIECE_THEMES[(PIECE_THEMES.indexOf(pieceTheme) + 1) % PIECE_THEMES.length]!);
+
+  // Cosmetic setters from the profile: apply locally first (the theme/piece
+  // effects already persist to localStorage), then persist to the server when
+  // signed in. The mascot tint has no existing effect, so write it here.
+  const chooseMascot = (tint: MascotTint) => {
+    setMascotTint(tint);
+    setSelectedMascotTint(tint);
+    void online.saveCosmetics({ selectedMascotTint: tint });
+  };
+  const choosePieceTheme = (t: PieceTheme) => {
+    setPieceTheme(t);
+    void online.saveCosmetics({ selectedPieceTheme: t });
+  };
+  const chooseBoardTheme = (t: string) => {
+    if (!THEMES.includes(t as ThemeName)) return;
+    setTheme(t as ThemeName);
+    void online.saveCosmetics({ selectedBoardTheme: t });
+  };
 
   const goReplay = (id?: string) => {
     setReplayGameId(id);
@@ -519,6 +565,40 @@ export function App() {
       <MyGamesPage onBack={() => setView('landing')} onWatch={goWatch} onPlay={() => setView('game')} />
     );
   }
+  if (view === 'profile') {
+    const u = online.user;
+    return (
+      <ProfilePage
+        player={{
+          username: u?.username ?? 'You',
+          rating: u?.rating ?? 0,
+          ratedGames: u?.ratedGames ?? 0,
+          isGuest: u?.isGuest ?? false,
+          signedIn: u != null,
+        }}
+        onBack={() => setView('landing')}
+        onSignIn={() => {
+          setAppMode('online');
+          setView('game');
+        }}
+        mascotTint={mascotTint}
+        onMascotTint={chooseMascot}
+        pieceTheme={pieceTheme}
+        onPieceTheme={choosePieceTheme}
+        boardTheme={theme}
+        boardThemeOptions={BOARD_THEME_OPTIONS}
+        onBoardTheme={chooseBoardTheme}
+        // Map the streak's `longest` -> the slot's `best`. Hide the slot entirely
+        // for brand-new players (no current streak and nothing ever earned) so it
+        // doesn't show an empty 0-day badge.
+        streak={
+          streak.state.current === 0 && streak.state.longest === 0
+            ? undefined
+            : { current: streak.state.current, best: streak.state.longest }
+        }
+      />
+    );
+  }
   if (view === 'watch' && watchId) {
     return (
       <SavedGameReplay
@@ -582,6 +662,7 @@ export function App() {
           >
             <Star size={16} /> <span className="btn-label">{PIECE_THEME_LABEL[pieceTheme]}</span>
           </button>
+          <StreakIndicator state={streak.state} countedToday={streak.countedToday} />
           <button
             className="btn"
             onClick={toggleCoords}
@@ -606,6 +687,9 @@ export function App() {
           <button className="btn" onClick={() => setView('leaderboard')} title="Ranked leaderboard" aria-label="Ranked leaderboard">
             <Trophy size={16} /> <span className="btn-label">Leaderboard</span>
           </button>
+          <button className="btn" onClick={() => setView('profile')} title="Your profile" aria-label="Your profile">
+            <CircleUserRound size={16} /> <span className="btn-label">Profile</span>
+          </button>
           </div>
           </div>
         </div>
@@ -627,6 +711,7 @@ export function App() {
           onVariantChange={setVariant}
           onLearnAI={() => setView('ai')}
           onOpenMyGames={() => setView('mygames')}
+          onMatchFinished={streak.recordDailyAction}
         />
       ) : (
         <OnlinePanel online={online} />
@@ -669,11 +754,14 @@ function LocalGame({
   onVariantChange,
   onLearnAI,
   onOpenMyGames,
+  onMatchFinished,
 }: {
   variant: Variant;
   onVariantChange: (v: Variant) => void;
   onLearnAI: () => void;
   onOpenMyGames: () => void;
+  /** Fired once per genuinely-finished local match (drives the daily streak). */
+  onMatchFinished: () => void;
 }) {
   const [state, setState] = useState<GameState>(() => createInitialState(variant));
   const [mode, setMode] = useState<Mode>('ai');
@@ -780,9 +868,13 @@ function LocalGame({
         reason: (status as { reason: string }).reason,
         plies: moves.length,
       });
+      // Same once-per-finished-game guard: tick the daily streak for a genuinely
+      // played local match. Idempotent per calendar day inside the hook, so
+      // finishing several games in a day still counts once.
+      onMatchFinished();
     }
     if (!gameOver) finishedReportedAt.current = null;
-  }, [gameOver, status, moves.length, mode, aiColor]);
+  }, [gameOver, status, moves.length, mode, aiColor, onMatchFinished]);
 
   // The squares the player can click next. Mid-capture these are the landing
   // squares for the NEXT leap only (`path[depth]`); otherwise the first step of

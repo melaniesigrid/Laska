@@ -8,6 +8,7 @@
  */
 import { Pool, type PoolConfig } from 'pg';
 import type {
+  CosmeticsPatch,
   LeaderboardEntry,
   MatchRecord,
   PlatformStats,
@@ -20,20 +21,23 @@ import { utcDay, windows, signupDayWindow, fillSignupDays } from './stats.ts';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
-  id               TEXT PRIMARY KEY,
-  username         TEXT NOT NULL,
-  username_lower   TEXT NOT NULL UNIQUE,
-  email            TEXT UNIQUE,
-  password_hash    TEXT,
-  is_guest         BOOLEAN NOT NULL,
-  is_bot           BOOLEAN NOT NULL DEFAULT false,
-  email_verified   BOOLEAN NOT NULL,
-  rating           INTEGER NOT NULL,
-  rating_deviation DOUBLE PRECISION NOT NULL DEFAULT 350,
-  volatility       DOUBLE PRECISION NOT NULL DEFAULT 0.06,
-  rated_games      INTEGER NOT NULL,
-  last_rated_at    BIGINT,
-  created_at       BIGINT NOT NULL
+  id                   TEXT PRIMARY KEY,
+  username             TEXT NOT NULL,
+  username_lower       TEXT NOT NULL UNIQUE,
+  email                TEXT UNIQUE,
+  password_hash        TEXT,
+  is_guest             BOOLEAN NOT NULL,
+  is_bot               BOOLEAN NOT NULL DEFAULT false,
+  email_verified       BOOLEAN NOT NULL,
+  rating               INTEGER NOT NULL,
+  rating_deviation     DOUBLE PRECISION NOT NULL DEFAULT 350,
+  volatility           DOUBLE PRECISION NOT NULL DEFAULT 0.06,
+  rated_games          INTEGER NOT NULL,
+  last_rated_at        BIGINT,
+  created_at           BIGINT NOT NULL,
+  selected_mascot_tint TEXT,
+  selected_piece_theme TEXT,
+  selected_board_theme TEXT
 );
 
 -- Idempotent migration for DBs created before the Glicko-2 columns existed.
@@ -41,6 +45,11 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_deviation DOUBLE PRECISION NOT
 ALTER TABLE users ADD COLUMN IF NOT EXISTS volatility DOUBLE PRECISION NOT NULL DEFAULT 0.06;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_rated_at BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_bot BOOLEAN NOT NULL DEFAULT false;
+-- Forward migration: add cosmetic columns to databases created before they
+-- existed. Idempotent (IF NOT EXISTS), so reapplying on every startup is safe.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_mascot_tint TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_piece_theme TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_board_theme TEXT;
 
 CREATE TABLE IF NOT EXISTS matches (
   id                   TEXT PRIMARY KEY,
@@ -82,6 +91,9 @@ interface UserRow {
   rated_games: number;
   last_rated_at: string | null; // BIGINT comes back as a string from pg
   created_at: string; // BIGINT comes back as a string from pg
+  selected_mascot_tint: string | null;
+  selected_piece_theme: string | null;
+  selected_board_theme: string | null;
 }
 
 interface MatchRow {
@@ -116,6 +128,9 @@ function rowToUser(r: UserRow): User {
     ratedGames: r.rated_games,
     lastRatedAt: r.last_rated_at === null ? null : Number(r.last_rated_at),
     createdAt: Number(r.created_at),
+    selectedMascotTint: r.selected_mascot_tint,
+    selectedPieceTheme: r.selected_piece_theme,
+    selectedBoardTheme: r.selected_board_theme,
   };
 }
 
@@ -164,6 +179,9 @@ const USER_COLUMNS: Partial<Record<keyof User, string>> = {
   ratedGames: 'rated_games',
   lastRatedAt: 'last_rated_at',
   createdAt: 'created_at',
+  selectedMascotTint: 'selected_mascot_tint',
+  selectedPieceTheme: 'selected_piece_theme',
+  selectedBoardTheme: 'selected_board_theme',
 };
 
 export class PostgresRepository implements Repository {
@@ -187,8 +205,9 @@ export class PostgresRepository implements Repository {
       await this.pool.query(
         `INSERT INTO users
           (id, username, username_lower, email, password_hash, is_guest, is_bot, email_verified,
-           rating, rating_deviation, volatility, rated_games, last_rated_at, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+           rating, rating_deviation, volatility, rated_games, last_rated_at, created_at,
+           selected_mascot_tint, selected_piece_theme, selected_board_theme)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
         [
           user.id,
           user.username,
@@ -204,6 +223,9 @@ export class PostgresRepository implements Repository {
           user.ratedGames,
           user.lastRatedAt,
           user.createdAt,
+          user.selectedMascotTint,
+          user.selectedPieceTheme,
+          user.selectedBoardTheme,
         ],
       );
     } catch (e) {
@@ -249,6 +271,32 @@ export class PostgresRepository implements Repository {
       if ((e as Error).message === 'No such user') throw e;
       mapConstraint(e);
     }
+  }
+
+  async updateUserCosmetics(id: string, cosmetics: CosmeticsPatch): Promise<void> {
+    const sets: string[] = [];
+    const values: (string | null)[] = [];
+    let i = 1;
+    if (cosmetics.selectedMascotTint !== undefined) {
+      sets.push(`selected_mascot_tint = $${i++}`);
+      values.push(cosmetics.selectedMascotTint);
+    }
+    if (cosmetics.selectedPieceTheme !== undefined) {
+      sets.push(`selected_piece_theme = $${i++}`);
+      values.push(cosmetics.selectedPieceTheme);
+    }
+    if (cosmetics.selectedBoardTheme !== undefined) {
+      sets.push(`selected_board_theme = $${i++}`);
+      values.push(cosmetics.selectedBoardTheme);
+    }
+    if (sets.length === 0) {
+      const { rowCount } = await this.pool.query('SELECT 1 FROM users WHERE id = $1', [id]);
+      if (rowCount === 0) throw new Error('No such user');
+      return;
+    }
+    values.push(id);
+    const res = await this.pool.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${i}`, values);
+    if (res.rowCount === 0) throw new Error('No such user');
   }
 
   async saveMatch(record: MatchRecord): Promise<void> {
