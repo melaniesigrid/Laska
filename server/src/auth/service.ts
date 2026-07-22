@@ -71,7 +71,10 @@ export function toPublicUser(u: User): PublicUser {
 // client: any value outside these lists is rejected.
 
 export const MASCOT_TINTS = ['coral', 'sun', 'mint', 'sky', 'grape'] as const;
-export const PIECE_THEMES = ['heirloom', 'lineage', 'dots'] as const;
+// MUST stay in lockstep with web/src/pieceTheme.tsx PIECE_THEMES — a theme the
+// client offers but the server rejects saves locally and then silently fails to
+// persist (the 'crown' regression). server/test/cosmeticsParity.test.ts pins this.
+export const PIECE_THEMES = ['heirloom', 'lineage', 'crown', 'dots'] as const;
 /** Board palette keys (the [data-theme] values). Plain validated strings. */
 export const BOARD_THEMES = [
   'stone',

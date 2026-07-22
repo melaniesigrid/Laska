@@ -47,6 +47,7 @@ export type AnalyticsEvent =
   | 'puzzle.started' // a daily puzzle / challenge opened
   | 'puzzle.solved' // a daily puzzle solved (engine-verified)
   | 'quest.completed' // a quest/mission completed
+  | 'cosmetics.save_failed' // a cosmetic pick did NOT persist to the account
   // --- monetization (emitted by the billing engineer) ---------------------
   | 'paywall.viewed' // a paywall/upsell surface was shown
   | 'purchase.started' // checkout / billing flow opened
@@ -75,6 +76,10 @@ export interface AnalyticsEventProps {
 
   'streak.advanced': { length: number };
   'streak.broken': { previousLength: number };
+  /** The pick still applied locally (optimistic UI); it just never reached the
+   *  account. `status`/`code` distinguish a rejected value (400 invalid-cosmetic,
+   *  i.e. a client/server allow-list drift) from a transient network failure. */
+  'cosmetics.save_failed': { field: string; status?: number; code?: string };
   'puzzle.started': { puzzleId: string };
   'puzzle.solved': { puzzleId: string; attempts: number };
   'quest.completed': { questId: string };
@@ -108,6 +113,7 @@ export const EVENT_STAGE: Record<AnalyticsEvent, FunnelStage> = {
   'auth.login_succeeded': 'signup',
   'streak.advanced': 'retention',
   'streak.broken': 'retention',
+  'cosmetics.save_failed': 'retention',
   'puzzle.started': 'retention',
   'puzzle.solved': 'retention',
   'quest.completed': 'retention',

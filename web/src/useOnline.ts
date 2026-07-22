@@ -497,8 +497,16 @@ export function useOnline() {
       if (!client.tokens) return;
       try {
         setUser(await client.setCosmetics(patch));
-      } catch {
-        /* keep the optimistic local choice; will retry on the next change */
+      } catch (e) {
+        // Keep the optimistic local choice — a network blip shouldn't yank the
+        // player's pick out from under them; the next change retries. But do NOT
+        // fail silently: a 400 here means the server rejected the value (an
+        // allow-list drift), which is otherwise indistinguishable from success
+        // and only shows up as a "my theme didn't follow me" report months later.
+        track('cosmetics.save_failed', {
+          field: Object.keys(patch).join(',') || 'none',
+          ...(e instanceof ApiError ? { status: e.status, code: e.code } : {}),
+        });
       }
     },
     [client],
