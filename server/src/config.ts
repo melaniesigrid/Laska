@@ -26,6 +26,19 @@ export interface ServerConfig {
    */
   authRateLimit?: AuthRateLimitConfig;
   /**
+   * How long (ms) a human may wait in the quick-match queue with NO human
+   * pairing available before we fall back to a ranked match against a
+   * rating-matched built-in bot. Human-vs-human pairing always takes precedence:
+   * the fallback only fires after this timeout with the player still unpaired.
+   * Optional so existing test config literals keep compiling; `loadConfig` always
+   * populates it and `GameServer` falls back to a safe default when absent.
+   *
+   * Keep this comfortably ABOVE the time it takes a matchmaking window to reach
+   * `maxWindow` (default ~18s), so any two humans within pairing range always
+   * pair with each other before either one times out into a bot.
+   */
+  queueBotFallbackMs?: number;
+  /**
    * Static shared secret guarding the internal `GET /admin/stats` endpoint.
    * Optional and intentionally NOT auto-generated: when unset the admin endpoint
    * is fully disabled (responds 404, undiscoverable). Set `LASKA_ADMIN_TOKEN`
@@ -48,6 +61,11 @@ function loadAuthRateLimitConfig(env: NodeJS.ProcessEnv): AuthRateLimitConfig {
     max: Number.isFinite(max) && max > 0 ? Math.floor(max) : 20,
     windowMs: Number.isFinite(windowMs) && windowMs > 0 ? Math.floor(windowMs) : 60_000,
   };
+}
+
+function loadQueueBotFallbackMs(env: NodeJS.ProcessEnv): number {
+  const raw = env.LASKA_QUEUE_BOT_FALLBACK_MS ? Number(env.LASKA_QUEUE_BOT_FALLBACK_MS) : 20_000;
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 20_000;
 }
 
 function loadClusterConfig(env: NodeJS.ProcessEnv): ClusterConfig {
@@ -87,6 +105,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     cluster: loadClusterConfig(env),
     nodeId: env.LASKA_NODE_ID ?? `node-${randomUUID().slice(0, 8)}`,
     authRateLimit: loadAuthRateLimitConfig(env),
+    queueBotFallbackMs: loadQueueBotFallbackMs(env),
     ...(adminToken ? { adminToken } : {}),
   };
 }

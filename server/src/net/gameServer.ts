@@ -45,7 +45,7 @@ import {
   type VariantId,
 } from '../../../src/index.ts';
 import { DEFAULT_TIME_CONTROL, type TimeControl } from '../game/match.ts';
-import { botUserId, isBotUserId, seedBots } from '../game/bots.ts';
+import { botUserId, isBotUserId, seedBots, BOT_RATINGS } from '../game/bots.ts';
 import { rankFor } from '../rating/rank.ts';
 import type { User } from '../storage/types.ts';
 import type { PublicOpponent } from './protocol.ts';
@@ -108,6 +108,13 @@ const CHALLENGE_CODE_LEN = 7;
 /** How long after a match ends a rematch can still be offered/accepted. */
 const REMATCH_WINDOW_MS = 60_000;
 /**
+ * Default quick-match bot-fallback timeout (ms). Overridden by
+ * `LASKA_QUEUE_BOT_FALLBACK_MS` via config. See ServerConfig for the rationale;
+ * kept comfortably above the matchmaking window-growth time so two matchable
+ * humans always pair with EACH OTHER before either times out into a bot.
+ */
+const DEFAULT_QUEUE_BOT_FALLBACK_MS = 20_000;
+/**
  * Server-side "thinking" delay before a bot plays its move, in ms. Purely UX —
  * makes computer play feel less instant. Also yields the event loop so move
  * computation never runs synchronously inside the human-move handler.
@@ -134,13 +141,26 @@ export class GameServer {
   private spectators = new Map<string, Set<string>>();
   /** Match ids with an in-flight bot-move driver loop (re-entrancy guard). */
   private botDriving = new Set<string>();
+  /**
+   * Humans who joined the quick-match queue via a socket on THIS node, keyed by
+   * userId, with the QueueMember we enqueued (its `joinedAt` drives the bot
+   * fallback timeout). Pruned when they pair, leave, or disconnect. The queue
+   * itself lives in the cluster fabric; this is a node-local index of the members
+   * WE are responsible for timing out (the node holding the socket), so we can
+   * fire a bot fallback and deliver `match.start` to a socket we own.
+   */
+  private queueJoins = new Map<string, QueueMember>();
+  /** Quick-match bot-fallback timeout in ms (see ServerConfig.queueBotFallbackMs). */
+  private readonly queueBotFallbackMs: number;
 
   constructor(
     private repo: Repository,
     private auth: AuthService,
     private manager: MatchManager,
     private cluster: Cluster,
+    options: { queueBotFallbackMs?: number } = {},
   ) {
+    this.queueBotFallbackMs = options.queueBotFallbackMs ?? DEFAULT_QUEUE_BOT_FALLBACK_MS;
     // Inbound from the fabric: deliver messages to our sockets, or process a
     // match action forwarded to us because we own the match.
     this.cluster.onEnvelope((env: NodeEnvelope) => {
@@ -204,6 +224,7 @@ export class GameServer {
           }
           await this.cluster.clearPresence(conn.userId);
           await this.cluster.dequeue(conn.userId);
+          this.queueJoins.delete(conn.userId);
         } catch {
           /* cluster closing or transient fabric error — nothing to clean up */
         }
@@ -264,6 +285,7 @@ export class GameServer {
       case 'queue.join':
         return this.onQueueJoin(conn, msg);
       case 'queue.leave':
+        this.queueJoins.delete(userId);
         await this.cluster.dequeue(userId);
         return this.send(conn.ws, { type: 'queue.left' });
       case 'match.startBot':
@@ -375,6 +397,10 @@ export class GameServer {
       ...(msg.variant ? { variant: msg.variant } : {}),
     };
     await this.cluster.enqueue(member);
+    // Track locally so tick() can time this member out into a bot fallback if no
+    // human pairing arrives. Re-joining replaces the old entry (resets the wait),
+    // mirroring the cluster queue's own re-enqueue semantics.
+    this.queueJoins.set(userId, member);
     this.send(conn.ws, { type: 'queue.joined' });
     await this.drainMatchmaking();
   }
@@ -382,6 +408,10 @@ export class GameServer {
   private async drainMatchmaking(): Promise<void> {
     const pairs = await this.cluster.formPairings(Date.now());
     for (const [a, b] of pairs) {
+      // Paired humans leave our local bot-fallback tracking (either could have
+      // been queued via a socket on this node).
+      this.queueJoins.delete(a.userId);
+      this.queueJoins.delete(b.userId);
       // Random color assignment.
       const aIsWhite = Math.random() < 0.5;
       const white = aIsWhite ? a : b;
@@ -446,29 +476,54 @@ export class GameServer {
       return this.send(conn.ws, { type: 'error', code: 'bad-difficulty', message: 'Unknown difficulty tier' });
     }
     const tier = msg.difficulty as Difficulty;
-    // One match at a time, exactly like queue.join / challenge.create.
-    if (await this.cluster.userMatch(userId)) {
+    const result = await this.startBotMatch(userId, tier, {
+      // Only forward an explicit color; 'random'/undefined becomes a coin flip.
+      ...(msg.color === 'W' || msg.color === 'B' ? { color: msg.color } : {}),
+      ...(msg.variant ? { variant: msg.variant } : {}),
+    });
+    if (result.ok) return;
+    // Surface the failure reason to the requesting socket.
+    if (result.reason === 'already-in-match') {
       return this.send(conn.ws, { type: 'error', code: 'already-in-match', message: 'Finish your current match first' });
     }
-    const human = await this.repo.getUserById(userId);
-    if (!human) return;
+    if (result.reason === 'no-bot') {
+      return this.send(conn.ws, { type: 'error', code: 'no-bot', message: 'Computer opponent unavailable' });
+    }
+    // 'no-human' means the requesting account vanished mid-request — nothing to say.
+  }
+
+  /**
+   * Core of a ranked human-vs-bot match, shared by the explicit `match.startBot`
+   * request AND the quick-match queue's bot fallback (tick → drainBotFallback).
+   * Server-authoritative throughout: creates the match, registers ownership,
+   * emits the SAME `match.start` a human pairing does, and drives the bot if it
+   * moves first. Returns `{ ok }` or a failure reason the caller surfaces however
+   * it likes (a socket error for the explicit request; a silent skip for the
+   * fallback). Never enqueues a bot — it only builds a match FOR the human.
+   */
+  private async startBotMatch(
+    humanId: string,
+    tier: Difficulty,
+    opts: { color?: PlayerColor; variant?: VariantId } = {},
+  ): Promise<{ ok: true; match: Match } | { ok: false; reason: 'already-in-match' | 'no-human' | 'no-bot' }> {
+    // One match at a time, exactly like queue.join / challenge.create.
+    if (await this.cluster.userMatch(humanId)) return { ok: false, reason: 'already-in-match' };
+    const human = await this.repo.getUserById(humanId);
+    if (!human) return { ok: false, reason: 'no-human' };
 
     const botId = botUserId(tier);
     // The bot account must be seeded. If it isn't (e.g. seedBots never ran),
     // fail loudly rather than create a match against a missing opponent.
-    if (!(await this.repo.getUserById(botId))) {
-      return this.send(conn.ws, { type: 'error', code: 'no-bot', message: 'Computer opponent unavailable' });
-    }
+    if (!(await this.repo.getUserById(botId))) return { ok: false, reason: 'no-bot' };
 
-    // Resolve the HUMAN's color preference; 'random' (default) is a coin flip.
-    const humanColor: PlayerColor =
-      msg.color === 'W' || msg.color === 'B' ? msg.color : Math.random() < 0.5 ? 'W' : 'B';
-    const whiteId = humanColor === 'W' ? userId : botId;
-    const blackId = humanColor === 'W' ? botId : userId;
+    // Resolve the HUMAN's color preference; absent (default) is a coin flip.
+    const humanColor: PlayerColor = opts.color === 'W' || opts.color === 'B' ? opts.color : Math.random() < 0.5 ? 'W' : 'B';
+    const whiteId = humanColor === 'W' ? humanId : botId;
+    const blackId = humanColor === 'W' ? botId : humanId;
 
     const variant: VariantId =
-      msg.variant && Object.prototype.hasOwnProperty.call(VARIANTS, msg.variant)
-        ? msg.variant
+      opts.variant && Object.prototype.hasOwnProperty.call(VARIANTS, opts.variant)
+        ? opts.variant
         : DEFAULT_VARIANT.id;
 
     const match = this.manager.createMatch(whiteId, blackId, { ranked: true, variant });
@@ -478,6 +533,57 @@ export class GameServer {
     // If the bot is on the move (it's White, or any future first-move case),
     // drive it now. Non-blocking so the announce path returns promptly.
     void this.driveBotIfTurn(match.id);
+    return { ok: true, match };
+  }
+
+  /**
+   * The bot difficulty tier whose fixed rating is CLOSEST to the given human
+   * rating, so a fallback bot game is a competitive matchup. Ties break toward
+   * the lower (easier) tier, since `DIFFICULTY_ORDER` runs weakest-first.
+   */
+  private nearestBotTier(rating: number): Difficulty {
+    let best: Difficulty = DIFFICULTY_ORDER[0]!;
+    let bestGap = Infinity;
+    for (const tier of DIFFICULTY_ORDER) {
+      const gap = Math.abs(BOT_RATINGS[tier] - rating);
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = tier;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Quick-match bot fallback: any human we tracked into the queue who has now
+   * waited past `queueBotFallbackMs` with no human pairing gets a ranked match
+   * against a rating-matched bot. Runs in `tick()` AFTER `drainMatchmaking()`, so
+   * human-vs-human pairing always wins first — a member only reaches here if the
+   * pairing pass just left them unpaired (i.e. no matchable human right now).
+   */
+  private async drainBotFallback(now: number): Promise<void> {
+    if (this.queueJoins.size === 0) return;
+    for (const [userId, member] of [...this.queueJoins]) {
+      if (now - member.joinedAt < this.queueBotFallbackMs) continue;
+      // Still actually in the shared queue? (Paired by another node, left, or
+      // disconnected -> drop our stale index entry and move on.)
+      if (!(await this.cluster.isQueued(userId))) {
+        this.queueJoins.delete(userId);
+        continue;
+      }
+      // Remove the waiting human from the queue BEFORE creating the match, so a
+      // concurrent pairing pass can never also grab them (no double match).
+      this.queueJoins.delete(userId);
+      await this.cluster.dequeue(userId);
+      const tier = this.nearestBotTier(member.rating);
+      const result = await this.startBotMatch(userId, tier, {
+        ...(member.variant ? { variant: member.variant } : {}),
+      });
+      // On failure the human is simply out of the queue with no match; they can
+      // re-queue. (Only happens if the account vanished or bots weren't seeded —
+      // both are server-side faults, not something to surface to the client.)
+      void result;
+    }
   }
 
   /** True iff the side to move in this match is a bot account. */
@@ -1016,6 +1122,9 @@ export class GameServer {
   private async tick(): Promise<void> {
     await this.drainMatchmaking();
     const now = Date.now();
+    // Bot fallback runs AFTER pairing so human-vs-human always takes precedence:
+    // only players the pairing pass just left unpaired can time out into a bot.
+    await this.drainBotFallback(now);
     for (const match of this.manager.activeMatches()) {
       const end = match.checkTimeout(now);
       if (end) await this.finishAndBroadcast(match.id, end);
