@@ -440,6 +440,10 @@ export function App() {
     return (
       <Landing
         onPlay={() => setView('game')}
+        onPlayOnline={() => {
+          setAppMode('online');
+          setView('game');
+        }}
         onLasker={() => setView('lasker')}
         onReplay={() => goReplay()}
         onBrochure={() => setView('brochure')}
@@ -639,6 +643,7 @@ export function App() {
               <Globe size={15} /> Online
             </button>
           </div>
+          <StreakIndicator state={streak.state} countedToday={streak.countedToday} />
           <div className={`chrome${chromeOpen ? ' open' : ''}`} ref={chromeRef}>
           <button
             className="btn icon-only chrome-toggle"
@@ -662,7 +667,6 @@ export function App() {
           >
             <Star size={16} /> <span className="btn-label">{PIECE_THEME_LABEL[pieceTheme]}</span>
           </button>
-          <StreakIndicator state={streak.state} countedToday={streak.countedToday} />
           <button
             className="btn"
             onClick={toggleCoords}

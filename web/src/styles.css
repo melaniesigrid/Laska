@@ -720,6 +720,19 @@ input[type='radio'] { accent-color: var(--cobalt); }
 .bot-ranked-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--cobalt); }
 .bot-ranked-note b { color: var(--btn-ink); }
 
+/* quick-match searching state: the honest "human first, then a training bot"
+   note sits under the mascot as a recessed plate, matching .bot-ranked-note. */
+.quick-search { max-width: 340px; margin: 0 auto; }
+.quick-search .searching { text-align: center; }
+.quick-search-note {
+  display: flex; align-items: flex-start; gap: 9px; margin: 0;
+  padding: 11px 13px; border-radius: 14px; background: var(--pedestal);
+  box-shadow: inset 3px 3px 7px var(--dark), inset -3px -3px 7px var(--light);
+  font-size: 11.5px; line-height: 1.5; color: var(--ink-soft);
+}
+.quick-search-note svg { flex: 0 0 auto; margin-top: 1px; color: var(--cobalt); }
+.quick-search-note b { color: var(--btn-ink); }
+
 /* the live-invite card: recessed plate holding the shareable link + waiting state */
 .invite-card {
   display: flex; flex-direction: column; gap: 12px; padding: 16px;

@@ -12,7 +12,7 @@ import {
   type Move,
   type PlayerColor,
 } from '../../src/index.ts';
-import { Palette, Sparkles, X, Trophy } from 'lucide-react';
+import { Palette, Sparkles, X, Trophy, Globe } from 'lucide-react';
 import { Insignia, usePieceTheme } from './pieceTheme.tsx';
 import { DotMascot } from './mascots.tsx';
 import './landing.css';
@@ -244,6 +244,7 @@ function DemoBoard({ onAnalyze }: { onAnalyze: DemoSnapshot }) {
  */
 export function Landing({
   onPlay,
+  onPlayOnline,
   onLasker,
   onReplay,
   onBrochure,
@@ -256,6 +257,8 @@ export function Landing({
   onAnalyzeFeatured,
 }: {
   onPlay: () => void;
+  /** Enter the game board in ONLINE mode (ranked queue / play a friend). */
+  onPlayOnline: () => void;
   onLasker: () => void;
   onReplay: () => void;
   onBrochure: () => void;
@@ -359,6 +362,9 @@ export function Landing({
             <div className="hero-actions">
               <button className="btn btn-lg" onClick={onPlay}>
                 Start playing
+              </button>
+              <button className="btn" onClick={onPlayOnline}>
+                <Globe size={16} /> Play online
               </button>
               <span className="since">Invented by Emanuel Lasker</span>
             </div>
@@ -658,10 +664,15 @@ export function Landing({
               Learn it in a minute, spend years on the depth beneath. Step onto the board and start
               stacking.
             </p>
-            <button className="btn btn-lg" onClick={onPlay}>
-              <span className="dot" />
-              Play Laska
-            </button>
+            <div className="hero-actions" style={{ justifyContent: 'center' }}>
+              <button className="btn btn-lg" onClick={onPlay}>
+                <span className="dot" />
+                Play Laska
+              </button>
+              <button className="btn" onClick={onPlayOnline}>
+                <Globe size={16} /> Play online
+              </button>
+            </div>
           </div>
         </div>
       </section>
