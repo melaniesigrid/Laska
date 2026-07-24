@@ -1,0 +1,18 @@
+{
+  // Typecheck the vitest component layer (*.spec.tsx) WITHOUT dragging it into
+  // the production build. `src/test/setup.ts` imports
+  // '@testing-library/jest-dom/vitest', whose module augmentation adds the DOM
+  // matchers (toBeChecked / toBeInTheDocument / ...) to vitest's Assertion type —
+  // including setup.ts here is what makes the .spec files typecheck. The spec/
+  // setup files import every vitest symbol explicitly (no ambient globals), so no
+  // `types` override is needed; this mirrors the production tsconfig (which CI
+  // already typechecks green) and just adds the excluded test files back in.
+  // Run via `npm run test:types`.
+  //
+  // The pure-logic `*.test.ts` files stay EXCLUDED: they import `node:test`
+  // (needing @types/node, not a web dependency) and are type-stripped-and-run by
+  // `node --test` (npm run test:logic), exactly like the engine's own tests.
+  "extends": "./tsconfig.json",
+  "include": ["src", "vite.config.ts", "vitest.config.ts", "../src"],
+  "exclude": ["src/**/*.test.ts"]
+}

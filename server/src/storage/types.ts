@@ -36,6 +36,26 @@ export interface User {
   /** Epoch ms of the last ranked game, or null if never; drives RD inactivity inflation. */
   lastRatedAt: number | null;
   createdAt: number;
+  /**
+   * Account-backed cosmetic preferences for the Profile page. All nullable:
+   * an unset value means "client falls back to its local default". Values are
+   * validated against allow-lists server-side before persisting (see
+   * auth/service.ts); guests may set them in-session but persistence is only
+   * meaningful for registered users.
+   */
+  selectedMascotTint: string | null;
+  selectedPieceTheme: string | null;
+  selectedBoardTheme: string | null;
+}
+
+/**
+ * Patch shape for a user's cosmetic preferences. Each field is optional (omit =
+ * leave unchanged) and may be `null` (explicitly clear back to the default).
+ */
+export interface CosmeticsPatch {
+  selectedMascotTint?: string | null;
+  selectedPieceTheme?: string | null;
+  selectedBoardTheme?: string | null;
 }
 
 export type MatchResult = '1-0' | '0-1' | '1/2-1/2';
@@ -113,6 +133,12 @@ export interface Repository {
   getUserByEmail(email: string): Promise<User | null>;
   getUserByUsername(username: string): Promise<User | null>;
   updateUser(id: string, patch: Partial<User>): Promise<void>;
+  /**
+   * Persist a user's cosmetic preferences. Only the provided fields change;
+   * pass `null` to clear one back to the client default. Throws 'No such user'
+   * if the id is unknown. Values must already be validated by the caller.
+   */
+  updateUserCosmetics(id: string, cosmetics: CosmeticsPatch): Promise<void>;
 
   saveMatch(record: MatchRecord): Promise<void>;
   getMatch(id: string): Promise<MatchRecord | null>;

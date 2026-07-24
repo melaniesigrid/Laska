@@ -9,7 +9,7 @@
  *    email delivery is a TODO (needs an email provider).
  */
 import { randomUUID } from 'node:crypto';
-import type { Repository, User } from '../storage/types.ts';
+import type { CosmeticsPatch, Repository, User } from '../storage/types.ts';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import { signToken, verifyToken, type TokenPayload } from './tokens.ts';
 import { DEFAULT_RD, DEFAULT_VOLATILITY } from '../rating/glicko2.ts';
@@ -39,6 +39,13 @@ export interface PublicUser {
   ratingDeviation: number;
   ratedGames: number;
   rank: Rank;
+  /**
+   * Cosmetic preferences. `null` = unset (client uses its local default). The
+   * Profile page reads these to hydrate mascot/piece/board selectors.
+   */
+  selectedMascotTint: string | null;
+  selectedPieceTheme: string | null;
+  selectedBoardTheme: string | null;
 }
 
 export function toPublicUser(u: User): PublicUser {
@@ -52,7 +59,68 @@ export function toPublicUser(u: User): PublicUser {
     ratingDeviation: u.ratingDeviation,
     ratedGames: u.ratedGames,
     rank: rankFor({ rating: u.rating, ratingDeviation: u.ratingDeviation, ratedGames: u.ratedGames }),
+    selectedMascotTint: u.selectedMascotTint,
+    selectedPieceTheme: u.selectedPieceTheme,
+    selectedBoardTheme: u.selectedBoardTheme,
   };
+}
+
+// ---- Cosmetics allow-lists (server-authoritative validation) -------------
+// Mirror of the client option sets (web/src/mascots.tsx, web/src/pieceTheme.tsx,
+// and the [data-theme] palette keys). Kept here so the server never trusts the
+// client: any value outside these lists is rejected.
+
+export const MASCOT_TINTS = ['coral', 'sun', 'mint', 'sky', 'grape'] as const;
+// MUST stay in lockstep with web/src/pieceTheme.tsx PIECE_THEMES — a theme the
+// client offers but the server rejects saves locally and then silently fails to
+// persist (the 'crown' regression). server/test/cosmeticsParity.test.ts pins this.
+export const PIECE_THEMES = ['heirloom', 'lineage', 'crown', 'dots'] as const;
+/** Board palette keys (the [data-theme] values). Plain validated strings. */
+export const BOARD_THEMES = [
+  'stone',
+  'dark',
+  'navy',
+  'light',
+  'chocolate',
+  'twilight',
+  'confetti',
+] as const;
+
+export type MascotTint = (typeof MASCOT_TINTS)[number];
+export type PieceTheme = (typeof PIECE_THEMES)[number];
+export type BoardTheme = (typeof BOARD_THEMES)[number];
+
+/**
+ * Validate a cosmetics patch against the allow-lists. Returns a sanitized patch
+ * carrying only the provided fields (omitted = leave unchanged; `null` = clear).
+ * Throws AuthError('invalid-cosmetic') on any out-of-range value. The caller is
+ * the trust boundary — this is the only place client cosmetic input is accepted.
+ */
+export function validateCosmetics(input: {
+  selectedMascotTint?: unknown;
+  selectedPieceTheme?: unknown;
+  selectedBoardTheme?: unknown;
+}): CosmeticsPatch {
+  const patch: CosmeticsPatch = {};
+  const check = (
+    field: 'selectedMascotTint' | 'selectedPieceTheme' | 'selectedBoardTheme',
+    value: unknown,
+    allowed: readonly string[],
+  ): void => {
+    if (value === undefined) return; // not being changed
+    if (value === null) {
+      patch[field] = null; // explicit clear back to default
+      return;
+    }
+    if (typeof value !== 'string' || !allowed.includes(value)) {
+      throw new AuthError('invalid-cosmetic', `Invalid ${field}`);
+    }
+    patch[field] = value;
+  };
+  check('selectedMascotTint', input.selectedMascotTint, MASCOT_TINTS);
+  check('selectedPieceTheme', input.selectedPieceTheme, PIECE_THEMES);
+  check('selectedBoardTheme', input.selectedBoardTheme, BOARD_THEMES);
+  return patch;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -67,7 +135,8 @@ export class AuthError extends Error {
       | 'invalid-credentials'
       | 'not-found'
       | 'not-a-guest'
-      | 'invalid-token',
+      | 'invalid-token'
+      | 'invalid-cosmetic',
     message: string,
   ) {
     super(message);
@@ -123,6 +192,9 @@ export class AuthService {
       ratedGames: 0,
       lastRatedAt: null,
       createdAt: Date.now(),
+      selectedMascotTint: null,
+      selectedPieceTheme: null,
+      selectedBoardTheme: null,
     };
     await this.repo.createUser(user);
     return { user: toPublicUser(user), tokens: this.issueTokens(user) };
@@ -156,6 +228,9 @@ export class AuthService {
       ratedGames: 0,
       lastRatedAt: null,
       createdAt: Date.now(),
+      selectedMascotTint: null,
+      selectedPieceTheme: null,
+      selectedBoardTheme: null,
     };
     await this.repo.createUser(user);
     return { user: toPublicUser(user), tokens: this.issueTokens(user) };
@@ -201,6 +276,23 @@ export class AuthService {
     const user = await this.repo.getUserById(payload.sub);
     if (!user) throw new AuthError('not-found', 'User no longer exists');
     return { user, payload };
+  }
+
+  /**
+   * Validate and persist a user's cosmetic preferences, returning the updated
+   * public user. Server-authoritative: every value is checked against the
+   * allow-lists; invalid input throws AuthError('invalid-cosmetic') and nothing
+   * is persisted.
+   */
+  async setCosmetics(
+    userId: string,
+    input: { selectedMascotTint?: unknown; selectedPieceTheme?: unknown; selectedBoardTheme?: unknown },
+  ): Promise<PublicUser> {
+    const patch = validateCosmetics(input); // throws before any write on bad input
+    const user = await this.repo.getUserById(userId);
+    if (!user) throw new AuthError('not-found', 'User no longer exists');
+    await this.repo.updateUserCosmetics(userId, patch);
+    return toPublicUser({ ...user, ...patch });
   }
 
   /** Exchange a valid refresh token for a new access/refresh pair. */

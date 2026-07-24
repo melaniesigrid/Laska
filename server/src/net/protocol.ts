@@ -209,6 +209,11 @@ export interface SpectatorGameDTO {
 }
 
 export type ServerMessage =
+  // `auth.ok` carries the live-session rating/rank ack. Account cosmetic
+  // preferences (selectedMascotTint / selectedPieceTheme / selectedBoardTheme)
+  // travel over REST in the `PublicUser` payload (register / login / guest /
+  // link / GET /me) and are written via `PATCH /me/cosmetics`. See
+  // auth/service.ts (PublicUser, setCosmetics).
   | { type: 'auth.ok'; userId: string; username: string; rating: number; ratingDeviation: number; rank: RankDTO }
   | { type: 'queue.joined' }
   | { type: 'queue.left' }

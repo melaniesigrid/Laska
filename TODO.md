@@ -145,8 +145,20 @@ ownership, and cross-node message routing:
   friends leaderboard.
 
 ### 5. Retention systems
-- Daily **streaks**, daily **puzzles/challenges** derived from real positions
+- **Profile page** ✅ (`ProfilePage.tsx`) — identity hub with the player's chosen
+  mascot, RankBadge + stats, recent games, and the cosmetics pickers. Has
+  pre-built optional slots for the streak card + achievements trophy shelf.
+- **Cosmetics: account-backed** ✅ — mascot tint / piece theme / board palette
+  persist via `PATCH /me/cosmetics` (`selectedMascotTint`/`selectedPieceTheme`/
+  `selectedBoardTheme` on `PublicUser`), localStorage fallback for guests.
+- Daily **streaks** ✅ — pure `streak.ts` (freeze mechanic, 14 unit tests) +
+  `useStreak` hook + topbar `StreakIndicator`, ticked once per finished local
+  match, surfaced on the Profile streak card. Next: server-sync the streak so it
+  follows the account (today it's per-device localStorage).
+- Daily **puzzles/challenges** derived from real positions
   (generate from finished-match positions; the engine can verify solutions).
+- **Achievements / trophy shelf** — derive badges from saved-game data; render in
+  the profile's achievements slot.
 - **Quests/missions**, well-timed (non-spammy) push notifications.
 - Social: friend challenges, **shareable replays** (we already persist full move
   lists), spectating, clubs/teams.

@@ -99,6 +99,9 @@ test('finalize: human rating moves, bot rating/RD/ratedGames stay pinned', async
     ratedGames: 0,
     lastRatedAt: null,
     createdAt: 1000,
+    selectedMascotTint: null,
+    selectedPieceTheme: null,
+    selectedBoardTheme: null,
   });
 
   const manager = new MatchManager(repo, 1200);
