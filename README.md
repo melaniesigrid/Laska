@@ -4,7 +4,7 @@
 
 ### The stacking draughts — invented by a world chess champion in 1911
 
-*It looks like checkers. Then the first piece you capture climbs **underneath** yours instead of leaving — and the whole board starts growing into towers.*
+_It looks like checkers. Then the first piece you capture climbs **underneath** yours instead of leaving — and the whole board starts growing into towers._
 
 &nbsp;
 
@@ -16,7 +16,7 @@
 ![Node](https://img.shields.io/badge/Node-%E2%89%A522-339933?logo=node.js&logoColor=white)
 ![Engine](https://img.shields.io/badge/rules_engine-zero_dependencies-success)
 ![Tests](https://img.shields.io/badge/tests-130%2B_passing-success)
-![Build](https://img.shields.io/badge/build_step-none_(raw_TS)-blue)
+![Build](<https://img.shields.io/badge/build_step-none_(raw_TS)-blue>)
 ![Play](https://img.shields.io/badge/play-playlaska.com-5f8c7e)
 
 </div>
@@ -32,11 +32,11 @@ piece, and it gets taken off the board. Gone forever.
 
 > When you jump a piece, it doesn't leave. It **slides under yours** and becomes
 > your prisoner. Now the two pieces move together as a little tower — and whoever is
-> sitting *on top* is the boss.
+> sitting _on top_ is the boss.
 
 So the board never empties out. It **grows upward**. Jump enough pieces and you're
 pushing around tall towers of trapped prisoners. And here's the twist that makes
-grown-ups love it: if someone captures the *top* of your tower, the boss changes —
+grown-ups love it: if someone captures the _top_ of your tower, the boss changes —
 and all those prisoners underneath suddenly switch sides and work for the enemy.
 
 Nobody ever really dies. They just change who they're working for. That's the
@@ -50,11 +50,11 @@ whole game: **don't count pieces — count towers.**
 
 ### The three rules that are different from checkers
 
-| Checkers | Laska |
-|---|---|
-| Captured pieces leave the board | Captured pieces slide **under** you as prisoners |
-| You count how many pieces you have | You watch who **commands** each tower (the top piece) |
-| Take an enemy and it's gone | Take an enemy tower and you only grab its **leader** — the prisoners below go free under a new boss |
+| Checkers                           | Laska                                                                                               |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Captured pieces leave the board    | Captured pieces slide **under** you as prisoners                                                    |
+| You count how many pieces you have | You watch who **commands** each tower (the top piece)                                               |
+| Take an enemy and it's gone        | Take an enemy tower and you only grab its **leader** — the prisoners below go free under a new boss |
 
 Eleven pieces a side. **Nothing is ever erased.** You win by burying or cornering
 your opponent — not by clearing the board.
@@ -71,17 +71,42 @@ npm install
 npm run dev          # → http://localhost:5173
 ```
 
-That's the whole thing. Requires **Node 22 or newer**. Or just go to
-**[playlaska.com](https://playlaska.com)** and start playing.
+For online auth, live play, and server-backed sign-in, also start the backend
+in a second terminal:
 
----
+```bash
+cd server
+npm install
+npm run dev          # → http://localhost:8080
+```
+
+Then refresh the web app and sign in again.
+
+That's the whole thing for the local dev experience. Requires **Node 22 or newer**.
+
+## 🚀 Deploying live
+
+Changes are published from `main` via GitHub and the repo's CI/deploy pipeline.
+
+1. Stage your changes:
+   ```bash
+   git add .
+   ```
+2. Commit them:
+   ```bash
+   git commit -m "Describe your changes"
+   ```
+3. Push to the remote:
+   ```bash
+   git push origin main
+   ```
 
 ## ✨ What you can do
 
 ### 🤖 Play a computer that actually understands towers
 
 Most checkers bots just count pieces. That's useless in Laska, where a captured
-piece is a *life you can win back later*. Our opponent thinks in towers instead —
+piece is a _life you can win back later_. Our opponent thinks in towers instead —
 and you can pick from **six honest difficulty levels**, from a beginner that
 genuinely blunders to an expert that looks eight moves ahead. (The full game
 screen — board plus the difficulty and opponent panel — is the hero shot at the
@@ -90,7 +115,7 @@ top of this page.)
 ### 🎨 Make it beautiful — themes & pieces
 
 Five hand-built color palettes and several piece styles. Generals can wear a
-debossed **star**, **crown**, or **shield**, pressed *into* the coin like a wax
+debossed **star**, **crown**, or **shield**, pressed _into_ the coin like a wax
 seal. The whole board is **neumorphic** — soft clay, sculpted only with light and
 shadow, never flat and never loud.
 
@@ -145,14 +170,14 @@ also a native iOS + Android build in the works.
 Laska was made by **Emanuel Lasker** — and he was not a casual hobbyist.
 
 He was the **World Chess Champion for 27 years**, longer than anyone before or
-since. He was *also* a doctor of mathematics (a theorem with his name still sits
+since. He was _also_ a doctor of mathematics (a theorem with his name still sits
 under modern algebra), a published philosopher, and a friend of Albert Einstein.
 Born on Christmas Eve in 1868 to a Jewish cantor's family, he was forced out of
 Nazi Germany in 1933 and lived his last years in exile, dying in New York in 1941.
 
 He loved chess, Go, and bridge — but **Laska was the one game he invented himself.**
-He called it *"the game to teach cautiousness and tactics, and a great builder up
-of ideas."* It nearly vanished for a century. This app brings it back, faithfully.
+He called it _"the game to teach cautiousness and tactics, and a great builder up
+of ideas."_ It nearly vanished for a century. This app brings it back, faithfully.
 There's a fuller telling of his life inside the app.
 
 ---
@@ -165,19 +190,20 @@ There's a fuller telling of his life inside the app.
 
 ### The simple version
 
-Imagine three things that all need to agree on what a *legal move* is: the game on
+Imagine three things that all need to agree on what a _legal move_ is: the game on
 your screen, the computer opponent, and the online server that referees matches
 between strangers. If you wrote the rules three times, they'd eventually disagree —
 and a bug where the server thinks a move is illegal but your screen thinks it's
 fine is a nightmare.
 
-So we wrote the rules **once**, in one little engine, and everything else *borrows*
-it. The screen, the bot, and the server all run the *exact same* rule code. They
+So we wrote the rules **once**, in one little engine, and everything else _borrows_
+it. The screen, the bot, and the server all run the _exact same_ rule code. They
 literally cannot disagree, because it's the same function.
 
 ### The one-engine architecture
 
 ```
+
                     ┌─────────────────────────────┐
                     │  src/  — the rules engine    │
                     │  pure · zero-deps · strict   │
@@ -187,17 +213,19 @@ literally cannot disagree, because it's the same function.
                        imports     │     imports
               ┌────────────────────┴────────────────────┐
               ▼                                          ▼
-   ┌────────────────────┐                  ┌──────────────────────────┐
-   │  web/  React + Vite │                  │  server/  WebSocket + ws │
-   │  board · themes ·   │   shared types   │  authoritative matches · │
-   │  replay · online UI │◀ ─ ─ ─ ─ ─ ─ ─ ─ │  matchmaking · Elo · DB  │
-   └────────────────────┘   protocol.ts     └──────────────────────────┘
+
+┌────────────────────┐ ┌──────────────────────────┐
+│ web/ React + Vite │ │ server/ WebSocket + ws │
+│ board · themes · │ shared types │ authoritative matches · │
+│ replay · online UI │◀ ─ ─ ─ ─ ─ ─ ─ ─ │ matchmaking · Elo · DB │
+└────────────────────┘ protocol.ts └──────────────────────────┘
+
 ```
 
 `src/` has **zero runtime dependencies** and is the single source of truth. The web
 client and the server don't re-implement it — they `import` it directly. The only
 thing crossing the boundary is the message format (`server/src/net/protocol.ts`),
-which the client also imports — so a protocol change is a *compile error*, not a
+which the client also imports — so a protocol change is a _compile error_, not a
 runtime surprise.
 
 The proof it's faithful: the engine **replays Lasker's own 1911 games
@@ -218,18 +246,18 @@ can recapture. So the AI is built to think in towers:
 - **Six difficulty tiers** that scale how deep it searches and how often it
   blunders, so a beginner is genuinely beatable without the code faking it.
 
-Its strength is *measured*, not asserted: a frozen reference search in the test
+Its strength is _measured_, not asserted: a frozen reference search in the test
 suite catches any drift, and an **agent arena** (`src/agents/`) pits it against
 random, greedy, and Monte-Carlo opponents in round-robin matches. (Deep dives:
 [`AI.md`](AI.md), [`AI_RESEARCH.md`](AI_RESEARCH.md).)
 
 ### How we know it works
 
-| Suite | What it covers |
-|---|---|
-| **Engine (55+)** | rules, captures, promotion, notation round-trips, AI search — plus a self-play harness that plays full games asserting *only legal moves, no exceptions, and all 22 pieces conserved* |
-| **Server (76+)** | match lifecycle, matchmaking, Elo, auth — and a **storage contract test run against every backend** (in-memory, SQLite, Postgres) plus a cluster-fabric parity test (in-memory and Redis) |
-| **Playwright e2e** | the real online flow, end-to-end against a running server |
+| Suite              | What it covers                                                                                                                                                                            |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Engine (55+)**   | rules, captures, promotion, notation round-trips, AI search — plus a self-play harness that plays full games asserting _only legal moves, no exceptions, and all 22 pieces conserved_     |
+| **Server (76+)**   | match lifecycle, matchmaking, Elo, auth — and a **storage contract test run against every backend** (in-memory, SQLite, Postgres) plus a cluster-fabric parity test (in-memory and Redis) |
+| **Playwright e2e** | the real online flow, end-to-end against a running server                                                                                                                                 |
 
 Strict TypeScript everywhere (`noUncheckedIndexedAccess`,
 `exactOptionalPropertyTypes`), CI on GitHub Actions, and a deliberate
@@ -242,7 +270,7 @@ Laska was built with a roster of **specialised AI engineering agents** — an en
 engineer, a game-AI engineer, a frontend engineer, a backend engineer, and more —
 each scoped to one domain and each gated by the same verification loop a human team
 would use: typecheck, run the tests, and replay Lasker's 1911 games. The honest,
-milestone-by-milestone record (including what's deliberately *not* done yet) lives
+milestone-by-milestone record (including what's deliberately _not_ done yet) lives
 in [`BUILD_LOG.md`](BUILD_LOG.md).
 
 ---
@@ -250,16 +278,18 @@ in [`BUILD_LOG.md`](BUILD_LOG.md).
 ## 📂 Project layout
 
 ```
-src/        Rules engine + AI — the heart of it (pure, zero-deps, the source of truth)
-test/       Engine + AI tests (incl. self-play invariants & a frozen reference search)
-web/        React + Vite app you play
-server/     Online backend: WebSocket, matchmaking, Elo, pluggable storage + cluster
-e2e/        Playwright end-to-end tests
-mobile/     Native iOS + Android build (Expo / React Native, shared engine)
-docs/       Screenshots and the README blueprint
+
+src/ Rules engine + AI — the heart of it (pure, zero-deps, the source of truth)
+test/ Engine + AI tests (incl. self-play invariants & a frozen reference search)
+web/ React + Vite app you play
+server/ Online backend: WebSocket, matchmaking, Elo, pluggable storage + cluster
+e2e/ Playwright end-to-end tests
+mobile/ Native iOS + Android build (Expo / React Native, shared engine)
+docs/ Screenshots and the README blueprint
 STRATEGY.md Canonical strategy reference the AI heuristic traces back to
-DESIGN.md   The neumorphic design system
-CLAUDE.md   Engineering guide: exact commands, project map, conventions, DoD
+DESIGN.md The neumorphic design system
+CLAUDE.md Engineering guide: exact commands, project map, conventions, DoD
+
 ```
 
 ## 🤝 For developers
@@ -269,9 +299,9 @@ with exact commands per package, the project map, conventions, and the
 verification loop. The engine, web app, and server are three separate npm packages
 (`npm install` in each); from the repo root, `npm test` runs the full engine suite.
 
-> **The rules, honestly.** Our ruleset is reconciled with Lasker's original *Rules
-> of Lasca, the Great Military Game* (1911) and confirmed by replaying his own
-> published games. One genuinely interpretive point — whether you *must* take the
+> **The rules, honestly.** Our ruleset is reconciled with Lasker's original _Rules
+> of Lasca, the Great Military Game_ (1911) and confirmed by replaying his own
+> published games. One genuinely interpretive point — whether you _must_ take the
 > longest capture — is documented in the app: Lasker advised "the longest run or
 > best advantage," which we read as guidance, so the choice is yours.
 
@@ -279,8 +309,9 @@ verification loop. The engine, web app, and server are three separate npm packag
 
 <div align="center">
 
-*A century-old game, built for now.* **Your move.**
+_A century-old game, built for now._ **Your move.**
 
-[**▶ Play at playlaska.com**](https://playlaska.com)  ·  [Rules](DESIGN.md)  ·  [How it was built](BUILD_LOG.md)  ·  [The AI](AI.md)
+[**▶ Play at playlaska.com**](https://playlaska.com) · [Rules](DESIGN.md) · [How it was built](BUILD_LOG.md) · [The AI](AI.md)
 
 </div>
+```

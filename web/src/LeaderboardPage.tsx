@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Trophy, Loader2, Users } from 'lucide-react';
-import { LaskaClient, type LeaderboardRow } from './net/client.ts';
+import { LaskaClient, resolveApiBase, resolveWsUrl, type LeaderboardRow } from './net/client.ts';
 import { RankBadge } from './RankBadge.tsx';
 import './landing.css';
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://localhost:8080';
-const WS_URL = API_BASE.replace(/^http/, 'ws') + '/ws';
+const API_BASE = resolveApiBase(import.meta.env.VITE_API_BASE as string | undefined, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+const WS_URL = resolveWsUrl(API_BASE, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
 
 /** A throwaway client just for the public REST leaderboard read (no auth, no
  *  socket). The shared online hook owns the live client; this page only needs the

@@ -11,8 +11,8 @@ import type {
   RankDTO,
   BotDifficulty,
   BotColorPreference,
-} from '../../../server/src/net/protocol.ts';
-import type { VariantId } from '../../../src/index.ts';
+} from "../../../server/src/net/protocol.ts";
+import type { VariantId } from "../../../src/index.ts";
 
 export interface AuthTokens {
   accessToken: string;
@@ -55,7 +55,7 @@ export interface LeaderboardRow {
   rank: RankDTO;
 }
 
-export type ConnStatus = 'disconnected' | 'connecting' | 'connected';
+export type ConnStatus = "disconnected" | "connecting" | "connected";
 
 export interface ClientHandlers {
   onMessage?: (msg: ServerMessage) => void;
@@ -74,15 +74,42 @@ export class ApiError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 }
 
-const STORAGE_KEY = 'laska.tokens';
+const STORAGE_KEY = "laska.tokens";
+
+export function resolveApiBase(
+  explicitApiBase: string | undefined,
+  currentOrigin: string,
+): string {
+  if (explicitApiBase && explicitApiBase.length > 0) return explicitApiBase;
+  if (typeof window === "undefined") return "http://localhost:8080";
+  const isLocalHost =
+    /^(http:\/\/localhost|http:\/\/127\.0\.0\.1|https:\/\/localhost)/.test(
+      currentOrigin,
+    );
+  if (isLocalHost) return "http://localhost:8080";
+  return "/api";
+}
+
+export function resolveWsUrl(apiBase: string, currentOrigin: string): string {
+  if (apiBase.startsWith("ws://") || apiBase.startsWith("wss://")) {
+    return apiBase.endsWith("/ws")
+      ? apiBase
+      : `${apiBase.replace(/\/$/, "")}/ws`;
+  }
+  if (apiBase === "/api") {
+    const protocol = currentOrigin.startsWith("https://") ? "wss://" : "ws://";
+    return `${protocol}${new URL(currentOrigin).host}/ws`;
+  }
+  return apiBase.replace(/^http/, "ws").replace(/\/$/, "") + "/ws";
+}
 
 export class LaskaClient {
   private ws: WebSocket | null = null;
-  private status: ConnStatus = 'disconnected';
+  private status: ConnStatus = "disconnected";
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private deliberatelyClosed = false;
@@ -96,7 +123,10 @@ export class LaskaClient {
     private wsUrl: string,
     private handlers: ClientHandlers = {},
   ) {
-    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+    const saved =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem(STORAGE_KEY)
+        : null;
     if (saved) {
       try {
         this.tokens = JSON.parse(saved) as AuthTokens;
@@ -120,25 +150,36 @@ export class LaskaClient {
 
   // ---- REST -------------------------------------------------------------
 
-  private async req<T>(path: string, opts: { method?: string; body?: unknown; auth?: boolean } = {}): Promise<T> {
-    const headers: Record<string, string> = { 'content-type': 'application/json' };
-    if (opts.auth && this.tokens) headers['authorization'] = `Bearer ${this.tokens.accessToken}`;
+  private async req<T>(
+    path: string,
+    opts: { method?: string; body?: unknown; auth?: boolean } = {},
+  ): Promise<T> {
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+    };
+    if (opts.auth && this.tokens)
+      headers["authorization"] = `Bearer ${this.tokens.accessToken}`;
     const res = await fetch(`${this.apiBase}${path}`, {
-      method: opts.method ?? 'GET',
+      method: opts.method ?? "GET",
       headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
     const text = await res.text();
     const data = text ? JSON.parse(text) : {};
     if (!res.ok) {
-      throw new ApiError(res.status, (data as { error?: string }).error ?? 'error', (data as { message?: string }).message ?? res.statusText);
+      throw new ApiError(
+        res.status,
+        (data as { error?: string }).error ?? "error",
+        (data as { message?: string }).message ?? res.statusText,
+      );
     }
     return data as T;
   }
 
   private persistTokens(): void {
-    if (typeof localStorage === 'undefined') return;
-    if (this.tokens) localStorage.setItem(STORAGE_KEY, JSON.stringify(this.tokens));
+    if (typeof localStorage === "undefined") return;
+    if (this.tokens)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.tokens));
     else localStorage.removeItem(STORAGE_KEY);
   }
 
@@ -149,30 +190,61 @@ export class LaskaClient {
     return resp.user;
   }
 
-  async register(email: string, password: string, username: string): Promise<PublicUser> {
-    return this.adopt(await this.req<AuthResponse>('/auth/register', { method: 'POST', body: { email, password, username } }));
+  async register(
+    email: string,
+    password: string,
+    username: string,
+  ): Promise<PublicUser> {
+    return this.adopt(
+      await this.req<AuthResponse>("/auth/register", {
+        method: "POST",
+        body: { email, password, username },
+      }),
+    );
   }
 
   async login(email: string, password: string): Promise<PublicUser> {
-    return this.adopt(await this.req<AuthResponse>('/auth/login', { method: 'POST', body: { email, password } }));
+    return this.adopt(
+      await this.req<AuthResponse>("/auth/login", {
+        method: "POST",
+        body: { email, password },
+      }),
+    );
   }
 
   async guest(): Promise<PublicUser> {
-    return this.adopt(await this.req<AuthResponse>('/auth/guest', { method: 'POST', body: {} }));
+    return this.adopt(
+      await this.req<AuthResponse>("/auth/guest", { method: "POST", body: {} }),
+    );
   }
 
-  async linkGuest(email: string, password: string, username: string): Promise<PublicUser> {
-    return this.adopt(await this.req<AuthResponse>('/auth/link', { method: 'POST', body: { email, password, username }, auth: true }));
+  async linkGuest(
+    email: string,
+    password: string,
+    username: string,
+  ): Promise<PublicUser> {
+    return this.adopt(
+      await this.req<AuthResponse>("/auth/link", {
+        method: "POST",
+        body: { email, password, username },
+        auth: true,
+      }),
+    );
   }
 
   /** Try to restore a session from a stored refresh token. */
   async restore(): Promise<PublicUser | null> {
     if (!this.tokens) return null;
     try {
-      const { tokens } = await this.req<{ tokens: AuthTokens }>('/auth/refresh', { method: 'POST', body: { refreshToken: this.tokens.refreshToken } });
+      const { tokens } = await this.req<{ tokens: AuthTokens }>(
+        "/auth/refresh",
+        { method: "POST", body: { refreshToken: this.tokens.refreshToken } },
+      );
       this.tokens = tokens;
       this.persistTokens();
-      const { user } = await this.req<{ user: PublicUser }>('/me', { auth: true });
+      const { user } = await this.req<{ user: PublicUser }>("/me", {
+        auth: true,
+      });
       this.user = user;
       return user;
     } catch {
@@ -186,7 +258,10 @@ export class LaskaClient {
   async refreshAccess(): Promise<boolean> {
     if (!this.tokens) return false;
     try {
-      const { tokens } = await this.req<{ tokens: AuthTokens }>('/auth/refresh', { method: 'POST', body: { refreshToken: this.tokens.refreshToken } });
+      const { tokens } = await this.req<{ tokens: AuthTokens }>(
+        "/auth/refresh",
+        { method: "POST", body: { refreshToken: this.tokens.refreshToken } },
+      );
       this.tokens = tokens;
       this.persistTokens();
       return true;
@@ -202,8 +277,8 @@ export class LaskaClient {
   /** Persist the player's cosmetic choices and adopt the returned user. Mirrors
    *  the auth `adopt` pattern, but only the user changes (tokens are untouched). */
   async setCosmetics(patch: CosmeticsPatch): Promise<PublicUser> {
-    const { user } = await this.req<{ user: PublicUser }>('/me/cosmetics', {
-      method: 'PATCH',
+    const { user } = await this.req<{ user: PublicUser }>("/me/cosmetics", {
+      method: "PATCH",
       body: patch,
       auth: true,
     });
@@ -221,7 +296,7 @@ export class LaskaClient {
   // ---- WebSocket --------------------------------------------------------
 
   connect(): void {
-    if (!this.tokens) throw new Error('Authenticate before connecting');
+    if (!this.tokens) throw new Error("Authenticate before connecting");
     this.deliberatelyClosed = false;
     this.openSocket();
   }
@@ -232,30 +307,33 @@ export class LaskaClient {
   }
 
   private openSocket(): void {
-    this.setStatus('connecting');
+    this.setStatus("connecting");
     const ws = new WebSocket(this.wsUrl);
     this.ws = ws;
 
     ws.onopen = () => {
       this.reconnectAttempts = 0;
-      this.setStatus('connected');
+      this.setStatus("connected");
       // Authenticate first thing on every (re)connection.
-      this.send({ type: 'auth', token: this.tokens!.accessToken });
+      this.send({ type: "auth", token: this.tokens!.accessToken });
       // If we were in a match, ask the server for the authoritative state.
-      if (this.currentMatchId) this.send({ type: 'match.sync', matchId: this.currentMatchId });
+      if (this.currentMatchId)
+        this.send({ type: "match.sync", matchId: this.currentMatchId });
     };
 
     ws.onmessage = (ev) => {
       let msg: ServerMessage;
       try {
-        msg = JSON.parse(typeof ev.data === 'string' ? ev.data : '') as ServerMessage;
+        msg = JSON.parse(
+          typeof ev.data === "string" ? ev.data : "",
+        ) as ServerMessage;
       } catch {
         return;
       }
       // If our access token expired mid-session, refresh and re-auth once.
-      if (msg.type === 'error' && msg.code === 'auth-failed') {
+      if (msg.type === "error" && msg.code === "auth-failed") {
         void this.refreshAccess().then((ok) => {
-          if (ok) this.send({ type: 'auth', token: this.tokens!.accessToken });
+          if (ok) this.send({ type: "auth", token: this.tokens!.accessToken });
         });
         return;
       }
@@ -264,7 +342,7 @@ export class LaskaClient {
 
     ws.onclose = () => {
       this.ws = null;
-      this.setStatus('disconnected');
+      this.setStatus("disconnected");
       if (!this.deliberatelyClosed) this.scheduleReconnect();
     };
 
@@ -297,9 +375,13 @@ export class LaskaClient {
    * tier's "Computer (…)" account), so it flows through the existing match path.
    * `color` is the HUMAN's side preference; `variant` absent means Laska.
    */
-  startBotMatch(difficulty: BotDifficulty, color: BotColorPreference = 'random', variant?: VariantId): void {
-    const msg: ClientMessage = { type: 'match.startBot', difficulty, color };
-    if (variant && variant !== 'laska') msg.variant = variant;
+  startBotMatch(
+    difficulty: BotDifficulty,
+    color: BotColorPreference = "random",
+    variant?: VariantId,
+  ): void {
+    const msg: ClientMessage = { type: "match.startBot", difficulty, color };
+    if (variant && variant !== "laska") msg.variant = variant;
     this.send(msg);
   }
 
@@ -311,6 +393,6 @@ export class LaskaClient {
     }
     this.ws?.close();
     this.ws = null;
-    this.setStatus('disconnected');
+    this.setStatus("disconnected");
   }
 }
