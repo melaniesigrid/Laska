@@ -34,7 +34,9 @@ export function buildServer(
     startingRating: config.startingRating,
   });
   const manager = new MatchManager(repo, config.startingRating);
-  const gameServer = new GameServer(repo, auth, manager, cluster);
+  const gameServer = new GameServer(repo, auth, manager, cluster, {
+    ...(config.queueBotFallbackMs !== undefined ? { queueBotFallbackMs: config.queueBotFallbackMs } : {}),
+  });
 
   const httpHandler = createHttpHandler({
     auth,

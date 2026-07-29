@@ -191,13 +191,39 @@ function LobbyModeBar({ mode, setMode }: { mode: LobbyMode; setMode: (m: LobbyMo
 }
 
 /** Quick-match (ranked queue) — the existing Laska/Bashni queue, plus the search
- *  state with its Cancel. */
+ *  state with its Cancel. The waiting copy is honest about the fallback: the queue
+ *  looks for a human first, and if none turns up within a few seconds the server
+ *  matches the player with a rating-matched training bot (same `match.start`). */
 function QuickMatchPanel({ online }: { online: ReturnType<typeof useOnline> }) {
+  // After a short wait, soften the headline so a lone player on a cold board sees
+  // the bot stepping in — without hardcoding the server's (configurable) timeout
+  // as a countdown that could contradict it.
+  const [waitedAWhile, setWaitedAWhile] = useState(false);
+  useEffect(() => {
+    if (online.phase !== 'queued') {
+      setWaitedAWhile(false);
+      return;
+    }
+    const t = setTimeout(() => setWaitedAWhile(true), 8000);
+    return () => clearTimeout(t);
+  }, [online.phase]);
+
   if (online.phase === 'queued') {
     return (
-      <div className="buttons" style={{ flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}>
+      <div className="quick-search buttons" style={{ flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}>
         <DotMascot tint="sky" mood="idle" size={72} />
-        <span className="searching">Searching for an opponent near your rating…</span>
+        <span className="searching" aria-live="polite">
+          {waitedAWhile
+            ? 'No human nearby yet — bringing in a training bot…'
+            : 'Searching for an opponent near your rating…'}
+        </span>
+        <p className="quick-search-note">
+          <Bot size={14} aria-hidden="true" />
+          <span>
+            We look for a human player first. If none joins in a few seconds, a
+            rating-matched <b>training bot</b> steps in so you never wait alone.
+          </span>
+        </p>
         <button onClick={() => online.leaveQueue()}>Cancel</button>
       </div>
     );

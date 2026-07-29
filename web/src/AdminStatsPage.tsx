@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   KeyRound,
 } from 'lucide-react';
+import { resolveApiBase } from './net/client.ts';
 import './landing.css';
 
 /**
@@ -24,7 +25,7 @@ import './landing.css';
  * (`VITE_API_BASE`, falling back to the local dev server) — see useOnline.ts /
  * LeaderboardPage.tsx, which use this exact expression.
  */
-const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://localhost:8080';
+const API_BASE = resolveApiBase(import.meta.env.VITE_API_BASE as string | undefined, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
 
 /** localStorage key for the admin bearer token. */
 const TOKEN_KEY = 'laska.adminToken';
