@@ -33,6 +33,7 @@ import { DotMascot } from './mascots.tsx';
 import { Insignia, PIECE_THEMES, PIECE_THEME_LABEL, PIECE_THEME_BLURB, type PieceTheme } from './pieceTheme.tsx';
 import { MASCOT_TINTS, MASCOT_TINT_LABEL, MASCOT_TINT_HEX } from './cosmetics.ts';
 import { loadSavedGames, type SavedGame } from './savedGames.ts';
+import { ONLINE_ENABLED } from './featureFlags.ts';
 import type { MascotTint } from './mascots.tsx';
 import './landing.css';
 
@@ -144,7 +145,7 @@ export function ProfilePage(props: ProfilePageProps) {
           <button className="btn" onClick={onBack}>
             <ArrowLeft size={16} /> Back
           </button>
-          {!player.signedIn && (
+          {ONLINE_ENABLED && !player.signedIn && (
             <button className="btn" onClick={onSignIn}>
               <LogIn size={16} /> Sign in
             </button>
@@ -165,7 +166,10 @@ export function ProfilePage(props: ProfilePageProps) {
               <h1 className="ph-name">{player.username}</h1>
               {!player.signedIn ? (
                 <p className="ph-note">
-                  <Sparkles size={14} /> Sign in to save your profile across devices — your mascot stays right here meanwhile.
+                  <Sparkles size={14} />{' '}
+                  {ONLINE_ENABLED
+                    ? 'Sign in to save your profile across devices — your mascot stays right here meanwhile.'
+                    : 'Your profile lives on this device — your mascot, pieces and board all stay right here.'}
                 </p>
               ) : player.isGuest ? (
                 <p className="ph-note">

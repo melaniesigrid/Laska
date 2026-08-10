@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ONLINE_ENABLED } from './featureFlags.ts';
 import {
   createInitialState,
   legalMoves,
@@ -330,9 +331,11 @@ export function Landing({
             >
               <Palette key={themeLabel} className="theme-spin" size={16} /> {themeLabel}
             </button>
-            <button className="btn" onClick={onLeaderboard} title="Ranked leaderboard">
-              <Trophy size={16} /> Leaderboard
-            </button>
+            {ONLINE_ENABLED && (
+              <button className="btn" onClick={onLeaderboard} title="Ranked leaderboard">
+                <Trophy size={16} /> Leaderboard
+              </button>
+            )}
             <button className="btn" onClick={onPlay}>
               <span className="dot" />
               Play the game
@@ -363,9 +366,11 @@ export function Landing({
               <button className="btn btn-lg" onClick={onPlay}>
                 Start playing
               </button>
-              <button className="btn" onClick={onPlayOnline}>
-                <Globe size={16} /> Play online
-              </button>
+              {ONLINE_ENABLED && (
+                <button className="btn" onClick={onPlayOnline}>
+                  <Globe size={16} /> Play online
+                </button>
+              )}
               <span className="since">Invented by Emanuel Lasker</span>
             </div>
           </div>
@@ -669,9 +674,11 @@ export function Landing({
                 <span className="dot" />
                 Play Laska
               </button>
-              <button className="btn" onClick={onPlayOnline}>
-                <Globe size={16} /> Play online
-              </button>
+              {ONLINE_ENABLED && (
+                <button className="btn" onClick={onPlayOnline}>
+                  <Globe size={16} /> Play online
+                </button>
+              )}
             </div>
           </div>
         </div>

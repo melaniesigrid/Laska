@@ -76,6 +76,7 @@ import { LessonsPage } from './LessonsPage.tsx';
 import { OpeningsPage } from './OpeningsPage.tsx';
 import { LeaderboardPage } from './LeaderboardPage.tsx';
 import { AdminStatsPage } from './AdminStatsPage.tsx';
+import { ONLINE_ENABLED } from './featureFlags.ts';
 import {
   PieceThemeContext,
   PIECE_THEMES,
@@ -539,6 +540,12 @@ export function App() {
       />
     );
   }
+  // Defensive: with online play gated off the leaderboard has no data source
+  // (it reads the same /api the server would serve), so never render it.
+  if (view === 'leaderboard' && !ONLINE_ENABLED) {
+    setView('landing');
+    return null;
+  }
   if (view === 'leaderboard') {
     return (
       <LeaderboardPage
@@ -625,24 +632,28 @@ export function App() {
           <ArrowLeft size={16} />
         </button>
         <div className="topbar-actions">
-          <div className="segment" role="tablist" aria-label="Play mode">
-            <button
-              className={appMode === 'local' ? 'active' : ''}
-              role="tab"
-              aria-selected={appMode === 'local'}
-              onClick={() => setAppMode('local')}
-            >
-              <Gamepad2 size={15} /> Local
-            </button>
-            <button
-              className={appMode === 'online' ? 'active' : ''}
-              role="tab"
-              aria-selected={appMode === 'online'}
-              onClick={() => setAppMode('online')}
-            >
-              <Globe size={15} /> Online
-            </button>
-          </div>
+          {/* With online gated off there is only one play mode, so the whole
+              segmented control is hidden rather than left as a single tab. */}
+          {ONLINE_ENABLED && (
+            <div className="segment" role="tablist" aria-label="Play mode">
+              <button
+                className={appMode === 'local' ? 'active' : ''}
+                role="tab"
+                aria-selected={appMode === 'local'}
+                onClick={() => setAppMode('local')}
+              >
+                <Gamepad2 size={15} /> Local
+              </button>
+              <button
+                className={appMode === 'online' ? 'active' : ''}
+                role="tab"
+                aria-selected={appMode === 'online'}
+                onClick={() => setAppMode('online')}
+              >
+                <Globe size={15} /> Online
+              </button>
+            </div>
+          )}
           <StreakIndicator state={streak.state} countedToday={streak.countedToday} />
           <div className={`chrome${chromeOpen ? ' open' : ''}`} ref={chromeRef}>
           <button
@@ -688,9 +699,11 @@ export function App() {
           <button className="btn" onClick={() => setView('mygames')} title="Your saved games" aria-label="Your saved games">
             <Library size={16} /> <span className="btn-label">My games</span>
           </button>
-          <button className="btn" onClick={() => setView('leaderboard')} title="Ranked leaderboard" aria-label="Ranked leaderboard">
-            <Trophy size={16} /> <span className="btn-label">Leaderboard</span>
-          </button>
+          {ONLINE_ENABLED && (
+            <button className="btn" onClick={() => setView('leaderboard')} title="Ranked leaderboard" aria-label="Ranked leaderboard">
+              <Trophy size={16} /> <span className="btn-label">Leaderboard</span>
+            </button>
+          )}
           <button className="btn" onClick={() => setView('profile')} title="Your profile" aria-label="Your profile">
             <CircleUserRound size={16} /> <span className="btn-label">Profile</span>
           </button>

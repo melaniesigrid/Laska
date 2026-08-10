@@ -11,6 +11,7 @@ import { describe, test, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProfilePage, type ProfilePageProps } from './ProfilePage.tsx';
+import { ONLINE_ENABLED } from './featureFlags.ts';
 
 const BOARD_OPTIONS = [
   { id: 'navy', label: 'Navy' },
@@ -100,16 +101,21 @@ describe('ProfilePage account state', () => {
     expect(props.onBack).toHaveBeenCalledOnce();
   });
 
-  test('a signed-out player is offered sign-in', async () => {
-    const user = userEvent.setup();
+  // Sign-in is gated on ONLINE_ENABLED. While the game server is undeployed the
+  // flag is false and the button must NOT render — offering it would send the
+  // player into a flow that cannot succeed. When the server ships and the flag
+  // flips back to true, invert this test to the click-through assertion:
+  //   const signIn = screen.getByRole('button', { name: /Sign in/i });
+  //   await user.click(signIn);
+  //   expect(props.onSignIn).toHaveBeenCalledOnce();
+  test('a signed-out player is not offered sign-in while online play is disabled', () => {
     const props = setup({
       player: { username: 'Guest', rating: 1200, ratedGames: 0, isGuest: true, signedIn: false },
     });
 
-    const signIn = screen.getByRole('button', { name: /Sign in/i });
-    await user.click(signIn);
-
-    expect(props.onSignIn).toHaveBeenCalledOnce();
+    expect(ONLINE_ENABLED).toBe(false);
+    expect(screen.queryByRole('button', { name: /Sign in/i })).not.toBeInTheDocument();
+    expect(props.onSignIn).not.toHaveBeenCalled();
   });
 
   test('optional streak and achievement regions stay out of the DOM when omitted', () => {
