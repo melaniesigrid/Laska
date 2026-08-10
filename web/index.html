@@ -134,5 +134,19 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Vercel Web Analytics + Speed Insights: aggregate page views and
+         real-user Core Web Vitals (LCP, CLS, INP).
+
+         Deliberately NOT a GA4 tag. src/analytics/sink.ts requires any real
+         vendor transport to sit behind a GDPR/CCPA consent gate; these two are
+         cookieless and collect no cross-site identifier, so they do not open
+         that hole. If a product-analytics vendor is wanted later, implement
+         AnalyticsSink and call setSink() from a consent-gated init path, per
+         the note in sink.ts — do not bolt a tag on here.
+
+         Both 404 harmlessly until enabled on the project in the dashboard. -->
+    <script defer src="/_vercel/insights/script.js"></script>
+    <script defer src="/_vercel/speed-insights/script.js"></script>
   </body>
 </html>
